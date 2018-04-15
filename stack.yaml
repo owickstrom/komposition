@@ -1,0 +1,16 @@
+resolver: nightly-2018-04-13
+
+# Local packages, usually specified by relative directory name
+packages:
+    - '.'
+
+# Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
+extra-deps:
+  - gi-gobject-2.0.16
+  - gi-gst-1.0.15
+  - gi-gdk-3.0.15
+  - gi-gdkpixbuf-2.0.15
+  - gi-gio-2.0.16
+  - gi-gtk-3.0.21
+  - gi-pango-1.0.16
+  - gi-vte-2.91.17
