@@ -15,7 +15,7 @@ import           Data.Time.Clock (NominalDiffTime)
 type Duration = NominalDiffTime
 
 data ClipMetadata = ClipMetadata
-  { name     :: Text
+  { clipName :: Text
   , path     :: FilePath
   , duration :: Duration
   } deriving (Eq, Show)
@@ -32,25 +32,26 @@ deriving instance Eq (Clip a)
 deriving instance Show (Clip a)
 
 data Sequence
-  = Sequenced [Sequence]
-  | Composed [Clip Video] [Clip Audio]
+  = Sequence [Sequence]
+  | Composition [Clip Video] [Clip Audio]
   deriving (Eq, Show)
 
 single :: Clip a -> Sequence
 single c = case c of
-  VideoClip{} -> Composed [c] []
-  VideoGap{}  -> Composed [c] []
-  AudioClip{} -> Composed [] [c]
-  AudioGap{}  -> Composed [] [c]
+  VideoClip{} -> Composition [c] []
+  VideoGap{}  -> Composition [c] []
+  AudioClip{} -> Composition [] [c]
+  AudioGap{}  -> Composition [] [c]
 
 instance Semigroup Sequence where
-  Sequenced a <> Sequenced b = Sequenced (a <> b)
-  Sequenced a <> b = Sequenced (a <> [b])
-  a <> Sequenced b = Sequenced (a : b)
-  a <> b = Sequenced [a, b]
+  Sequence a <> Sequence b = Sequence (a <> b)
+  Sequence a <> b = Sequence (a <> [b])
+  a <> Sequence b = Sequence (a : b)
+  a <> b = Sequence [a, b]
 
 instance Monoid Sequence where
-  mempty = Sequenced []
+  mempty = Sequence []
+  mappend = (<>)
 
-data Scene = Scene { name :: Text, sequence :: Sequence }
+data Scene = Scene { sceneName :: Text, topSequence :: Sequence }
   deriving (Eq, Show)

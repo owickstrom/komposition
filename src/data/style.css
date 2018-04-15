@@ -1,0 +1,31 @@
+.sequence {
+  background-color: #292929;
+}
+.composition {
+  border: 1px solid #222222;
+  margin-right: 4px;
+}
+.sequence .video {
+  background-color: #252a44;
+}
+.sequence .audio {
+  background-color: #50503d;
+}
+.clip, .gap {
+  border: 1px solid rgba(0, 0, 0, .25);
+}
+.video .clip label {
+  background-color: #2e386d;
+}
+.audio .clip label {
+  background-color: #7a7a48;
+}
+.sequence .gap {
+  background-image: url('stripes.png');
+  background-size: 25px;
+  background-repeat: repeat;
+}
+.clip label,
+.gap label {
+  padding: 10px;
+}

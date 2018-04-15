@@ -3,6 +3,7 @@
 
 module FastCut.SceneTest where
 
+import           Data.Semigroup   ((<>))
 import           Test.Tasty.Hspec
 
 import           FastCut.Scene
@@ -13,10 +14,10 @@ audio1 = AudioClip (ClipMetadata "audio-1" "/tmp/1.m4a" 2)
 audio2 = AudioClip (ClipMetadata "audio-2" "/tmp/2.m4a" 11)
 
 spec_semigroup_concatenation = it "joins two Sequenced lists" $ do
-  let videoAndAudio1 = Sequenced [single video1, single audio1]
-      videoAndAudio2 = Sequenced [single video2, single audio2]
+  let videoAndAudio1 = Sequence [single video1, single audio1]
+      videoAndAudio2 = Sequence [single video2, single audio2]
   videoAndAudio1 <> videoAndAudio2
   `shouldBe`
-  Sequenced [single video1, single audio1, single video2, single audio2]
+  Sequence [single video1, single audio1, single video2, single audio2]
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
