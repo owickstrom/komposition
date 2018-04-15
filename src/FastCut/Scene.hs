@@ -3,11 +3,11 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE OverloadedLabels      #-}
-{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 module FastCut.Scene where
 
+import           Data.Semigroup
 import           Data.Text       (Text)
 import qualified Data.Text       as Text
 import           Data.Time.Clock (NominalDiffTime)
@@ -54,5 +54,3 @@ instance Monoid Sequence where
 
 data Scene = Scene { name :: Text, sequence :: Sequence }
   deriving (Eq, Show)
-
-testClip = VideoClip (ClipMetadata "hello" "/tmp/hello.mp4" 5)

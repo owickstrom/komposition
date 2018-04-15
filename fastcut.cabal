@@ -39,6 +39,7 @@ executable fastcut
                       , gi-gtk
                       , haskell-gi
                       , haskell-gi-base
+                      , haskell-gi-overloading == 0.0.*
                       , text
                       , time
   hs-source-dirs:       exe

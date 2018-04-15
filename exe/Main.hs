@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Data.GI.Base
@@ -7,6 +6,7 @@ import           Data.Maybe
 import           Data.Text
 import           GI.GObject
 import qualified GI.Gtk                  as Gtk
+import           GI.Gtk.Objects.Button
 import           GI.Gtk.Objects.Window   (windowResize)
 
 import           Paths_fastcut
@@ -21,16 +21,17 @@ main = do
   window            <- builderGetObject Gtk.Window builder "window"
   fileChooserButton <- builderGetObject Gtk.Button builder "file-chooser-button"
 
-  on           window #destroy Gtk.mainQuit
+  window `Gtk.onWidgetDestroy` Gtk.mainQuit
 
   windowResize window 640      480
 
 
-  on fileChooserButton #clicked $ set
-    fileChooserButton
-    [#sensitive := False, #label := "Thanks for clicking me"]
 
-  #showAll window
+  fileChooserButton `Gtk.onButtonClicked` do
+    Gtk.widgetSetSensitive fileChooserButton False
+    Gtk.buttonSetLabel fileChooserButton "Yey!"
+
+  Gtk.widgetShowAll window
 
   Gtk.main
 
