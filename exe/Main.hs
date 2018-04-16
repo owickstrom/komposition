@@ -13,8 +13,10 @@ import qualified GI.Gtk                  as Gtk
 import           GI.Gtk.Objects.Button
 import           GI.Gtk.Objects.Window   (windowResize)
 
+import           FastCut.Focus
 import           FastCut.Scene
 import qualified FastCut.Scene.SceneView as SceneView
+import           FastCut.Sequence
 import           Paths_fastcut
 
 cssPriority :: Word32
@@ -49,16 +51,18 @@ main = do
 
   Gtk.main
  where
-  video1    = VideoClip (ClipMetadata "video-1" "/tmp/1.mp4" 4)
-  video2    = VideoClip (ClipMetadata "video-2" "/tmp/2.mp4" 10)
-  audio1    = AudioClip (ClipMetadata "audio-1" "/tmp/1.m4a" 5)
-  audio2    = AudioClip (ClipMetadata "audio-2" "/tmp/2.m4a" 8)
-  audio3    = AudioClip (ClipMetadata "audio-3" "/tmp/3.m4a" 5)
-  gap1     = VideoGap 1
-  gap2     = VideoGap 3
+  video1    = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)
+  video2    = VideoClip () (ClipMetadata "video-2" "/tmp/2.mp4" 10)
+  audio1    = AudioClip () (ClipMetadata "audio-1" "/tmp/1.m4a" 5)
+  audio2    = AudioClip () (ClipMetadata "audio-2" "/tmp/2.m4a" 8)
+  audio3    = AudioClip () (ClipMetadata "audio-3" "/tmp/3.m4a" 5)
+  gap1     = VideoGap () 1
+  gap2     = VideoGap () 3
   testScene = Scene
-    "Test"
-    (Sequence [Composition [gap1, video1] [audio1], Composition [gap2, video2] [audio2, audio3]])
+    { sceneName = "Test"
+    , topSequence = Sequence () [Composition () [gap1, video1] [audio1], Composition () [gap2, video2] [audio2, audio3]]
+    , focus = InSequenceFocus 1 (InCompositionFocus Video 0)
+    }
 
 builderGetObject
   :: (GI.GObject.GObject b, Gtk.IsBuilder a)

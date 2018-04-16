@@ -19,8 +19,10 @@ data-files:           gui.glade
 
 library
   main-is:              Main.hs
-  exposed-modules:      FastCut.Scene
+  exposed-modules:      FastCut.Focus
+                      , FastCut.Scene
                       , FastCut.Scene.SceneView
+                      , FastCut.Sequence
   build-depends:        base >=4.10 && <4.12
                       , gi-gobject
                       , gi-gtk

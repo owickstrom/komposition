@@ -6,20 +6,36 @@
   margin-right: 4px;
 }
 .sequence .video {
-  background-color: #252a44;
+  background-color: #2e386d;
 }
 .sequence .audio {
-  background-color: #50503d;
+  background-color: #7a7a48;
+}
+
+.composition.transitively-focused {
+  margin: 0 8px 0 8px;
 }
 .clip, .gap {
   border: 1px solid rgba(0, 0, 0, .25);
 }
-.video .clip label {
-  background-color: #2e386d;
+.gap {
+  background-color: rgba(0, 0, 0, 0.25)
 }
-.audio .clip label {
-  background-color: #7a7a48;
+.clip.focused {
+  background-color: rgba(255, 255, 255, 0.25);
+  border: 2px dotted #fff;
 }
+.gap.focused {
+  background-color: transparent;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 2px dotted #fff;
+}
+
+.video .clip {
+}
+.audio .clip {
+}
+
 .sequence .gap {
   background-image: url('stripes.png');
   background-size: 25px;
