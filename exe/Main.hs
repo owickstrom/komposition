@@ -15,12 +15,38 @@ import           GI.Gtk.Objects.Window   (windowResize)
 
 import           FastCut.Focus
 import           FastCut.Scene
-import qualified FastCut.Scene.SceneView as SceneView
+import qualified FastCut.Scene.Renderer  as Scene
+import           FastCut.Scene.View
 import           FastCut.Sequence
 import           Paths_fastcut
 
 cssPriority :: Word32
 cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER :: Word32
+
+sceneRenderLoop :: Gtk.Box -> SceneView -> IO ()
+sceneRenderLoop mainBox = loop
+  where
+    loop sceneView = do
+      sceneView <- Scene.render sceneView
+      Gtk.boxPackEnd mainBox sceneView True True 0
+      -- loop
+
+initialSceneView = SceneView
+  { scene = testScene
+  , focus = InSequenceFocus 1 (InCompositionFocus Video 0)
+  }
+ where
+  video1    = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)
+  video2    = VideoClip () (ClipMetadata "video-2" "/tmp/2.mp4" 10)
+  audio1    = AudioClip () (ClipMetadata "audio-1" "/tmp/1.m4a" 5)
+  audio2    = AudioClip () (ClipMetadata "audio-2" "/tmp/2.m4a" 8)
+  audio3    = AudioClip () (ClipMetadata "audio-3" "/tmp/3.m4a" 5)
+  gap1     = VideoGap () 1
+  gap2     = VideoGap () 3
+  testScene = Scene
+    { sceneName = "Test"
+    , topSequence = Sequence () [Composition () [gap1, video1] [audio1], Composition () [gap2, video2] [audio2, audio3]]
+    }
 
 main :: IO ()
 main = do
@@ -40,8 +66,7 @@ main = do
                                        cssProvider
                                        cssPriority
 
-  sceneView <- SceneView.render testScene
-  Gtk.boxPackEnd mainBox sceneView True True 0
+  sceneRenderLoop mainBox initialSceneView
 
   window `Gtk.onWidgetDestroy` Gtk.mainQuit
 
@@ -50,19 +75,6 @@ main = do
   Gtk.widgetShowAll window
 
   Gtk.main
- where
-  video1    = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)
-  video2    = VideoClip () (ClipMetadata "video-2" "/tmp/2.mp4" 10)
-  audio1    = AudioClip () (ClipMetadata "audio-1" "/tmp/1.m4a" 5)
-  audio2    = AudioClip () (ClipMetadata "audio-2" "/tmp/2.m4a" 8)
-  audio3    = AudioClip () (ClipMetadata "audio-3" "/tmp/3.m4a" 5)
-  gap1     = VideoGap () 1
-  gap2     = VideoGap () 3
-  testScene = Scene
-    { sceneName = "Test"
-    , topSequence = Sequence () [Composition () [gap1, video1] [audio1], Composition () [gap2, video2] [audio2, audio3]]
-    , focus = InSequenceFocus 1 (InCompositionFocus Video 0)
-    }
 
 builderGetObject
   :: (GI.GObject.GObject b, Gtk.IsBuilder a)

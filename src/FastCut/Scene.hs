@@ -16,5 +16,5 @@ import           Data.Time.Clock  (NominalDiffTime)
 import           FastCut.Focus
 import           FastCut.Sequence
 
-data Scene = Scene { sceneName :: Text, topSequence :: Sequence (), focus :: Focus }
+data Scene = Scene { sceneName :: Text, topSequence :: Sequence () }
   deriving (Eq, Show)

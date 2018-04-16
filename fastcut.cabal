@@ -21,7 +21,8 @@ library
   main-is:              Main.hs
   exposed-modules:      FastCut.Focus
                       , FastCut.Scene
-                      , FastCut.Scene.SceneView
+                      , FastCut.Scene.Renderer
+                      , FastCut.Scene.View
                       , FastCut.Sequence
   build-depends:        base >=4.10 && <4.12
                       , gi-gobject

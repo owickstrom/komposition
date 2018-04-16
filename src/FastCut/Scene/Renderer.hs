@@ -1,8 +1,9 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
-module FastCut.Scene.SceneView where
+module FastCut.Scene.Renderer where
 
 import           Control.Monad
 import           Data.GI.Base
@@ -20,6 +21,7 @@ import           GI.Pango.Enums          (EllipsizeMode (..))
 
 import           FastCut.Focus
 import           FastCut.Scene
+import           FastCut.Scene.View
 import           FastCut.Sequence
 
 setWidthFromDuration :: (RealFrac a1, Gtk.IsWidget a) => a -> a1 -> IO ()
@@ -81,11 +83,11 @@ renderSequence = \case
     mapM_ (renderClipToBox audioBox) audioClips
     return compositionBox
 
-render :: Scene -> IO Gtk.Box
-render scene = do
+render :: SceneView -> IO Gtk.Box
+render SceneView { scene, focus } = do
   sceneBox   <- Gtk.boxNew Gtk.OrientationVertical 0
   sceneLabel <- Gtk.labelNew (Just (sceneName scene))
-  sequence   <- renderSequence (applyFocus (topSequence scene) (focus scene))
+  sequence   <- renderSequence (applyFocus (topSequence scene) focus)
   Gtk.boxPackStart sceneBox sceneLabel True  True  10
   Gtk.boxPackStart sceneBox sequence   False False 10
   return sceneBox
