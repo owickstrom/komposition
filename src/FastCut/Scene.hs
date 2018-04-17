@@ -2,19 +2,29 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 module FastCut.Scene where
 
-import           Data.Semigroup
 import           Data.Text        (Text)
-import qualified Data.Text        as Text
-import           Data.Time.Clock  (NominalDiffTime)
 
 import           FastCut.Focus
 import           FastCut.Sequence
 
 data Scene = Scene { sceneName :: Text, topSequence :: Sequence () }
   deriving (Eq, Show)
+
+data FocusEvent = FocusLeft | FocusRight
+  deriving (Eq, Show)
+
+data Event = FocusEvent FocusEvent
+  deriving (Eq, Show)
+
+data SceneView = SceneView { scene :: Scene , focus :: Focus }
+  deriving (Eq, Show)
+
+update :: SceneView -> Event -> SceneView
+update view = \case
+  FocusEvent FocusLeft -> view
+  FocusEvent FocusRight -> view

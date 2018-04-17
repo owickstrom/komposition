@@ -1,36 +1,57 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import           Control.Concurrent
+import           Control.Monad          (void)
 import           Data.GI.Base
-import           Data.GI.Base.Properties
-import           Data.Maybe
-import           Data.Semigroup          ((<>))
+import           Data.Semigroup         ((<>))
 import           Data.Text
-import qualified Data.Text               as Text
+import qualified Data.Text              as Text
 import           Data.Word
-import qualified GI.Gdk                  as Gdk
+import qualified GI.Gdk                 as Gdk
+import qualified GI.GLib.Constants      as GLib
 import           GI.GObject
-import qualified GI.Gtk                  as Gtk
-import           GI.Gtk.Objects.Button
-import           GI.Gtk.Objects.Window   (windowResize)
+import qualified GI.Gtk                 as Gtk
+import           GI.Gtk.Objects.Window  (windowResize)
 
 import           FastCut.Focus
-import           FastCut.Scene
-import qualified FastCut.Scene.Renderer  as Scene
-import           FastCut.Scene.View
+import           FastCut.Scene          (Scene (..), SceneView (..))
+import qualified FastCut.Scene          as Scene
+import qualified FastCut.Scene.Renderer as Scene
 import           FastCut.Sequence
 import           Paths_fastcut
 
 cssPriority :: Word32
 cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER :: Word32
 
-sceneRenderLoop :: Gtk.Box -> SceneView -> IO ()
-sceneRenderLoop mainBox = loop
+addKeyboardEventHandler :: Gtk.Window -> IO (Chan Scene.Event)
+addKeyboardEventHandler window = do
+  events <- newChan
+  void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
+     keyVal <- Gdk.getEventKeyKeyval eventKey
+     case keyVal of
+       Gdk.KEY_Left  -> publish events (Scene.FocusEvent Scene.FocusLeft)
+       Gdk.KEY_Right -> publish events (Scene.FocusEvent Scene.FocusRight)
+       _             -> ignore
+  return events
+  where
+    publish events event = writeChan events event *> return False
+    ignore = return False
+
+sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> SceneView -> IO ()
+sceneRenderLoop events mainBox = loop
   where
     loop sceneView = do
-      sceneView <- Scene.render sceneView
-      Gtk.boxPackEnd mainBox sceneView True True 0
-      -- loop
+      widget <- Scene.render sceneView
+      void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+        Gtk.containerForall mainBox (Gtk.containerRemove mainBox)
+        Gtk.boxPackEnd mainBox widget True True 0
+        Gtk.widgetShowAll widget
+        return False
+      event <- readChan events
+      putStrLn ("Got new scene view event: " ++ show event)
+      loop (Scene.update sceneView event)
 
+initialSceneView :: SceneView
 initialSceneView = SceneView
   { scene = testScene
   , focus = InSequenceFocus 1 (InCompositionFocus Video 0)
@@ -50,14 +71,13 @@ initialSceneView = SceneView
 
 main :: IO ()
 main = do
-  Gtk.init Nothing
+  void $ Gtk.init Nothing
 
   gladeFile    <- getDataFileName "gui.glade"
   builder      <- Gtk.builderNewFromFile (pack gladeFile)
 
   window       <- builderGetObject Gtk.Window builder "window"
   mainBox      <- builderGetObject Gtk.Box builder "main-box"
-  styleContext <- Gtk.widgetGetStyleContext mainBox
   cssProvider  <- Gtk.cssProviderNew
   screen       <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
   Gtk.cssProviderLoadFromPath cssProvider . Text.pack =<< getDataFileName
@@ -66,9 +86,10 @@ main = do
                                        cssProvider
                                        cssPriority
 
-  sceneRenderLoop mainBox initialSceneView
+  events <- addKeyboardEventHandler window
+  void . forkIO $ sceneRenderLoop events mainBox initialSceneView
 
-  window `Gtk.onWidgetDestroy` Gtk.mainQuit
+  void $ window `Gtk.onWidgetDestroy` Gtk.mainQuit
 
   windowResize window 640 480
 

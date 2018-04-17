@@ -11,7 +11,6 @@ module FastCut.Sequence where
 
 import           Data.Semigroup
 import           Data.Text       (Text)
-import qualified Data.Text       as Text
 import           Data.Time.Clock (NominalDiffTime)
 
 type Duration = NominalDiffTime

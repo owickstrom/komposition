@@ -31,11 +31,6 @@
   border: 2px dotted #fff;
 }
 
-.video .clip {
-}
-.audio .clip {
-}
-
 .sequence .gap {
   background-image: url('stripes.png');
   background-size: 25px;

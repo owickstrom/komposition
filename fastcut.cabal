@@ -22,10 +22,10 @@ library
   exposed-modules:      FastCut.Focus
                       , FastCut.Scene
                       , FastCut.Scene.Renderer
-                      , FastCut.Scene.View
                       , FastCut.Sequence
   build-depends:        base >=4.10 && <4.12
                       , gi-gobject
+                      , gi-glib
                       , gi-gtk
                       , gi-gdk
                       , gi-pango
@@ -35,6 +35,7 @@ library
                       , time
   hs-source-dirs:       src
   default-language:     Haskell2010
+  ghc-options:        -Wall -fno-warn-unticked-promoted-constructors
 
 executable fastcut
   main-is:              Main.hs
@@ -43,6 +44,7 @@ executable fastcut
   build-depends:        base >=4.10 && <4.12
                       , fastcut
                       , gi-gobject
+                      , gi-glib
                       , gi-gtk
                       , gi-gdk
                       , gi-pango
@@ -53,6 +55,8 @@ executable fastcut
                       , time
   hs-source-dirs:       exe
   default-language:     Haskell2010
+  ghc-options:        -Wall -threaded
+
 
 test-suite fastcut-tests
     type:            exitcode-stdio-1.0
