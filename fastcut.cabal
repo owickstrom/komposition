@@ -62,7 +62,8 @@ test-suite fastcut-tests
     type:            exitcode-stdio-1.0
     hs-source-dirs:  test
     main-is:         Main.hs
-    other-modules:   FastCut.SceneTest
+    other-modules:   FastCut.FocusTest
+                   , FastCut.SequenceTest
     build-depends:   base                 >= 4        && < 5
                    , unordered-containers >= 0.2      && < 0.3
                    , fastcut
@@ -70,3 +71,4 @@ test-suite fastcut-tests
                    , tasty-hunit
                    , tasty-hspec
                    , tasty-discover
+  ghc-options:     -Wall -fno-warn-missing-signatures

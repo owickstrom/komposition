@@ -29,8 +29,8 @@ addKeyboardEventHandler window = do
   void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
      keyVal <- Gdk.getEventKeyKeyval eventKey
      case keyVal of
-       Gdk.KEY_Left  -> publish events (Scene.FocusEvent Scene.FocusLeft)
-       Gdk.KEY_Right -> publish events (Scene.FocusEvent Scene.FocusRight)
+       Gdk.KEY_Left  -> publish events (Scene.FocusEvent FocusLeft)
+       Gdk.KEY_Right -> publish events (Scene.FocusEvent FocusRight)
        _             -> ignore
   return events
   where
@@ -54,7 +54,7 @@ sceneRenderLoop events mainBox = loop
 initialSceneView :: SceneView
 initialSceneView = SceneView
   { scene = testScene
-  , focus = InSequenceFocus 1 (InCompositionFocus Video 0)
+  , focus = InSequenceFocus 1 Here
   }
  where
   video1    = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)

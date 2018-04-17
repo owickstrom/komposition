@@ -4,8 +4,8 @@ module FastCut.Focus where
 import           FastCut.Sequence
 
 data Focus
-  = InSequenceFocus Word Focus
-  | InCompositionFocus ClipType Word
+  = InSequenceFocus Int Focus
+  | InCompositionFocus ClipType Int
   | Here
   deriving (Eq, Show)
 
@@ -53,3 +53,24 @@ applyFocus = \case
     applyAtClip idx clip clipIdx
       | clipIdx == idx = setClipAnnotation Focused clip
       | otherwise = blurClip clip
+
+data FocusEvent = FocusUp | FocusDown | FocusLeft | FocusRight
+  deriving (Eq, Show)
+
+modifyFocus :: Sequence a -> Focus -> FocusEvent -> Maybe Focus
+modifyFocus = \case
+  Sequence _ sub -> \case
+    InSequenceFocus idx Here -> \case
+      FocusLeft | idx > 0 -> pure (InSequenceFocus (pred idx) Here)
+      FocusRight | idx < (length sub - 1) -> pure (InSequenceFocus (succ idx) Here)
+      _ -> Nothing
+    InSequenceFocus idx subFocus -> \case
+      e -> do
+        InSequenceFocus idx <$> modifyFocus (sub !! fromIntegral idx) subFocus e
+    InCompositionFocus {} -> const Nothing
+    Here -> const (pure Here)
+  Composition _ _videoClips _audioClips -> \case
+    InSequenceFocus {} -> const Nothing
+    InCompositionFocus _focusClipType idx ->
+      const Nothing
+    Here -> const (pure Here)

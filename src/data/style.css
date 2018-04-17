@@ -11,9 +11,16 @@
 .sequence .audio {
   background-color: #7a7a48;
 }
+.sequence.focused {
+  border-top: 2px solid #478055;
+}
 
+.composition.focused {
+  border-color: #478055;
+  box-shadow: 0 0 5px #478055;
+}
 .composition.transitively-focused {
-  margin: 0 8px 0 8px;
+  border-color: #616161;
 }
 .clip, .gap {
   border: 1px solid rgba(0, 0, 0, .25);
