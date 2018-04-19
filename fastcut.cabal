@@ -31,11 +31,12 @@ library
                       , gi-pango
                       , haskell-gi
                       , haskell-gi-base
+                      , mtl
                       , text
                       , time
   hs-source-dirs:       src
   default-language:     Haskell2010
-  ghc-options:        -Wall -fno-warn-unticked-promoted-constructors
+  ghc-options:        -Wall
 
 executable fastcut
   main-is:              Main.hs
@@ -71,4 +72,4 @@ test-suite fastcut-tests
                    , tasty-hunit
                    , tasty-hspec
                    , tasty-discover
-  ghc-options:     -Wall -fno-warn-missing-signatures
+  ghc-options:     -Wall

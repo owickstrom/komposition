@@ -31,6 +31,8 @@ addKeyboardEventHandler window = do
      case keyVal of
        Gdk.KEY_Left  -> publish events (Scene.FocusEvent FocusLeft)
        Gdk.KEY_Right -> publish events (Scene.FocusEvent FocusRight)
+       Gdk.KEY_Up    -> publish events (Scene.FocusEvent FocusUp)
+       Gdk.KEY_Down  -> publish events (Scene.FocusEvent FocusDown)
        _             -> ignore
   return events
   where
@@ -41,6 +43,7 @@ sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> SceneView -> IO ()
 sceneRenderLoop events mainBox = loop
   where
     loop sceneView = do
+      print sceneView
       widget <- Scene.render sceneView
       void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
         Gtk.containerForall mainBox (Gtk.containerRemove mainBox)
@@ -54,7 +57,7 @@ sceneRenderLoop events mainBox = loop
 initialSceneView :: SceneView
 initialSceneView = SceneView
   { scene = testScene
-  , focus = InSequenceFocus 1 Here
+  , focus = InSequenceFocus 0 Nothing
   }
  where
   video1    = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)

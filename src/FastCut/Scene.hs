@@ -24,7 +24,6 @@ data SceneView = SceneView { scene :: Scene , focus :: Focus }
 update :: SceneView -> Event -> SceneView
 update view = \case
   FocusEvent focusEvent ->
-    case modifyFocus (topSequence (scene view)) (focus view) focusEvent of
-      Just focus' -> view { focus = focus' }
-      Nothing     -> view
-  FocusEvent FocusRight -> view
+    case modifyFocus (topSequence (scene view)) focusEvent (focus view) of
+      Left _       -> view
+      Right focus' -> view { focus = focus' }

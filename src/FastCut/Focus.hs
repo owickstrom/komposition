@@ -1,12 +1,13 @@
-{-# LANGUAGE LambdaCase #-}
-module FastCut.Focus where
+{-# LANGUAGE LambdaCase        #-}
+module FastCut.Focus
+where
 
+import           Control.Monad.Except (throwError)
 import           FastCut.Sequence
 
 data Focus
-  = InSequenceFocus Int Focus
+  = InSequenceFocus Int (Maybe Focus)
   | InCompositionFocus ClipType Int
-  | Here
   deriving (Eq, Show)
 
 data Focused
@@ -19,58 +20,87 @@ blurSequence :: Sequence a -> Sequence Focused
 blurSequence = \case
   Sequence _ sub -> Sequence Blurred (map blurSequence sub)
   Composition _ videoClips audioClips ->
-    Composition
-    Blurred
-    (map blurClip videoClips)
-    (map blurClip audioClips)
+    Composition Blurred (map blurClip videoClips) (map blurClip audioClips)
 
 blurClip :: Clip a t -> Clip Focused t
 blurClip = setClipAnnotation Blurred
 
 applyFocus :: Sequence a -> Focus -> Sequence Focused
-applyFocus = \case
-  Sequence _ sub -> \case
-    InSequenceFocus idx subFocus ->
-      Sequence TransitivelyFocused (zipWith (applyAtSubSequence idx subFocus) sub [0..])
-    InCompositionFocus {} -> Sequence Blurred (map blurSequence sub)
-    Here -> Sequence Focused (map blurSequence sub)
-  Composition _ videoClips audioClips -> \case
-    InSequenceFocus {} ->
-      Composition Blurred (map blurClip videoClips) (map blurClip audioClips)
-    InCompositionFocus focusClipType idx ->
-      let applyAtClips clips = zipWith (applyAtClip idx) clips [0..]
-          (videoClips', audioClips') =
-            case focusClipType of
-              Video -> (applyAtClips videoClips, map blurClip audioClips)
-              Audio -> (map blurClip videoClips, applyAtClips audioClips)
-      in Composition TransitivelyFocused videoClips' audioClips'
-    Here ->
-      Composition Focused (map blurClip videoClips) (map blurClip audioClips)
+applyFocus s f = go s (Just f)
   where
+
+    go (Sequence _ sub) (Just (InSequenceFocus idx subFocus)) =
+      Sequence TransitivelyFocused (zipWith (applyAtSubSequence idx subFocus) sub [0 ..])
+    go (Sequence _ sub) _ =
+      Sequence Focused (map blurSequence sub)
+    go (Composition _ videoClips audioClips) (Just (InCompositionFocus focusClipType idx)) =
+      let focusInClips clips = zipWith (focusClipAt idx) clips [0 ..]
+          (videoClips', audioClips') = case focusClipType of
+            Video -> (focusInClips videoClips, map blurClip audioClips)
+            Audio -> (map blurClip videoClips, focusInClips audioClips)
+      in  Composition TransitivelyFocused videoClips' audioClips'
+    go (Composition _ videoClips audioClips) _ =
+      Composition Focused (map blurClip videoClips) (map blurClip audioClips)
+    -- Apply focus at the sub-sequence specified by 'idx'.
     applyAtSubSequence idx subFocus subSequence subIdx
-      | subIdx == idx = applyFocus subSequence subFocus
-      | otherwise = blurSequence subSequence
-    applyAtClip idx clip clipIdx
+      | subIdx == idx = go subSequence subFocus
+      | otherwise     = blurSequence subSequence
+    -- Apply focus at the clip specified by 'idx'.
+    focusClipAt idx clip clipIdx
       | clipIdx == idx = setClipAnnotation Focused clip
-      | otherwise = blurClip clip
+      | otherwise      = blurClip clip
 
 data FocusEvent = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show)
 
-modifyFocus :: Sequence a -> Focus -> FocusEvent -> Maybe Focus
-modifyFocus = \case
-  Sequence _ sub -> \case
-    InSequenceFocus idx Here -> \case
-      FocusLeft | idx > 0 -> pure (InSequenceFocus (pred idx) Here)
-      FocusRight | idx < (length sub - 1) -> pure (InSequenceFocus (succ idx) Here)
-      _ -> Nothing
-    InSequenceFocus idx subFocus -> \case
-      e -> do
-        InSequenceFocus idx <$> modifyFocus (sub !! fromIntegral idx) subFocus e
-    InCompositionFocus {} -> const Nothing
-    Here -> const (pure Here)
-  Composition _ _videoClips _audioClips -> \case
-    InSequenceFocus {} -> const Nothing
-    InCompositionFocus _focusClipType idx ->
-      const Nothing
-    Here -> const (pure Here)
+data FocusError a
+  = OutOfBounds (Sequence a) FocusEvent Focus
+  | CannotMoveUp
+  | UnhandledFocusModification (Sequence a) FocusEvent Focus
+  deriving (Eq, Show)
+
+modifyFocus :: Sequence a -> FocusEvent -> Focus -> Either (FocusError a) Focus
+modifyFocus s e f = case (s, e, f) of
+
+  -- * Up
+  --  In these cases we've hit a focus "leaf" and cannot move up.
+  (Composition {}, FocusUp, InCompositionFocus _ _) -> throwError CannotMoveUp
+  (Sequence {}, FocusUp, InSequenceFocus _ Nothing) -> throwError CannotMoveUp
+  -- In case we have a parent, we try to move up within the child, or
+  -- fall back to focus this parent.
+  (Sequence _ sub, FocusUp, InSequenceFocus i (Just subFocus)) ->
+    case modifyFocus (sub !! i) FocusUp subFocus of
+      Left CannotMoveUp -> pure (InSequenceFocus i Nothing)
+      Left err          -> throwError err
+      Right f'          -> pure (InSequenceFocus i (Just f'))
+
+  -- * Down
+  (Sequence _ sub, FocusDown, InSequenceFocus i Nothing) ->
+    case sub !! i of
+      Sequence{} -> InSequenceFocus i . Just <$> modifyFocus s FocusDown (InSequenceFocus 0 Nothing)
+      Composition{} -> pure (InSequenceFocus i (Just (InCompositionFocus Video 0)))
+
+  -- * Left
+  (Sequence{}, FocusLeft, InSequenceFocus idx Nothing)
+    | idx > 0 -> pure (InSequenceFocus (pred idx) Nothing)
+    | otherwise -> throwError (OutOfBounds s e f)
+  (Composition _ videoClips audioClips, FocusLeft, InCompositionFocus type' idx)
+    | type' == Video && idx > 0 && idx < length videoClips -> pure (InCompositionFocus Video (pred idx))
+    | type' == Audio && idx > 0 && idx < length audioClips -> pure (InCompositionFocus Audio (pred idx))
+    | otherwise -> throwError (OutOfBounds s e f)
+
+  -- * Right
+  (Sequence _ sub, FocusRight, InSequenceFocus idx Nothing)
+    | idx < (length sub - 1) -> pure (InSequenceFocus (succ idx) Nothing)
+    | otherwise -> throwError (OutOfBounds s e f)
+  (Composition _ videoClips audioClips, FocusRight, InCompositionFocus type' idx)
+    | type' == Video && idx >= 0 && idx < (length videoClips - 1) -> pure (InCompositionFocus Video (succ idx))
+    | type' == Audio && idx >= 0 && idx < (length audioClips - 1) -> pure (InCompositionFocus Audio (succ idx))
+    | otherwise -> throwError (OutOfBounds s e f)
+
+  -- * Left or Right further down.
+  (Sequence _ sub, _, InSequenceFocus idx (Just subFocus)) ->
+    InSequenceFocus idx . Just <$> modifyFocus (sub !! idx) e subFocus
+
+  _ -> throwError (UnhandledFocusModification s e f)
+

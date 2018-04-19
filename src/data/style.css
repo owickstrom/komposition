@@ -1,49 +1,71 @@
 .sequence {
-  background-color: #292929;
+  border-top: 2px solid #111;
+  border-bottom: 2px solid #111;
+  background-color: #222;
 }
 .composition {
-  border: 1px solid #222222;
-  margin-right: 4px;
+  border-left: 1px solid #111;
+  border-right: 2px solid #111;
+  margin-right: -2px;
+  background-color: #333;
+}
+.composition:first-child {
+  border-left: 2px solid #111;
+}
+.composition:last-child {
+  border-right: 2px solid #111;
 }
 .sequence .video {
-  background-color: #2e386d;
+  border-bottom: 2px solid #111;
 }
-.sequence .audio {
+.sequence .video .clip {
+  background-color: #069;
+}
+.sequence .audio .clip {
   background-color: #7a7a48;
 }
-.sequence.focused {
-  border-top: 2px solid #478055;
-}
-
-.composition.focused {
+.sequence .sequence.focused {
   border-color: #478055;
-  box-shadow: 0 0 5px #478055;
 }
-.composition.transitively-focused {
+.sequence .sequence.transitively-focused {
   border-color: #616161;
 }
+.composition.focused {
+  margin-top: -2px;
+  border-top: 2px solid #eee;
+}
+.composition.transitively-focused {
+}
 .clip, .gap {
-  border: 1px solid rgba(0, 0, 0, .25);
+  padding: 10px;
+}
+.clip {
+  box-shadow: inset 1px 0px 1px rgba(255, 255, 255, 0.2);
+  border-width: 0 2px 0 0;
+  border-color: #222;
+  border-style: solid;
 }
 .gap {
-  background-color: rgba(0, 0, 0, 0.25)
+  background-color: #333;
+  background-image: url('stripes.png');
+  background-size: 25px;
+  background-repeat: repeat;
+  border-width: 0 2px 0 0;
+  border-color: #222;
+  border-style: solid;
+}
+.clip.focused,
+.gap.focused {
+  border-width: 2px;
+  border-color: #eee;
+  margin-top: -2px;
+  margin-bottom: -2px;
+  margin-left: -2px;
 }
 .clip.focused {
   background-color: rgba(255, 255, 255, 0.25);
-  border: 2px dotted #fff;
 }
 .gap.focused {
   background-color: transparent;
   background-color: rgba(255, 255, 255, 0.1);
-  border: 2px dotted #fff;
-}
-
-.sequence .gap {
-  background-image: url('stripes.png');
-  background-size: 25px;
-  background-repeat: repeat;
-}
-.clip label,
-.gap label {
-  padding: 10px;
 }
