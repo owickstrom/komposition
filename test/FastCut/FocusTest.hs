@@ -78,12 +78,17 @@ spec_modifyFocus = do
         after'  = InSequenceFocus 1 Nothing
     modifyFocus twoLevelSequence FocusUp before' `shouldBe` pure after'
 
-  it "moves the focus up from composition in multi-level sequence" $ do
+  it "moves the focus up from video in multi-level sequence" $ do
     let before' = InSequenceFocus
           1
           (Just (InSequenceFocus 1 (Just (InCompositionFocus Video 1))))
         after' = InSequenceFocus 1 (Just (InSequenceFocus 1 Nothing))
     modifyFocus twoLevelSequence FocusUp before' `shouldBe` pure after'
+
+  it "moves the focus up from audio to video" $ do
+    let before' = InSequenceFocus 1 (Just (InCompositionFocus Audio 1))
+        after' = InSequenceFocus 1 (Just (InCompositionFocus Video 0))
+    modifyFocus singleLevelSequence FocusUp before' `shouldBe` pure after'
 
   it "maintains top sequence focus when trying to move up" $ do
     let before' = InSequenceFocus 0 Nothing
@@ -92,6 +97,11 @@ spec_modifyFocus = do
   it "moves the focus down into a composition in single-level sequence" $ do
     let before' = InSequenceFocus 0 Nothing
         after'  = InSequenceFocus 0 (Just (InCompositionFocus Video 0))
+    modifyFocus singleLevelSequence FocusDown before' `shouldBe` pure after'
+
+  it "moves the focus down from video into audio in composition" $ do
+    let before' = InSequenceFocus 0 (Just (InCompositionFocus Video 0))
+        after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 0))
     modifyFocus singleLevelSequence FocusDown before' `shouldBe` pure after'
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
