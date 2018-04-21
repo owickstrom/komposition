@@ -9,20 +9,22 @@ import           FastCut.Focus
 import           FastCut.Sequence
 
 
-video1 = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)
-video2 = VideoClip () (ClipMetadata "video-2" "/tmp/2.mp4" 10)
-audio1 = AudioClip () (ClipMetadata "audio-1" "/tmp/1.m4a" 5)
-audio2 = AudioClip () (ClipMetadata "audio-2" "/tmp/2.m4a" 8)
-audio3 = AudioClip () (ClipMetadata "audio-3" "/tmp/3.m4a" 5)
-gap1 = VideoGap () 1
-gap2 = VideoGap () 3
-composition1 = Composition () [gap1, video1] [audio1]
-composition2 = Composition () [gap2, video2] [audio2, audio3]
+video4s = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)
+video10s = VideoClip () (ClipMetadata "video-2" "/tmp/2.mp4" 10)
+audio1s = AudioClip () (ClipMetadata "audio-1" "/tmp/1.m4a" 1)
+audio4s = AudioClip () (ClipMetadata "audio-2" "/tmp/2.m4a" 4)
+audio10s = AudioClip () (ClipMetadata "audio-3" "/tmp/3.m4a" 10)
+videoGap1s = VideoGap () 1
+videoGap3s = VideoGap () 3
+audioGap1s = AudioGap () 1
+audioGap3s = AudioGap () 3
+composition1 = Composition () [videoGap1s, video4s] [audio1s]
+composition2 = Composition () [videoGap3s, video10s] [audio4s, audio10s]
 
 singleLevelSequence = Sequence
   ()
-  [ Composition () [gap1, video1] [audio1]
-  , Composition () [gap2, video2] [audio2, audio3]
+  [ Composition () [videoGap1s, video4s] [audio1s]
+  , Composition () [videoGap3s, video10s] [audio4s, audio10s]
   ]
 
 twoLevelSequence =
@@ -85,10 +87,18 @@ spec_modifyFocus = do
         after' = InSequenceFocus 1 (Just (InSequenceFocus 1 Nothing))
     modifyFocus twoLevelSequence FocusUp before' `shouldBe` pure after'
 
-  it "moves the focus up from audio to video" $ do
-    let before' = InSequenceFocus 1 (Just (InCompositionFocus Audio 1))
-        after' = InSequenceFocus 1 (Just (InCompositionFocus Video 0))
-    modifyFocus singleLevelSequence FocusUp before' `shouldBe` pure after'
+  it "moves the focus up from audio into video with nearest start to the left" $ do
+    let sequence' = Sequence
+          () [ Composition () [videoGap3s, video4s] [audioGap1s, audioGap3s, audio1s] ]
+        before' = InSequenceFocus 0 (Just (InCompositionFocus Audio 2))
+        after'  = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+    modifyFocus sequence' FocusUp before' `shouldBe` pure after'
+
+  it "moves the focus up from audio into video with same starting point" $ do
+    let sequence' = Sequence () [ Composition () [videoGap3s, video10s] [audioGap3s, audio10s] ]
+        before' = InSequenceFocus 0 (Just (InCompositionFocus Audio 1))
+        after'  = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+    modifyFocus sequence' FocusUp before' `shouldBe` pure after'
 
   it "maintains top sequence focus when trying to move up" $ do
     let before' = InSequenceFocus 0 Nothing
@@ -103,5 +113,18 @@ spec_modifyFocus = do
     let before' = InSequenceFocus 0 (Just (InCompositionFocus Video 0))
         after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 0))
     modifyFocus singleLevelSequence FocusDown before' `shouldBe` pure after'
+
+  it "moves the focus down from video into audio with nearest start to the left" $ do
+    let sequence' = Sequence
+          () [ Composition () [videoGap3s, video4s] [audioGap1s, audioGap3s, audio1s] ]
+        before' = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+        after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 1))
+    modifyFocus sequence' FocusDown before' `shouldBe` pure after'
+
+  it "moves the focus up from audio into video with same starting point" $ do
+    let sequence' = Sequence () [ Composition () [videoGap3s, video10s] [audioGap3s, audio10s] ]
+        before' = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+        after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 1))
+    modifyFocus sequence' FocusDown before' `shouldBe` pure after'
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}

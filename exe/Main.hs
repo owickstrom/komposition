@@ -2,6 +2,7 @@
 
 import           Control.Concurrent
 import           Control.Monad          (void)
+import           Data.Functor           (($>))
 import           Data.GI.Base
 import           Data.Semigroup         ((<>))
 import           Data.Text
@@ -27,32 +28,32 @@ addKeyboardEventHandler :: Gtk.Window -> IO (Chan Scene.Event)
 addKeyboardEventHandler window = do
   events <- newChan
   void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
-     keyVal <- Gdk.getEventKeyKeyval eventKey
-     case keyVal of
-       Gdk.KEY_Left  -> publish events (Scene.FocusEvent FocusLeft)
-       Gdk.KEY_Right -> publish events (Scene.FocusEvent FocusRight)
-       Gdk.KEY_Up    -> publish events (Scene.FocusEvent FocusUp)
-       Gdk.KEY_Down  -> publish events (Scene.FocusEvent FocusDown)
-       _             -> ignore
+    keyVal <- Gdk.getEventKeyKeyval eventKey
+    case keyVal of
+      Gdk.KEY_Left  -> publish events (Scene.FocusEvent FocusLeft)
+      Gdk.KEY_Right -> publish events (Scene.FocusEvent FocusRight)
+      Gdk.KEY_Up    -> publish events (Scene.FocusEvent FocusUp)
+      Gdk.KEY_Down  -> publish events (Scene.FocusEvent FocusDown)
+      _             -> ignore
   return events
-  where
-    publish events event = writeChan events event *> return False
-    ignore = return False
+ where
+  publish events event = writeChan events event $> False
+  ignore = return False
 
 sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> SceneView -> IO ()
 sceneRenderLoop events mainBox = loop
-  where
-    loop sceneView = do
-      print sceneView
-      widget <- Scene.render sceneView
-      void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-        Gtk.containerForall mainBox (Gtk.containerRemove mainBox)
-        Gtk.boxPackEnd mainBox widget True True 0
-        Gtk.widgetShowAll widget
-        return False
-      event <- readChan events
-      putStrLn ("Got new scene view event: " ++ show event)
-      loop (Scene.update sceneView event)
+ where
+  loop sceneView = do
+    print sceneView
+    widget <- Scene.render sceneView
+    void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+      Gtk.containerForall mainBox (Gtk.containerRemove mainBox)
+      Gtk.boxPackEnd mainBox widget True True 0
+      Gtk.widgetShowAll widget
+      return False
+    event <- readChan events
+    putStrLn ("Got new scene view event: " ++ show event)
+    loop (Scene.update sceneView event)
 
 initialSceneView :: SceneView
 initialSceneView = SceneView
@@ -60,34 +61,36 @@ initialSceneView = SceneView
   , focus = InSequenceFocus 0 Nothing
   }
  where
-  video1    = VideoClip () (ClipMetadata "video-1" "/tmp/1.mp4" 4)
-  video2    = VideoClip () (ClipMetadata "video-2" "/tmp/2.mp4" 10)
-  audio1    = AudioClip () (ClipMetadata "audio-1" "/tmp/1.m4a" 5)
-  audio2    = AudioClip () (ClipMetadata "audio-2" "/tmp/2.m4a" 8)
-  audio3    = AudioClip () (ClipMetadata "audio-3" "/tmp/3.m4a" 5)
-  gap1     = VideoGap () 1
-  gap2     = VideoGap () 3
+  video1s    = VideoClip () (ClipMetadata "video-1s" "/tmp/1.mp4" 1)
+  video10s    = VideoClip () (ClipMetadata "video-10s" "/tmp/10.mp4" 10)
+  audio1s    = AudioClip () (ClipMetadata "audio-1s" "/tmp/1.m4a" 1)
+  audio5s    = AudioClip () (ClipMetadata "audio-5s" "/tmp/5.m4a" 5)
+  audio8s    = AudioClip () (ClipMetadata "audio-8s" "/tmp/8.m4a" 8)
+  gap1s      = VideoGap () 1
+  gap3s      = VideoGap () 3
   testScene = Scene
-    { sceneName = "Test"
-    , topSequence = Sequence () [Composition () [gap1, video1] [audio1], Composition () [gap2, video2] [audio2, audio3]]
+    { sceneName   = "Test"
+    , topSequence = Sequence
+      ()
+      [ Composition () [gap1s, video1s, gap3s] [audio1s, audio5s, audio1s]
+      , Composition () [gap3s, video10s, gap1s] [audio8s, audio5s, audio1s]
+      ]
     }
 
 main :: IO ()
 main = do
   void $ Gtk.init Nothing
 
-  gladeFile    <- getDataFileName "gui.glade"
-  builder      <- Gtk.builderNewFromFile (pack gladeFile)
+  gladeFile   <- getDataFileName "gui.glade"
+  builder     <- Gtk.builderNewFromFile (pack gladeFile)
 
-  window       <- builderGetObject Gtk.Window builder "window"
-  mainBox      <- builderGetObject Gtk.Box builder "main-box"
-  cssProvider  <- Gtk.cssProviderNew
-  screen       <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
+  window      <- builderGetObject Gtk.Window builder "window"
+  mainBox     <- builderGetObject Gtk.Box builder "main-box"
+  cssProvider <- Gtk.cssProviderNew
+  screen      <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
   Gtk.cssProviderLoadFromPath cssProvider . Text.pack =<< getDataFileName
     "style.css"
-  Gtk.styleContextAddProviderForScreen screen
-                                       cssProvider
-                                       cssPriority
+  Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
 
   events <- addKeyboardEventHandler window
   void . forkIO $ sceneRenderLoop events mainBox initialSceneView

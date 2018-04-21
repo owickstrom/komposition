@@ -17,7 +17,7 @@ import           FastCut.Sequence
 
 setWidthFromDuration :: (RealFrac a1, Gtk.IsWidget a) => a -> a1 -> IO ()
 setWidthFromDuration widget duration =
-  let width = fromIntegral (ceiling duration :: Int) * 30
+  let width = fromIntegral (ceiling duration :: Int) * 50
   in Gtk.widgetSetSizeRequest widget width (-1)
 
 addClasses :: Gtk.IsWidget w => [Text] -> w -> IO w

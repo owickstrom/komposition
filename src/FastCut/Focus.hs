@@ -1,6 +1,8 @@
-{-# LANGUAGE LambdaCase #-}
-module FastCut.Focus
-where
+{-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase     #-}
+{-# LANGUAGE TypeOperators  #-}
+module FastCut.Focus where
 
 import           Control.Monad.Except (throwError)
 import           FastCut.Sequence
@@ -59,13 +61,33 @@ data FocusError a
   | UnhandledFocusModification (Sequence a) FocusEvent Focus
   deriving (Eq, Show)
 
+indicesWithStartPoints :: [Clip a t] -> [(Int, Duration)]
+indicesWithStartPoints clips =
+    zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
+
+nearestClipIndexLeftOf
+  :: [Clip ann t] -> Int -> [Clip ann (InverseClipType t)] -> Maybe Int
+nearestClipIndexLeftOf focusedClips i blurredClips
+  | i >= 0 && i < length focusedClips && not (null blurredClips)
+  = let cutoffPoint = durationOf (take i focusedClips)
+    in case
+          takeWhile ((<= cutoffPoint) . snd)
+                    (indicesWithStartPoints blurredClips)
+        of
+          []    -> Just 0
+          below -> Just (fst (last below))
+  | otherwise
+  = Nothing
+
 modifyFocus :: Sequence a -> FocusEvent -> Focus -> Either (FocusError a) Focus
 modifyFocus s e f = case (s, e, f) of
 
   -- * Up
   -- We can move up from audio to video within a composition.
-  (Composition{}, FocusUp, InCompositionFocus Audio _) ->
-    pure (InCompositionFocus Video 0)
+  (Composition _ videoClips audioClips, FocusUp, InCompositionFocus Audio i)
+    -> case nearestClipIndexLeftOf audioClips i videoClips of
+      Just i' -> pure (InCompositionFocus Video i')
+      Nothing -> throwError (OutOfBounds s e f)
   --  In these cases we've hit a focus "leaf" and cannot move up.
   (Composition{}, FocusUp, InCompositionFocus _ _   ) -> throwError CannotMoveUp
   (Sequence{}   , FocusUp, InSequenceFocus _ Nothing) -> throwError CannotMoveUp
@@ -85,8 +107,11 @@ modifyFocus s e f = case (s, e, f) of
       (InSequenceFocus 0 Nothing)
     Composition{} ->
       pure (InSequenceFocus i (Just (InCompositionFocus Video 0)))
-  (Composition _ _ audioClips, FocusDown, InCompositionFocus Video _)
-    | not (null audioClips) -> pure (InCompositionFocus Audio 0)
+  -- We can move down from video to audio within a composition.
+  (Composition _ videoClips audioClips, FocusDown, InCompositionFocus Video i)
+    -> case nearestClipIndexLeftOf videoClips i audioClips of
+      Just i' -> pure (InCompositionFocus Audio i')
+      Nothing -> throwError (OutOfBounds s e f)
 
   -- * Left
   (Sequence{}, FocusLeft, InSequenceFocus idx Nothing)
@@ -115,5 +140,4 @@ modifyFocus s e f = case (s, e, f) of
   -- * Left or Right further down.
   (Sequence _ sub, _, InSequenceFocus idx (Just subFocus)) ->
     InSequenceFocus idx . Just <$> modifyFocus (sub !! idx) e subFocus
-
   _ -> throwError (UnhandledFocusModification s e f)
