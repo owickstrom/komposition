@@ -4,13 +4,11 @@
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-module FastCut.Scene.Renderer (render) where
+module FastCut.Scene.View (SceneView, new, setScene, toWidget) where
 
 import           Control.Concurrent
 import           Control.Monad
 import           Control.Monad.State
-import qualified Data.GI.Base.GValue as GValue
-import qualified Data.GI.Base.GType as GValue
 import           Data.Text           (Text)
 import           Data.Time.Clock     ()
 import qualified GI.Gdk              as Gdk
@@ -21,6 +19,11 @@ import           GI.Pango.Enums      (EllipsizeMode (..))
 import           FastCut.Focus
 import           FastCut.Scene
 import           FastCut.Sequence
+
+data SceneView = SceneView { container :: Gtk.Box }
+
+toWidget :: SceneView -> Gtk.Box
+toWidget = container
 
 setWidthFromDuration :: (RealFrac a1, Gtk.IsWidget a) => a -> a1 -> IO ()
 setWidthFromDuration widget duration =
@@ -49,7 +52,7 @@ withSavedBox focused render' = do
   box <- liftIO render'
   case focused of
     Focused -> modify $ \s -> s { focusedBox = Just box }
-    _ -> return ()
+    _       -> return ()
   return box
 
 renderClip' focused metadata = do
@@ -111,36 +114,41 @@ renderSequence = \case
     mapM_ (renderClipToBox audioBox) audioClips
     return compositionBox
 
-render :: SceneView -> IO Gtk.Box
-render SceneView { scene, focus } = do
-  sceneBox                        <- Gtk.boxNew Gtk.OrientationVertical 0
-  sceneLabel                      <- Gtk.labelNew (Just (sceneName scene))
+new :: IO SceneView
+new = do
+  container <- Gtk.boxNew Gtk.OrientationVertical 0
+  return SceneView {..}
+
+setScene :: SceneView -> Scene -> IO ()
+setScene SceneView { container } Scene { .. } = do
+
+  Gtk.containerForall container (Gtk.containerRemove container)
+
+  sceneLabel                      <- Gtk.labelNew (Just sceneName)
   (sequence', RendererState {..}) <- runStateT
-    (renderSequence (applyFocus (topSequence scene) focus))
+    (renderSequence (applyFocus topSequence focus))
     RendererState {focusedBox = Nothing}
   scrollArea <- Gtk.scrolledWindowNew Gtk.noAdjustment Gtk.noAdjustment
 
   Gtk.scrolledWindowSetPolicy scrollArea
                               Gtk.PolicyTypeExternal
                               Gtk.PolicyTypeNever
-  Gtk.boxPackStart sceneBox sceneLabel True  True  10
-  Gtk.boxPackStart sceneBox scrollArea False False 10
+  Gtk.boxPackStart container sceneLabel True  True  10
+  Gtk.boxPackStart container scrollArea False False 10
   Gtk.containerAdd scrollArea sequence'
 
-  scrollToFocused scrollArea sequence' focusedBox
-
-  return sceneBox
+  scrollToFocused scrollArea focusedBox
+  Gtk.widgetShowAll container
 
   where
-    scrollToFocused scrollArea container = \case
+    scrollToFocused scrollArea = \case
       Just focusedBox ->
         void . forkIO $ do
           -- oh the hacks...
           threadDelay 10000
           void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
             adj <- Gtk.scrolledWindowGetHadjustment scrollArea
-            (success, x, y) <- Gtk.widgetTranslateCoordinates focusedBox container 0 0
-            print (success, x, y)
+            (_, x, _) <- Gtk.widgetTranslateCoordinates focusedBox scrollArea 0 0
             Gtk.adjustmentSetValue adj (fromIntegral x - 2)
             return False
       Nothing ->

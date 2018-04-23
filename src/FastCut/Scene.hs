@@ -12,18 +12,15 @@ import           Data.Text        (Text)
 import           FastCut.Focus
 import           FastCut.Sequence
 
-data Scene = Scene { sceneName :: Text, topSequence :: Sequence () }
+data Scene = Scene { sceneName :: Text, topSequence :: Sequence (), focus :: Focus }
   deriving (Eq, Show)
 
 data Event = FocusEvent FocusEvent
   deriving (Eq, Show)
 
-data SceneView = SceneView { scene :: Scene , focus :: Focus }
-  deriving (Eq, Show)
-
-update :: SceneView -> Event -> SceneView
-update view = \case
+update :: Scene -> Event -> Scene
+update scene = \case
   FocusEvent focusEvent ->
-    case modifyFocus (topSequence (scene view)) focusEvent (focus view) of
-      Left _       -> view
-      Right focus' -> view { focus = focus' }
+    case modifyFocus (topSequence scene) focusEvent (focus scene) of
+      Left _       -> scene
+      Right focus' -> scene { focus = focus' }

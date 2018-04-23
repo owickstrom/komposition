@@ -1,23 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Concurrent
-import           Control.Monad          (void)
-import           Data.Functor           (($>))
+import           Control.Monad         (void)
+import           Data.Functor          (($>))
 import           Data.GI.Base
-import           Data.Semigroup         ((<>))
+import           Data.Semigroup        ((<>))
 import           Data.Text
-import qualified Data.Text              as Text
+import qualified Data.Text             as Text
 import           Data.Word
-import qualified GI.Gdk                 as Gdk
-import qualified GI.GLib.Constants      as GLib
+import qualified GI.Gdk                as Gdk
+import qualified GI.GLib.Constants     as GLib
 import           GI.GObject
-import qualified GI.Gtk                 as Gtk
-import           GI.Gtk.Objects.Window  (windowResize)
+import qualified GI.Gtk                as Gtk
+import           GI.Gtk.Objects.Window (windowResize)
 
 import           FastCut.Focus
-import           FastCut.Scene          (Scene (..), SceneView (..))
-import qualified FastCut.Scene          as Scene
-import qualified FastCut.Scene.Renderer as Scene
+import           FastCut.Scene         (Scene (..))
+import qualified FastCut.Scene         as Scene
+import           FastCut.Scene.View    (SceneView)
+import qualified FastCut.Scene.View    as SceneView
 import           FastCut.Sequence
 import           Paths_fastcut
 
@@ -40,24 +41,26 @@ addKeyboardEventHandler window = do
   publish events event = writeChan events event $> False
   ignore = return False
 
-sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> SceneView -> IO ()
-sceneRenderLoop events container = loop
+sceneRenderLoop :: Chan Scene.Event -> SceneView.SceneView -> Scene -> IO ()
+sceneRenderLoop events sceneView = loop
  where
-  loop sceneView = do
-    print sceneView
+  loop scene = do
+    print scene
     void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-      widget <- Scene.render sceneView
-      Gtk.containerForall container (Gtk.containerRemove container)
-      Gtk.boxPackEnd container widget True True 0
-      Gtk.widgetShowAll widget
+      SceneView.setScene sceneView scene
       return False
     event <- readChan events
     putStrLn ("Got new scene view event: " ++ show event)
-    loop (Scene.update sceneView event)
+    loop (Scene.update scene event)
 
-initialSceneView :: SceneView
-initialSceneView = SceneView
-  { scene = testScene
+initialScene :: Scene
+initialScene = Scene
+  { sceneName   = "Test"
+  , topSequence = Sequence
+    ()
+    [ Composition () [gap1s, video1s, gap3s] [audio1s, audio5s, audio1s]
+    , Composition () [gap3s, video10s, gap1s] [audio8s, audio5s, audio1s]
+    ]
   , focus = InSequenceFocus 0 Nothing
   }
  where
@@ -68,14 +71,6 @@ initialSceneView = SceneView
   audio8s    = AudioClip () (ClipMetadata "audio-8s" "/tmp/8.m4a" 8)
   gap1s      = VideoGap () 1
   gap3s      = VideoGap () 3
-  testScene = Scene
-    { sceneName   = "Test"
-    , topSequence = Sequence
-      ()
-      [ Composition () [gap1s, video1s, gap3s] [audio1s, audio5s, audio1s]
-      , Composition () [gap3s, video10s, gap1s] [audio8s, audio5s, audio1s]
-      ]
-    }
 
 main :: IO ()
 main = do
@@ -93,8 +88,12 @@ main = do
     "style.css"
   Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
 
+  sceneView <- SceneView.new
+  Gtk.boxPackEnd mainBox (SceneView.toWidget sceneView) True True 0
+  Gtk.widgetShowAll (SceneView.toWidget sceneView)
+
   events <- addKeyboardEventHandler window
-  void . forkIO $ sceneRenderLoop events mainBox initialSceneView
+  void . forkIO $ sceneRenderLoop events sceneView initialScene
 
   void $ window `Gtk.onWidgetDestroy` Gtk.mainQuit
 
