@@ -80,6 +80,9 @@ render SceneView { scene, focus } = do
   sceneBox   <- Gtk.boxNew Gtk.OrientationVertical 0
   sceneLabel <- Gtk.labelNew (Just (sceneName scene))
   sequence'   <- renderSequence (applyFocus (topSequence scene) focus)
+  scrollArea <- Gtk.scrolledWindowNew Gtk.noAdjustment Gtk.noAdjustment
+  Gtk.scrolledWindowSetPolicy scrollArea Gtk.PolicyTypeExternal Gtk.PolicyTypeNever
   Gtk.boxPackStart sceneBox sceneLabel True  True  10
-  Gtk.boxPackStart sceneBox sequence'   False False 10
+  Gtk.boxPackStart sceneBox scrollArea   False False 10
+  Gtk.containerAdd scrollArea sequence'
   return sceneBox

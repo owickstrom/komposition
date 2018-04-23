@@ -41,14 +41,14 @@ addKeyboardEventHandler window = do
   ignore = return False
 
 sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> SceneView -> IO ()
-sceneRenderLoop events mainBox = loop
+sceneRenderLoop events container = loop
  where
   loop sceneView = do
     print sceneView
-    widget <- Scene.render sceneView
     void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-      Gtk.containerForall mainBox (Gtk.containerRemove mainBox)
-      Gtk.boxPackEnd mainBox widget True True 0
+      widget <- Scene.render sceneView
+      Gtk.containerForall container (Gtk.containerRemove container)
+      Gtk.boxPackEnd container widget True True 0
       Gtk.widgetShowAll widget
       return False
     event <- readChan events
@@ -86,6 +86,7 @@ main = do
 
   window      <- builderGetObject Gtk.Window builder "window"
   mainBox     <- builderGetObject Gtk.Box builder "main-box"
+
   cssProvider <- Gtk.cssProviderNew
   screen      <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
   Gtk.cssProviderLoadFromPath cssProvider . Text.pack =<< getDataFileName

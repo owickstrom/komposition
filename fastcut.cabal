@@ -51,7 +51,7 @@ executable fastcut
                       , gi-pango
                       , haskell-gi
                       , haskell-gi-base
-                      , haskell-gi-overloading == 0.0.*
+                      --, haskell-gi-overloading == 0.0.*
                       , text
                       , time
   hs-source-dirs:       exe
