@@ -20,7 +20,7 @@ import           FastCut.Focus
 import           FastCut.Scene
 import           FastCut.Sequence
 
-data SceneView = SceneView { container :: Gtk.Box }
+data SceneView = SceneView { container :: Gtk.Box, sceneLabel :: Gtk.Label, scrollArea :: Gtk.ScrolledWindow }
 
 toWidget :: SceneView -> Gtk.Box
 toWidget = container
@@ -117,35 +117,39 @@ renderSequence = \case
 new :: IO SceneView
 new = do
   container <- Gtk.boxNew Gtk.OrientationVertical 0
-  return SceneView {..}
-
-setScene :: SceneView -> Scene -> IO ()
-setScene SceneView { container } Scene { .. } = do
-
-  Gtk.containerForall container (Gtk.containerRemove container)
-
-  sceneLabel                      <- Gtk.labelNew (Just sceneName)
-  (sequence', RendererState {..}) <- runStateT
-    (renderSequence (applyFocus topSequence focus))
-    RendererState {focusedBox = Nothing}
+  sceneLabel                      <- Gtk.labelNew Nothing
   scrollArea <- Gtk.scrolledWindowNew Gtk.noAdjustment Gtk.noAdjustment
-
   Gtk.scrolledWindowSetPolicy scrollArea
                               Gtk.PolicyTypeExternal
                               Gtk.PolicyTypeNever
   Gtk.boxPackStart container sceneLabel True  True  10
   Gtk.boxPackStart container scrollArea False False 10
-  Gtk.containerAdd scrollArea sequence'
 
-  scrollToFocused scrollArea focusedBox
   Gtk.widgetShowAll container
 
+  return SceneView {..}
+
+setScene :: SceneView -> Scene -> IO ()
+setScene SceneView { .. } Scene { .. } = do
+  Gtk.labelSetLabel sceneLabel sceneName
+
+  -- Replace all sequence/clip elements (for now.)
+  Gtk.containerForall scrollArea (Gtk.containerRemove scrollArea)
+  (sequence', RendererState {..}) <- runStateT
+    (renderSequence (applyFocus topSequence focus))
+    RendererState {focusedBox = Nothing}
+  Gtk.containerAdd scrollArea sequence'
+
+  Gtk.widgetShowAll container
+
+  scrollToFocused focusedBox
+
   where
-    scrollToFocused scrollArea = \case
+    scrollToFocused = \case
       Just focusedBox ->
         void . forkIO $ do
           -- oh the hacks...
-          threadDelay 10000
+          threadDelay 1000
           void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
             adj <- Gtk.scrolledWindowGetHadjustment scrollArea
             (_, x, _) <- Gtk.widgetTranslateCoordinates focusedBox scrollArea 0 0
