@@ -82,7 +82,7 @@ nearestClipIndexLeftOf focusedClips i blurredClips
 modifyFocus :: Sequence a -> FocusEvent -> Focus -> Either (FocusError a) Focus
 modifyFocus s e f = case (s, e, f) of
 
-  -- * Up
+  -- Up
   -- We can move up from audio to video within a composition.
   (Composition _ videoClips audioClips, FocusUp, InCompositionFocus Audio i)
     -> case nearestClipIndexLeftOf audioClips i videoClips of
@@ -99,7 +99,7 @@ modifyFocus s e f = case (s, e, f) of
       Left  err          -> throwError err
       Right f'           -> pure (InSequenceFocus i (Just f'))
 
-  -- * Down
+  -- Down
   (Sequence _ sub, FocusDown, InSequenceFocus i Nothing) -> case sub !! i of
     Sequence{} -> InSequenceFocus i . Just <$> modifyFocus
       s
@@ -113,7 +113,7 @@ modifyFocus s e f = case (s, e, f) of
       Just i' -> pure (InCompositionFocus Audio i')
       Nothing -> throwError (OutOfBounds s e f)
 
-  -- * Left
+  -- Left
   (Sequence{}, FocusLeft, InSequenceFocus idx Nothing)
     | idx > 0   -> pure (InSequenceFocus (pred idx) Nothing)
     | otherwise -> throwError (OutOfBounds s e f)
@@ -125,7 +125,7 @@ modifyFocus s e f = case (s, e, f) of
     | otherwise
     -> throwError (OutOfBounds s e f)
 
-  -- * Right
+  -- Right
   (Sequence _ sub, FocusRight, InSequenceFocus idx Nothing)
     | idx < (length sub - 1) -> pure (InSequenceFocus (succ idx) Nothing)
     | otherwise              -> throwError (OutOfBounds s e f)
@@ -137,7 +137,7 @@ modifyFocus s e f = case (s, e, f) of
     | otherwise
     -> throwError (OutOfBounds s e f)
 
-  -- * Left or Right further down.
+  -- Left or Right further down.
   (Sequence _ sub, _, InSequenceFocus idx (Just subFocus)) ->
     InSequenceFocus idx . Just <$> modifyFocus (sub !! idx) e subFocus
   _ -> throwError (UnhandledFocusModification s e f)
