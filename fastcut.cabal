@@ -23,6 +23,7 @@ library
                       , FastCut.Scene
                       , FastCut.Scene.View
                       , FastCut.Sequence
+                      , FastCut.VirtualWidget
   build-depends:        base >=4.10 && <4.12
                       , gi-gobject
                       , gi-glib
