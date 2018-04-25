@@ -1,15 +1,16 @@
-{-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE TypeFamilies           #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE UndecidableInstances  #-}
 module FastCut.VirtualWidget where
 
 import           Control.Monad (forM_)
 import           Data.HashSet  (HashSet)
 import qualified Data.HashSet  as HashSet
-import           Data.Proxy    (Proxy (..))
 import           Data.Text     (Text)
 import qualified GI.Gtk        as Gtk
 
@@ -17,42 +18,82 @@ import qualified GI.Gtk        as Gtk
 
 {-data UpdateResult = Added | Removed | Modified | Unmodified-}
 
-class HasWidgetConstructor w where
-  widgetConstructor :: Gtk.ManagedPtr w -> w
+data Orientation = Vertical | Horizontal
+  deriving (Eq, Show)
 
-instance HasWidgetConstructor Gtk.Label where
-  widgetConstructor = Gtk.Label
+type ClassSet = HashSet Text
 
-instance HasWidgetConstructor Gtk.Box where
-  widgetConstructor = Gtk.Box
+data Element
+  = Label { text :: Text, classes :: ClassSet }
+  | Box { orientation :: Orientation, classes :: ClassSet, children :: [Element] }
+  deriving (Eq, Show)
 
-class Gtk.IsWidget w => VirtualWidget a w | a -> w where
-  render :: a -> IO w
-  update :: a -> a -> w -> IO ()
+data GtkWidget where
+  GtkWidget :: Gtk.IsWidget w => w -> GtkWidget
 
-unsafeCastChildren
-  :: (HasWidgetConstructor w, Gtk.IsContainer c, VirtualWidget a w) => c -> Proxy a -> IO [w]
-unsafeCastChildren container _ =
-  mapM (Gtk.unsafeCastTo widgetConstructor) =<< Gtk.containerGetChildren container
+withGtkWidget :: GtkWidget -> (forall w . Gtk.IsWidget w => w -> r) -> r
+withGtkWidget (GtkWidget w) f = f w
 
-updateAll
-  :: (HasWidgetConstructor w, Gtk.IsContainer c, VirtualWidget a w)
-  => c
-  -> Proxy a
-  -> [a]
-  -> [a]
-  -> IO ()
-updateAll container p os' ns' = do
-  cs <- unsafeCastChildren container p
+unsafeCastTo :: Gtk.GObject a => GtkWidget -> (Gtk.ManagedPtr a -> a) -> IO a
+unsafeCastTo (GtkWidget obj) = flip Gtk.unsafeCastTo obj
+
+addClasses :: Gtk.IsWidget w => w -> ClassSet -> IO ()
+addClasses widget classes = do
+  sc    <- Gtk.widgetGetStyleContext widget
+  mapM_ (Gtk.styleContextAddClass sc) classes
+
+replaceClasses :: Gtk.IsWidget w => w -> ClassSet -> ClassSet -> IO ()
+replaceClasses widget old new = do
+  sc <- Gtk.widgetGetStyleContext widget
+  mapM_ (Gtk.styleContextRemoveClass sc)
+        (HashSet.difference old new)
+  mapM_ (Gtk.styleContextAddClass sc)
+        (HashSet.difference new old)
+
+render :: Element -> IO GtkWidget
+render = \case
+  Label {..} -> do
+    label <- Gtk.labelNew (Just text)
+    label `addClasses` classes
+    return (GtkWidget label)
+  Box {..} -> do
+    box <- case orientation of
+      Horizontal -> Gtk.boxNew Gtk.OrientationHorizontal 0
+      Vertical   -> Gtk.boxNew Gtk.OrientationVertical 0
+    box `addClasses` classes
+    forM_ children $ \child -> do
+      childWidget <- render child
+      withGtkWidget childWidget (\w -> Gtk.boxPackStart box w True True 0)
+    return (GtkWidget box)
+
+update :: GtkWidget -> Element -> Element -> IO ()
+update widget = curry $ \case
+  (old        , new        ) | old == new -> return ()
+  (old@Label{}, new@Label{})              -> do
+    label <- widget `unsafeCastTo` Gtk.Label
+    Gtk.labelSetLabel label (text new)
+    replaceClasses label (classes old) (classes new)
+  (old@Box{}, new@Box{}) -> do
+    box <- widget `unsafeCastTo` Gtk.Box
+    replaceClasses box (classes old) (classes new)
+    updateAll box (children old) (children new)
+  (old, new) ->
+    fail ("What to do with " ++ show old ++ " and " ++ show new ++ "?")
+
+updateAll :: (Gtk.IsContainer c) => c -> [Element] -> [Element] -> IO ()
+updateAll container os' ns' = do
+  cs <- Gtk.containerGetChildren container
   sequence_ (go [] cs os' ns')
  where
-  go :: (VirtualWidget a w) => [IO ()] -> [w] -> [a] -> [a] -> [IO ()]
   -- In case we have a corresponding old and new virtual widget, we update the
   -- GTK widget.
-  go actions (w:ws) (o:os) (n:ns) = go (actions ++ [update o n w]) ws os ns
+  go actions (w:ws) (o:os) (n:ns) =
+    let action = update (GtkWidget w) o n in go (actions ++ [action]) ws os ns
   -- When there are new virtual widgets, render and add them.
   go actions [] [] (n:ns) =
-    let action = Gtk.containerAdd container =<< render n
+    let action = do
+          widget <- render n
+          withGtkWidget widget (Gtk.containerAdd container)
     in  go (actions ++ [action]) [] [] ns
   -- When a virtual widget has been removed, remove the GTK widget from the
   -- container.
@@ -70,40 +111,3 @@ updateAll container p os' ns' = do
     in  go (actions ++ [action]) ws [] ns
   -- Lastly, when we have gone through all widgets, we return the actions.
   go actions [] [] [] = actions
-
--- * Elements
-
-data Orientation = Vertical | Horizontal
-  deriving (Eq, Show)
-
-data Label = Label { text :: Text, classes :: HashSet Text }
-  deriving (Eq, Show)
-
-instance VirtualWidget Label Gtk.Label where
-  render label = do
-    widget <- Gtk.labelNew (Just (text label))
-    sc <- Gtk.widgetGetStyleContext widget
-    mapM_ (Gtk.styleContextAddClass sc) (classes label)
-    return widget
-  update old new widget
-    | old == new = return ()
-    | otherwise = do
-      Gtk.labelSetLabel widget (text new)
-      sc <- Gtk.widgetGetStyleContext widget
-      mapM_ (Gtk.styleContextRemoveClass sc) (HashSet.difference (classes old) (classes new))
-      mapM_ (Gtk.styleContextAddClass sc) (HashSet.difference (classes new) (classes old))
-
-data Box a = Box { orientation :: Orientation, children :: [a] }
-  deriving (Eq, Show)
-
-instance (HasWidgetConstructor w, VirtualWidget a w) => VirtualWidget (Box a) Gtk.Box where
-  render box = do
-    widget <- case orientation box of
-                Horizontal -> Gtk.boxNew Gtk.OrientationHorizontal 0
-                Vertical   -> Gtk.boxNew Gtk.OrientationVertical 0
-    forM_ (children box) $ \child -> do
-      childWidget <- render child
-      Gtk.boxPackEnd widget childWidget False False 0
-    return widget
-  update old new widget =
-    updateAll widget (Proxy :: Proxy a) (children old) (children new)

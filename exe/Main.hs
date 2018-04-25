@@ -15,9 +15,9 @@ import qualified GI.Gtk                as Gtk
 import           GI.Gtk.Objects.Window (windowResize)
 
 import           FastCut.Focus
+import           FastCut.VirtualWidget
 import           FastCut.Scene         (Scene (..))
 import qualified FastCut.Scene         as Scene
-import           FastCut.Scene.View    (SceneView)
 import qualified FastCut.Scene.View    as SceneView
 import           FastCut.Sequence
 import           Paths_fastcut
@@ -41,36 +41,43 @@ addKeyboardEventHandler window = do
   publish events event = writeChan events event $> False
   ignore = return False
 
-sceneRenderLoop :: Chan Scene.Event -> SceneView.SceneView -> Scene -> IO ()
-sceneRenderLoop events sceneView = loop
- where
-  loop scene = do
-    print scene
-    void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-      SceneView.setScene sceneView scene
-      return False
-    event <- readChan events
-    putStrLn ("Got new scene view event: " ++ show event)
-    loop (Scene.update scene event)
+sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
+sceneRenderLoop events container = init
+  where
+    init scene = do
+      let element = SceneView.renderScene scene
+      w@(GtkWidget widget) <- render element
+      Gtk.boxPackEnd container widget True True 0
+      Gtk.widgetShowAll container
+      loop element w scene
+    loop prev widget scene = do
+      event <- readChan events
+      putStrLn ("Got new scene view event: " ++ show event)
+      let scene' = Scene.update scene event
+          new = SceneView.renderScene scene'
+      void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+        update widget prev new
+        return False
+      loop new widget scene'
 
 initialScene :: Scene
 initialScene = Scene
   { sceneName   = "Test"
   , topSequence = Sequence
     ()
-    [ Composition () [gap1s, video1s, gap3s] [audio1s, audio5s, audio1s]
+    [ Composition () [gap1s, video1s, gap3s]  [audio1s, audio5s, audio1s]
     , Composition () [gap3s, video10s, gap1s] [audio8s, audio5s, audio1s]
     ]
-  , focus = InSequenceFocus 0 Nothing
+  , focus       = InSequenceFocus 0 Nothing
   }
  where
-  video1s    = VideoClip () (ClipMetadata "video-1s" "/tmp/1.mp4" 1)
-  video10s    = VideoClip () (ClipMetadata "video-10s" "/tmp/10.mp4" 10)
-  audio1s    = AudioClip () (ClipMetadata "audio-1s" "/tmp/1.m4a" 1)
-  audio5s    = AudioClip () (ClipMetadata "audio-5s" "/tmp/5.m4a" 5)
-  audio8s    = AudioClip () (ClipMetadata "audio-8s" "/tmp/8.m4a" 8)
-  gap1s      = VideoGap () 1
-  gap3s      = VideoGap () 3
+  video1s  = VideoClip () (ClipMetadata "video-1s" "/tmp/1.mp4" 1)
+  video10s = VideoClip () (ClipMetadata "video-10s" "/tmp/10.mp4" 10)
+  audio1s  = AudioClip () (ClipMetadata "audio-1s" "/tmp/1.m4a" 1)
+  audio5s  = AudioClip () (ClipMetadata "audio-5s" "/tmp/5.m4a" 5)
+  audio8s  = AudioClip () (ClipMetadata "audio-8s" "/tmp/8.m4a" 8)
+  gap1s    = VideoGap () 1
+  gap3s    = VideoGap () 3
 
 main :: IO ()
 main = do
@@ -88,12 +95,8 @@ main = do
     "style.css"
   Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
 
-  sceneView <- SceneView.new
-  Gtk.boxPackEnd mainBox (SceneView.toWidget sceneView) True True 0
-  Gtk.widgetShowAll (SceneView.toWidget sceneView)
-
   events <- addKeyboardEventHandler window
-  void . forkIO $ sceneRenderLoop events sceneView initialScene
+  void . forkIO $ sceneRenderLoop events mainBox initialScene
 
   void $ window `Gtk.onWidgetDestroy` Gtk.mainQuit
 
