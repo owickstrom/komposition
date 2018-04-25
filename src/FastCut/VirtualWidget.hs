@@ -3,14 +3,12 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE UndecidableInstances  #-}
 module FastCut.VirtualWidget where
 
 import           Control.Monad (forM_)
 import           Data.HashSet  (HashSet)
 import qualified Data.HashSet  as HashSet
+import           Data.Maybe    (fromMaybe)
 import           Data.Text     (Text)
 import qualified GI.Gtk        as Gtk
 
@@ -23,9 +21,25 @@ data Orientation = Vertical | Horizontal
 
 type ClassSet = HashSet Text
 
+data Size = Size { width :: Int, height :: Int }
+  deriving (Eq, Show)
+
+data LabelProps = LabelProps { text :: Maybe Text, labelClasses :: ClassSet }
+  deriving (Eq, Show)
+
+labelProps :: LabelProps
+labelProps = LabelProps {text = Nothing, labelClasses = mempty}
+
+data BoxProps = BoxProps { orientation :: Orientation, boxClasses :: ClassSet, size :: Maybe Size }
+  deriving (Eq, Show)
+
+boxProps :: BoxProps
+boxProps =
+  BoxProps {orientation = Horizontal, boxClasses = mempty, size = Nothing}
+
 data Element
-  = Label { text :: Text, classes :: ClassSet }
-  | Box { orientation :: Orientation, classes :: ClassSet, children :: [Element] }
+  = Label LabelProps
+  | Box BoxProps [Element]
   deriving (Eq, Show)
 
 data GtkWidget where
@@ -39,28 +53,33 @@ unsafeCastTo (GtkWidget obj) = flip Gtk.unsafeCastTo obj
 
 addClasses :: Gtk.IsWidget w => w -> ClassSet -> IO ()
 addClasses widget classes = do
-  sc    <- Gtk.widgetGetStyleContext widget
+  sc <- Gtk.widgetGetStyleContext widget
   mapM_ (Gtk.styleContextAddClass sc) classes
 
 replaceClasses :: Gtk.IsWidget w => w -> ClassSet -> ClassSet -> IO ()
 replaceClasses widget old new = do
   sc <- Gtk.widgetGetStyleContext widget
-  mapM_ (Gtk.styleContextRemoveClass sc)
-        (HashSet.difference old new)
-  mapM_ (Gtk.styleContextAddClass sc)
-        (HashSet.difference new old)
+  mapM_ (Gtk.styleContextRemoveClass sc) (HashSet.difference old new)
+  mapM_ (Gtk.styleContextAddClass sc)    (HashSet.difference new old)
+
+setSize :: Gtk.IsWidget w => w -> Maybe Size -> IO ()
+setSize widget = \case
+  Just Size {..} ->
+    Gtk.widgetSetSizeRequest widget (fromIntegral width) (fromIntegral height)
+  Nothing -> return ()
 
 render :: Element -> IO GtkWidget
 render = \case
-  Label {..} -> do
-    label <- Gtk.labelNew (Just text)
-    label `addClasses` classes
+  Label LabelProps {..} -> do
+    label <- Gtk.labelNew text
+    label `addClasses` labelClasses
     return (GtkWidget label)
-  Box {..} -> do
+  Box BoxProps {..} children -> do
     box <- case orientation of
       Horizontal -> Gtk.boxNew Gtk.OrientationHorizontal 0
       Vertical   -> Gtk.boxNew Gtk.OrientationVertical 0
-    box `addClasses` classes
+    box `setSize` size
+    box `addClasses` boxClasses
     forM_ children $ \child -> do
       childWidget <- render child
       withGtkWidget childWidget (\w -> Gtk.boxPackStart box w True True 0)
@@ -68,15 +87,16 @@ render = \case
 
 update :: GtkWidget -> Element -> Element -> IO ()
 update widget = curry $ \case
-  (old        , new        ) | old == new -> return ()
-  (old@Label{}, new@Label{})              -> do
+  (old           , new           ) | old == new -> return ()
+  (Label oldProps, Label newProps)              -> do
     label <- widget `unsafeCastTo` Gtk.Label
-    Gtk.labelSetLabel label (text new)
-    replaceClasses label (classes old) (classes new)
-  (old@Box{}, new@Box{}) -> do
+    Gtk.labelSetLabel label (fromMaybe mempty (text newProps))
+    replaceClasses label (labelClasses oldProps) (labelClasses newProps)
+  (Box oldProps oldChildren, Box newProps newChildren) -> do
     box <- widget `unsafeCastTo` Gtk.Box
-    replaceClasses box (classes old) (classes new)
-    updateAll box (children old) (children new)
+    box `setSize` size newProps
+    replaceClasses box (boxClasses oldProps) (boxClasses newProps)
+    updateAll      box oldChildren           newChildren
   (old, new) ->
     fail ("What to do with " ++ show old ++ " and " ++ show new ++ "?")
 

@@ -14,10 +14,10 @@ import           FastCut.Scene
 import           FastCut.Sequence
 import           FastCut.VirtualWidget
 
-{-setWidthFromDuration :: (RealFrac a1, Gtk.IsWidget a) => a -> a1 -> IO ()-}
-{-setWidthFromDuration widget duration =-}
-  {-let width = fromIntegral (ceiling duration :: Int) * 50-}
-  {-in  Gtk.widgetSetSizeRequest widget width (-1)-}
+sizeFromDuration :: (RealFrac d) => d -> Size
+sizeFromDuration duration =
+  let width = fromIntegral (ceiling duration :: Int) * 50
+  in  Size width (-1)
 
 focusedClass :: Focused -> Text
 focusedClass = \case
@@ -26,16 +26,22 @@ focusedClass = \case
   Blurred             -> "blurred"
 
 renderClip' :: Focused -> ClipMetadata -> Element
-renderClip' focused metadata =
-  {-Gtk.labelSetEllipsize label EllipsizeModeEnd-}
-  {-setWidthFromDuration  label (duration metadata)-}
-  Box Horizontal ["clip", focusedClass focused] [Label (clipName metadata) []]
+renderClip' focused metadata = Box
+  boxProps
+    { orientation = Horizontal
+    , boxClasses  = ["clip", focusedClass focused]
+    , size = Just (sizeFromDuration (duration metadata))
+    }
+  [Label labelProps {text = Just (clipName metadata)}]
 
 renderGap :: Focused -> NominalDiffTime -> Element
-renderGap focused _duration =
-  {-Gtk.labelSetEllipsize label EllipsizeModeEnd-}
-  {-setWidthFromDuration  label (duration metadata)-}
-  Box Horizontal ["gap", focusedClass focused] [Label "" []]
+renderGap focused duration = Box
+  boxProps
+    { orientation = Horizontal
+    , boxClasses  = ["gap", focusedClass focused]
+    , size = Just (sizeFromDuration duration)
+    }
+  [Label labelProps]
 
 renderClip :: Clip Focused t -> Element
 renderClip = \case
@@ -46,15 +52,25 @@ renderClip = \case
 
 renderSequence :: Sequence Focused -> Element
 renderSequence = \case
-  Sequence focused sub ->
-    Box Horizontal ["sequence", focusedClass focused] (map renderSequence sub)
+  Sequence focused sub -> Box
+    boxProps
+      { orientation = Horizontal
+      , boxClasses  = ["sequence", focusedClass focused]
+      }
+    (map renderSequence sub)
   Composition focused videoClips audioClips -> Box
-    Vertical
-    ["composition", focusedClass focused]
-    [ Box Horizontal ["video"] (map renderClip videoClips)
-    , Box Horizontal ["audio"] (map renderClip audioClips)
+    boxProps
+      { orientation = Vertical
+      , boxClasses  = ["composition", focusedClass focused]
+      }
+    [ Box boxProps {orientation = Horizontal, boxClasses = ["video"]}
+          (map renderClip videoClips)
+    , Box boxProps {orientation = Horizontal, boxClasses = ["audio"]}
+          (map renderClip audioClips)
     ]
-
 renderScene :: Scene -> Element
-renderScene Scene {..} =
-  Box Vertical ["scene"] [Label sceneName mempty, renderSequence (applyFocus topSequence focus)]
+renderScene Scene {..} = Box
+  boxProps {orientation = Vertical, boxClasses = ["scene"]}
+  [ Label labelProps {text = Just sceneName}
+  , renderSequence (applyFocus topSequence focus)
+  ]
