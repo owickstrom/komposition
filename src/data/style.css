@@ -1,10 +1,12 @@
+.scene {
+  background: #111;
+  color: #fff;
+}
 .sequence {
-  border-top: 2px solid #222;
-  border-bottom: 2px solid #222;
-  background-color: #333;
+  border-top: 2px solid #000;
+  background-color: #222;
 }
 .composition {
-  background-color: #333;
 }
 .sequence .video {
   padding: 2px 0 2px 0;

@@ -10,6 +10,7 @@ import           Data.HashSet  (HashSet)
 import qualified Data.HashSet  as HashSet
 import           Data.Maybe    (fromMaybe)
 import           Data.Text     (Text)
+import           Data.GI.Base.CallStack  (HasCallStack)
 import qualified GI.Gtk        as Gtk
 
 -- * Rendering
@@ -52,6 +53,7 @@ boxProps =
 data Element
   = Label LabelProps
   | Box BoxProps [BoxChild]
+  | ScrollArea Element
   deriving (Eq, Show)
 
 data GtkWidget where
@@ -60,7 +62,11 @@ data GtkWidget where
 withGtkWidget :: GtkWidget -> (forall w . Gtk.IsWidget w => w -> r) -> r
 withGtkWidget (GtkWidget w) f = f w
 
-unsafeCastTo :: Gtk.GObject a => GtkWidget -> (Gtk.ManagedPtr a -> a) -> IO a
+unsafeCastTo
+  :: (HasCallStack, Gtk.GObject a)
+  => GtkWidget
+  -> (Gtk.ManagedPtr a -> a)
+  -> IO a
 unsafeCastTo (GtkWidget obj) = flip Gtk.unsafeCastTo obj
 
 addClasses :: Gtk.IsWidget w => w -> ClassSet -> IO ()
@@ -98,6 +104,14 @@ render = \case
         childWidget
         (\w -> Gtk.boxPackStart box w expand fill (fromIntegral padding))
     return (GtkWidget box)
+  ScrollArea child -> do
+    scrollArea <- Gtk.scrolledWindowNew Gtk.noAdjustment Gtk.noAdjustment
+    Gtk.scrolledWindowSetPolicy scrollArea
+                                Gtk.PolicyTypeAutomatic
+                                Gtk.PolicyTypeNever
+    childWidget <- render child
+    withGtkWidget childWidget (Gtk.containerAdd scrollArea)
+    return (GtkWidget scrollArea)
 
 update :: GtkWidget -> Element -> Element -> IO ()
 update widget = curry $ \case
@@ -113,6 +127,14 @@ update widget = curry $ \case
     updateAll box
               (map boxChildElement oldChildren)
               (map boxChildElement newChildren)
+  (ScrollArea oldChild, ScrollArea newChild) -> do
+    box <- widget `unsafeCastTo` Gtk.ScrolledWindow
+    viewport <- Gtk.unsafeCastTo Gtk.Viewport =<< requireSingle =<< Gtk.containerGetChildren box
+    childWidget <- requireSingle =<< Gtk.containerGetChildren viewport
+    update (GtkWidget childWidget) oldChild newChild
+    where
+      requireSingle [w] = return w
+      requireSingle _ = fail "Expected a single child widget."
   (old, new) ->
     fail ("What to do with " ++ show old ++ " and " ++ show new ++ "?")
 

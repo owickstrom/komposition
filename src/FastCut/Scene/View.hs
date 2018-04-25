@@ -71,5 +71,5 @@ renderScene :: Scene -> Element
 renderScene Scene {..} = Box
   boxProps { orientation = Vertical, boxClasses = ["scene"] }
   [ BoxChild boxChildProps { expand = True, fill = True } (Label labelProps { text = Just sceneName })
-  , BoxChild boxChildProps { padding = 10 } (renderSequence (applyFocus topSequence focus))
+  , BoxChild boxChildProps (ScrollArea (renderSequence (applyFocus topSequence focus)))
   ]
