@@ -16,8 +16,7 @@ import           FastCut.VirtualWidget
 
 sizeFromDuration :: (RealFrac d) => d -> Size
 sizeFromDuration duration =
-  let width = fromIntegral (ceiling duration :: Int) * 50
-  in  Size width (-1)
+  let width = fromIntegral (ceiling duration :: Int) * 50 in Size width (-1)
 
 focusedClass :: Focused -> Text
 focusedClass = \case
@@ -27,21 +26,21 @@ focusedClass = \case
 
 renderClip' :: Focused -> ClipMetadata -> Element
 renderClip' focused metadata = Box
-  boxProps
-    { orientation = Horizontal
-    , boxClasses  = ["clip", focusedClass focused]
-    , size = Just (sizeFromDuration (duration metadata))
-    }
-  [Label labelProps {text = Just (clipName metadata)}]
+  boxProps { orientation = Horizontal
+           , boxClasses  = ["clip", focusedClass focused]
+           , size        = Just (sizeFromDuration (duration metadata))
+           }
+  [ BoxChild boxChildProps
+             (Label labelProps { text = Just (clipName metadata) })
+  ]
 
 renderGap :: Focused -> NominalDiffTime -> Element
 renderGap focused duration = Box
-  boxProps
-    { orientation = Horizontal
-    , boxClasses  = ["gap", focusedClass focused]
-    , size = Just (sizeFromDuration duration)
-    }
-  [Label labelProps]
+  boxProps { orientation = Horizontal
+           , boxClasses  = ["gap", focusedClass focused]
+           , size        = Just (sizeFromDuration duration)
+           }
+  [BoxChild boxChildProps (Label labelProps)]
 
 renderClip :: Clip Focused t -> Element
 renderClip = \case
@@ -53,24 +52,24 @@ renderClip = \case
 renderSequence :: Sequence Focused -> Element
 renderSequence = \case
   Sequence focused sub -> Box
-    boxProps
-      { orientation = Horizontal
-      , boxClasses  = ["sequence", focusedClass focused]
-      }
-    (map renderSequence sub)
+    boxProps { orientation = Horizontal
+             , boxClasses  = ["sequence", focusedClass focused]
+             }
+    (map (BoxChild boxChildProps . renderSequence) sub)
   Composition focused videoClips audioClips -> Box
-    boxProps
-      { orientation = Vertical
-      , boxClasses  = ["composition", focusedClass focused]
-      }
-    [ Box boxProps {orientation = Horizontal, boxClasses = ["video"]}
-          (map renderClip videoClips)
-    , Box boxProps {orientation = Horizontal, boxClasses = ["audio"]}
-          (map renderClip audioClips)
+    boxProps { orientation = Vertical
+             , boxClasses  = ["composition", focusedClass focused]
+             }
+    [ BoxChild boxChildProps $ Box
+      boxProps { orientation = Horizontal, boxClasses = ["video"] }
+      (map (BoxChild boxChildProps . renderClip) videoClips)
+    , BoxChild boxChildProps $ Box
+      boxProps { orientation = Horizontal, boxClasses = ["audio"] }
+      (map (BoxChild boxChildProps . renderClip) audioClips)
     ]
 renderScene :: Scene -> Element
 renderScene Scene {..} = Box
-  boxProps {orientation = Vertical, boxClasses = ["scene"]}
-  [ Label labelProps {text = Just sceneName}
-  , renderSequence (applyFocus topSequence focus)
+  boxProps { orientation = Vertical, boxClasses = ["scene"] }
+  [ BoxChild boxChildProps { expand = True, fill = True } (Label labelProps { text = Just sceneName })
+  , BoxChild boxChildProps { padding = 10 } (renderSequence (applyFocus topSequence focus))
   ]

@@ -30,6 +30,18 @@ data LabelProps = LabelProps { text :: Maybe Text, labelClasses :: ClassSet }
 labelProps :: LabelProps
 labelProps = LabelProps {text = Nothing, labelClasses = mempty}
 
+data BoxChildProps = BoxChildProps { expand :: Bool, fill :: Bool, padding :: Word }
+  deriving (Eq, Show)
+
+boxChildProps :: BoxChildProps
+boxChildProps = BoxChildProps {expand = False, fill = False, padding = 0}
+
+data BoxChild = BoxChild BoxChildProps Element
+  deriving (Eq, Show)
+
+boxChildElement :: BoxChild -> Element
+boxChildElement (BoxChild _ element) = element
+
 data BoxProps = BoxProps { orientation :: Orientation, boxClasses :: ClassSet, size :: Maybe Size }
   deriving (Eq, Show)
 
@@ -39,7 +51,7 @@ boxProps =
 
 data Element
   = Label LabelProps
-  | Box BoxProps [Element]
+  | Box BoxProps [BoxChild]
   deriving (Eq, Show)
 
 data GtkWidget where
@@ -80,9 +92,11 @@ render = \case
       Vertical   -> Gtk.boxNew Gtk.OrientationVertical 0
     box `setSize` size
     box `addClasses` boxClasses
-    forM_ children $ \child -> do
+    forM_ children $ \(BoxChild BoxChildProps {..} child) -> do
       childWidget <- render child
-      withGtkWidget childWidget (\w -> Gtk.boxPackStart box w True True 0)
+      withGtkWidget
+        childWidget
+        (\w -> Gtk.boxPackStart box w expand fill (fromIntegral padding))
     return (GtkWidget box)
 
 update :: GtkWidget -> Element -> Element -> IO ()
@@ -96,7 +110,9 @@ update widget = curry $ \case
     box <- widget `unsafeCastTo` Gtk.Box
     box `setSize` size newProps
     replaceClasses box (boxClasses oldProps) (boxClasses newProps)
-    updateAll      box oldChildren           newChildren
+    updateAll box
+              (map boxChildElement oldChildren)
+              (map boxChildElement newChildren)
   (old, new) ->
     fail ("What to do with " ++ show old ++ " and " ++ show new ++ "?")
 
