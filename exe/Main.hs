@@ -15,7 +15,7 @@ import qualified GI.Gtk                as Gtk
 import           GI.Gtk.Objects.Window (windowResize)
 
 import           FastCut.Focus
-import           FastCut.VirtualWidget
+import           FastCut.FUI
 import           FastCut.Scene         (Scene (..))
 import qualified FastCut.Scene         as Scene
 import qualified FastCut.Scene.View    as SceneView
@@ -42,21 +42,20 @@ addKeyboardEventHandler window = do
   ignore = return False
 
 sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
-sceneRenderLoop events container = init
+sceneRenderLoop events container scene = do
+  let element = SceneView.renderScene scene
+  widget <- create element
+  widget `withGtkWidget` \w -> do
+    Gtk.boxPackEnd container w True True 0
+    Gtk.widgetShowAll container
+  loop element widget scene
   where
-    init scene = do
-      let element = SceneView.renderScene scene
-      w@(GtkWidget widget) <- render element
-      Gtk.boxPackEnd container widget True True 0
-      Gtk.widgetShowAll container
-      loop element w scene
     loop prev widget scene = do
       event <- readChan events
-      putStrLn ("Got new scene view event: " ++ show event)
       let scene' = Scene.update scene event
           new = SceneView.renderScene scene'
       void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-        update widget prev new
+        patch widget prev new
         return False
       loop new widget scene'
 

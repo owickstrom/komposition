@@ -1,9 +1,14 @@
+-- | The "functional user interface" module (FUI) represents a hierarchy of
+-- immutable user interface objects, usually constructed in a pure setting, and
+-- provides a patching mechanism for performing minimal updates using the
+-- underlying imperative GTK library.
+
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
-module FastCut.VirtualWidget where
+module FastCut.FUI where
 
 import           Control.Monad (forM_)
 import           Data.HashSet  (HashSet)
@@ -14,8 +19,6 @@ import           Data.GI.Base.CallStack  (HasCallStack)
 import qualified GI.Gtk        as Gtk
 
 -- * Rendering
-
-{-data UpdateResult = Added | Removed | Modified | Unmodified-}
 
 data Orientation = Vertical | Horizontal
   deriving (Eq, Show)
@@ -37,11 +40,11 @@ data BoxChildProps = BoxChildProps { expand :: Bool, fill :: Bool, padding :: Wo
 boxChildProps :: BoxChildProps
 boxChildProps = BoxChildProps {expand = False, fill = False, padding = 0}
 
-data BoxChild = BoxChild BoxChildProps Element
+data BoxChild = BoxChild BoxChildProps Object
   deriving (Eq, Show)
 
-boxChildElement :: BoxChild -> Element
-boxChildElement (BoxChild _ element) = element
+boxChildElement :: BoxChild -> Object
+boxChildElement (BoxChild _ obj) = obj
 
 data BoxProps = BoxProps { orientation :: Orientation, boxClasses :: ClassSet, size :: Maybe Size }
   deriving (Eq, Show)
@@ -50,10 +53,10 @@ boxProps :: BoxProps
 boxProps =
   BoxProps {orientation = Horizontal, boxClasses = mempty, size = Nothing}
 
-data Element
+data Object
   = Label LabelProps
   | Box BoxProps [BoxChild]
-  | ScrollArea Element
+  | ScrollArea Object
   deriving (Eq, Show)
 
 data GtkWidget where
@@ -86,8 +89,8 @@ setSize widget = \case
     Gtk.widgetSetSizeRequest widget (fromIntegral width) (fromIntegral height)
   Nothing -> return ()
 
-render :: Element -> IO GtkWidget
-render = \case
+create :: Object -> IO GtkWidget
+create = \case
   Label LabelProps {..} -> do
     label <- Gtk.labelNew text
     label `addClasses` labelClasses
@@ -99,7 +102,7 @@ render = \case
     box `setSize` size
     box `addClasses` boxClasses
     forM_ children $ \(BoxChild BoxChildProps {..} child) -> do
-      childWidget <- render child
+      childWidget <- create child
       withGtkWidget
         childWidget
         (\w -> Gtk.boxPackStart box w expand fill (fromIntegral padding))
@@ -109,12 +112,12 @@ render = \case
     Gtk.scrolledWindowSetPolicy scrollArea
                                 Gtk.PolicyTypeAutomatic
                                 Gtk.PolicyTypeNever
-    childWidget <- render child
+    childWidget <- create child
     withGtkWidget childWidget (Gtk.containerAdd scrollArea)
     return (GtkWidget scrollArea)
 
-update :: GtkWidget -> Element -> Element -> IO ()
-update widget = curry $ \case
+patch :: GtkWidget -> Object -> Object -> IO ()
+patch widget = curry $ \case
   (old           , new           ) | old == new -> return ()
   (Label oldProps, Label newProps)              -> do
     label <- widget `unsafeCastTo` Gtk.Label
@@ -124,33 +127,36 @@ update widget = curry $ \case
     box <- widget `unsafeCastTo` Gtk.Box
     box `setSize` size newProps
     replaceClasses box (boxClasses oldProps) (boxClasses newProps)
-    updateAll box
-              (map boxChildElement oldChildren)
-              (map boxChildElement newChildren)
+    patchAll box
+             (map boxChildElement oldChildren)
+             (map boxChildElement newChildren)
   (ScrollArea oldChild, ScrollArea newChild) -> do
-    box <- widget `unsafeCastTo` Gtk.ScrolledWindow
-    viewport <- Gtk.unsafeCastTo Gtk.Viewport =<< requireSingle =<< Gtk.containerGetChildren box
+    box      <- widget `unsafeCastTo` Gtk.ScrolledWindow
+    viewport <-
+      Gtk.unsafeCastTo Gtk.Viewport
+      =<< requireSingle
+      =<< Gtk.containerGetChildren box
     childWidget <- requireSingle =<< Gtk.containerGetChildren viewport
-    update (GtkWidget childWidget) oldChild newChild
-    where
-      requireSingle [w] = return w
-      requireSingle _ = fail "Expected a single child widget."
+    patch (GtkWidget childWidget) oldChild newChild
+   where
+    requireSingle [w] = return w
+    requireSingle _   = fail "Expected a single child widget."
   (old, new) ->
     fail ("What to do with " ++ show old ++ " and " ++ show new ++ "?")
 
-updateAll :: (Gtk.IsContainer c) => c -> [Element] -> [Element] -> IO ()
-updateAll container os' ns' = do
+patchAll :: (Gtk.IsContainer c) => c -> [Object] -> [Object] -> IO ()
+patchAll container os' ns' = do
   cs <- Gtk.containerGetChildren container
   sequence_ (go [] cs os' ns')
  where
-  -- In case we have a corresponding old and new virtual widget, we update the
+  -- In case we have a corresponding old and new virtual widget, we patch the
   -- GTK widget.
   go actions (w:ws) (o:os) (n:ns) =
-    let action = update (GtkWidget w) o n in go (actions ++ [action]) ws os ns
-  -- When there are new virtual widgets, render and add them.
+    let action = patch (GtkWidget w) o n in go (actions ++ [action]) ws os ns
+  -- When there are new virtual widgets, create and add them.
   go actions [] [] (n:ns) =
     let action = do
-          widget <- render n
+          widget <- create n
           withGtkWidget widget (Gtk.containerAdd container)
     in  go (actions ++ [action]) [] [] ns
   -- When a virtual widget has been removed, remove the GTK widget from the

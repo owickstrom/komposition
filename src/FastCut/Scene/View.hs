@@ -12,7 +12,7 @@ import           Data.Time.Clock       (NominalDiffTime)
 import           FastCut.Focus
 import           FastCut.Scene
 import           FastCut.Sequence
-import           FastCut.VirtualWidget
+import           FastCut.FUI
 
 sizeFromDuration :: (RealFrac d) => d -> Size
 sizeFromDuration duration =
@@ -24,7 +24,7 @@ focusedClass = \case
   TransitivelyFocused -> "transitively-focused"
   Blurred             -> "blurred"
 
-renderClip' :: Focused -> ClipMetadata -> Element
+renderClip' :: Focused -> ClipMetadata -> Object
 renderClip' focused metadata = Box
   boxProps { orientation = Horizontal
            , boxClasses  = ["clip", focusedClass focused]
@@ -34,7 +34,7 @@ renderClip' focused metadata = Box
              (Label labelProps { text = Just (clipName metadata) })
   ]
 
-renderGap :: Focused -> NominalDiffTime -> Element
+renderGap :: Focused -> NominalDiffTime -> Object
 renderGap focused duration = Box
   boxProps { orientation = Horizontal
            , boxClasses  = ["gap", focusedClass focused]
@@ -42,14 +42,14 @@ renderGap focused duration = Box
            }
   [BoxChild boxChildProps (Label labelProps)]
 
-renderClip :: Clip Focused t -> Element
+renderClip :: Clip Focused t -> Object
 renderClip = \case
   VideoClip focused metadata -> renderClip' focused metadata
   AudioClip focused metadata -> renderClip' focused metadata
   VideoGap  focused duration -> renderGap focused duration
   AudioGap  focused duration -> renderGap focused duration
 
-renderSequence :: Sequence Focused -> Element
+renderSequence :: Sequence Focused -> Object
 renderSequence = \case
   Sequence focused sub -> Box
     boxProps { orientation = Horizontal
@@ -67,9 +67,11 @@ renderSequence = \case
       boxProps { orientation = Horizontal, boxClasses = ["audio"] }
       (map (BoxChild boxChildProps . renderClip) audioClips)
     ]
-renderScene :: Scene -> Element
+renderScene :: Scene -> Object
 renderScene Scene {..} = Box
   boxProps { orientation = Vertical, boxClasses = ["scene"] }
-  [ BoxChild boxChildProps { expand = True, fill = True } (Label labelProps { text = Just sceneName })
-  , BoxChild boxChildProps (ScrollArea (renderSequence (applyFocus topSequence focus)))
+  [ BoxChild boxChildProps { expand = True, fill = True }
+             (Label labelProps { text = Just sceneName })
+  , BoxChild boxChildProps
+             (ScrollArea (renderSequence (applyFocus topSequence focus)))
   ]
