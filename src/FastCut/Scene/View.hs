@@ -7,22 +7,20 @@
 {-# LANGUAGE RecordWildCards   #-}
 module FastCut.Scene.View (renderScene) where
 
-import           Data.Function ((&))
-import           Data.GI.Base.CallStack (HasCallStack)
-import qualified Data.HashSet     as HashSet
-import           Data.Row.Records hiding (Label, map, focus)
+import           Data.Function    ((&))
+import           Data.Int
+import           Data.Row.Records hiding (Label, focus, map)
 import           Data.Text        (Text)
 import           Data.Time.Clock  (NominalDiffTime)
+import           GI.Gtk           hiding ((:=))
 
 import           FastCut.Focus
 import           FastCut.FUI
-import           FastCut.Scene hiding (update)
+import           FastCut.Scene    hiding (update)
 import           FastCut.Sequence
 
-sizeFromDuration :: (RealFrac d) => d -> Size
-sizeFromDuration duration =
-     #width  .== (fromIntegral (ceiling duration :: Int) * 50)
-  .+ #height .== (-1)
+widthFromDuration :: (RealFrac d) => d -> Int32
+widthFromDuration duration = fromIntegral (ceiling duration :: Int) * 50
 
 focusedClass :: Focused -> Text
 focusedClass = \case
@@ -32,21 +30,22 @@ focusedClass = \case
 
 renderClip' :: Focused -> ClipMetadata -> Object
 renderClip' focused metadata =
-  box (   #classes .== classes ["clip", focusedClass focused]
-       .+ #orientation .== Horizontal
-       .+ #size    .== Just (sizeFromDuration (duration metadata))
-      )
-  [ Child defaultBoxChildProps (label $ #text .== Just (clipName metadata) .+ #classes .== mempty)
-  ]
+  gtk Box [classes ["clip", focusedClass focused]
+          , #orientation := OrientationHorizontal
+          , #widthRequest := widthFromDuration (duration metadata)
+          ]
+  -- [ Child defaultBoxChildProps $
+  --   gtk Label [#label := (clipName metadata), cssClass "clip"]
+  -- ]
 
 renderGap :: Focused -> NominalDiffTime -> Object
 renderGap focused duration =
-  box
-  (    #classes .== classes ["gap", focusedClass focused]
-    .+ #orientation .== Horizontal
-    .+ #size    .== Just (sizeFromDuration duration)
-  )
-  [Child defaultBoxChildProps (label defaultLabelProps)]
+  gtk Box
+  [    classes ["gap", focusedClass focused]
+  , #orientation := OrientationHorizontal
+  , #widthRequest := widthFromDuration duration
+  ]
+  -- [Child defaultBoxChildProps (gtk Label [])]
 
 renderClip :: Clip Focused t -> Object
 renderClip = \case
@@ -59,15 +58,16 @@ renderSequence :: Sequence Focused -> Object
 renderSequence =
   \case
     Sequence focused sub ->
-      box
-        (defaultBoxProps
-          & update #classes (classes ["sequence", focusedClass focused]))
-        (map (Child defaultBoxChildProps . renderSequence) sub)
+      gtk Box
+        [ classes ["sequence", focusedClass focused]
+        ]
+        -- (map (Child defaultBoxChildProps . renderSequence) sub)
     Composition focused videoClips audioClips ->
-      box
-      (defaultBoxProps
-          & update #orientation Vertical
-          & update #classes (classes ["composition", focusedClass focused]))
+      gtk Box
+          [#orientation := OrientationVertical
+          , classes ["composition", focusedClass focused]
+          ]
+        {-
         [ Child defaultBoxChildProps $
           box
             (update #classes (classes ["video", focusedClass focused]) defaultBoxProps)
@@ -77,21 +77,20 @@ renderSequence =
             (update #classes (classes ["audio", focusedClass focused]) defaultBoxProps)
             (map (Child defaultBoxChildProps . renderClip) audioClips)
         ]
+        -}
 
-renderScene :: HasCallStack => Scene -> Object
+renderScene :: Scene -> Object
 renderScene Scene {..} =
-  box
-    sceneBoxProps
+  gtk Button [ #label := "YES!"]
+  --gtk Box [ #orientation := OrientationVertical
+  --        , classes ["scene"]
+  --        ]
+  {-
     [ Child
         (#expand .== True .+ #fill .== True .+ #padding .== 0)
-        (label (#text .== Just sceneName .+ #classes .== mempty))
+        (gtk Label [#label := sceneName])
     , Child
         defaultBoxChildProps
         (scrollArea (renderSequence (applyFocus topSequence focus)))
     ]
-  where
-    sceneBoxProps :: Rec BoxProps
-    sceneBoxProps =
-      #orientation .== Vertical .+
-      #classes .== classes ["scene"] .+
-      #size .== Nothing
+-}

@@ -1,6 +1,6 @@
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE LambdaCase            #-}
@@ -17,15 +17,17 @@
 -- underlying imperative GTK library.
 module FastCut.FUI where
 
-import           Control.Monad          (forM_)
-import           Data.GI.Base.CallStack (HasCallStack)
-import           Data.HashSet           (HashSet)
-import qualified Data.HashSet           as HashSet
-import           Data.Maybe             (fromMaybe)
-import           Data.Row.Records       hiding (Label, map)
-import           Data.Text              (Text)
+import           Data.Foldable (fold)
+import           Data.Either (partitionEithers)
+import qualified Data.GI.Base               as GI
+import qualified Data.GI.Base.Attributes    as GI
+import           Data.GI.Base.CallStack     (HasCallStack)
+import           Data.HashSet               (HashSet)
+import qualified Data.HashSet               as HashSet
+import           Data.Text                  (Text)
 import           Data.Typeable
-import qualified GI.Gtk                 as Gtk
+import qualified GI.Gtk                     as Gtk
+import GHC.TypeLits (Symbol)
 
 class Patchable o where
   create :: o -> IO GtkWidget
@@ -57,22 +59,18 @@ unsafeCastTo
   -> IO a
 unsafeCastTo (GtkWidget obj) = flip Gtk.unsafeCastTo obj
 
+type ClassSet = HashSet Text
+
 addClasses :: Gtk.IsWidget w => w -> ClassSet -> IO ()
-addClasses widget classes = do
+addClasses widget cs = do
   sc <- Gtk.widgetGetStyleContext widget
-  mapM_ (Gtk.styleContextAddClass sc) classes
+  mapM_ (Gtk.styleContextAddClass sc) cs
 
 replaceClasses :: Gtk.IsWidget w => w -> ClassSet -> ClassSet -> IO ()
 replaceClasses widget old new = do
   sc <- Gtk.widgetGetStyleContext widget
   mapM_ (Gtk.styleContextRemoveClass sc) (HashSet.difference old new)
   mapM_ (Gtk.styleContextAddClass sc)    (HashSet.difference new old)
-
-setSize :: Gtk.IsWidget w => w -> Maybe Size -> IO ()
-setSize widget = \case
-  Just size ->
-    Gtk.widgetSetSizeRequest widget (fromIntegral (size .! #width)) (fromIntegral (size .! #height))
-  Nothing -> return ()
 
 patchAll :: Gtk.IsContainer c => c -> [Object] -> [Object] -> IO ()
 patchAll container os' ns' = do
@@ -111,126 +109,67 @@ patchAll container os' ns' = do
   -- Lastly, when we have gone through all widgets, we return the actions.
   go actions [] [] [] = actions
 
--- * Objects
+-- -- * Generic GTK patchable object
 
-data Orientation = Vertical | Horizontal
-  deriving (Eq, Show)
+data AttrPair obj where
+  (:=)
+    :: (GI.AttrGetC info obj attr value
+      , GI.AttrOpAllowed 'GI.AttrConstruct info obj
+      , GI.AttrOpAllowed 'GI.AttrSet info obj
+      , GI.AttrSetTypeConstraint info value
+      , Typeable attr
+      , Eq value
+      )
+    =>  GI.AttrLabelProxy (attr :: Symbol) -> value -> AttrPair obj
+  Classes
+    :: Gtk.IsWidget obj
+    => ClassSet
+    -> AttrPair obj
 
-type ClassSet = HashSet Text
+classes :: Gtk.IsWidget obj => ClassSet -> AttrPair obj
+classes = Classes
 
-classes :: [Text] -> ClassSet
-classes = HashSet.fromList
+instance Eq (AttrPair obj) where
+  ((_ :: GI.AttrLabelProxy attr1) := v1) == ((_ :: GI.AttrLabelProxy attr2) := v2) =
+    case eqT @attr1 @attr2 of
+      Just Refl -> v1 == v2
+      Nothing -> False
+  Classes c1 == Classes c2 = c1 == c2
+  _ == _ = False
 
-type Size = Rec ("width" .== Int .+ "height" .== Int)
+data GtkObject a where
+  GtkObject :: (Typeable a, Gtk.IsWidget a) => (Gtk.ManagedPtr a -> a) -> [AttrPair a] -> GtkObject a
 
-data Child props = Child (Rec props) Object
+instance Eq (GtkObject a) where
+  GtkObject _ attrs1 == GtkObject _ attrs2 = attrs1 == attrs2
 
-deriving instance Forall props Eq => Eq (Child props)
-deriving instance Forall props Show => Show (Child props)
+instance Show (GtkObject a) where
+  show _ = "GtkObject"
 
-childObject :: Child p -> Object
-childObject (Child _ o) = o
-
--- * Label
-
-type LabelProps = "text" .== Maybe Text .+ "classes" .== ClassSet
-
-defaultLabelProps :: Rec LabelProps
-defaultLabelProps = #text .== Nothing .+ #classes .== mempty
-
-newtype Label = Label (Rec LabelProps)
-  deriving (Eq, Show)
-
-instance Patchable Label where
-  create (Label props) = do
-    lbl <- Gtk.labelNew (props .! #text)
-    lbl `addClasses` (props .! #classes)
-    return (GtkWidget lbl)
-  patch widget (Label oldProps) (Label newProps) = do
-    lbl <- widget `unsafeCastTo` Gtk.Label
-    Gtk.labelSetLabel lbl (fromMaybe mempty (newProps .! #text))
-    replaceClasses lbl (oldProps .! #classes) (newProps .! #classes)
-
-label :: Rec LabelProps -> Object
-label props = Object (Label props)
-
--- * Box
-
-type BoxChildProps = "expand" .== Bool
-                     .+ "fill" .== Bool
-                     .+ "padding" .== Word
-
-defaultBoxChildProps :: Rec BoxChildProps
-defaultBoxChildProps =
-     #expand .== False
-  .+ #fill .== False
-  .+ #padding .== 0
-
-type BoxProps = "orientation" .== Orientation
-                .+ "classes" .== ClassSet
-                .+ "size" .== Maybe Size
-
-defaultBoxProps :: Rec BoxProps
-defaultBoxProps =
-     #orientation .== Horizontal
-  .+ #classes .== mempty
-  .+ #size .== Nothing
-
-data Box = Box (Rec BoxProps) [Child BoxChildProps]
-  deriving (Eq, Show)
-
-box :: Rec BoxProps -> [Child BoxChildProps] -> Object
-box props = Object . Box props
-
-instance Patchable Box where
-  create (Box props children) = do
-    box' <-
-      case props .! #orientation of
-        Horizontal -> Gtk.boxNew Gtk.OrientationHorizontal 0
-        Vertical   -> Gtk.boxNew Gtk.OrientationVertical 0
-    box' `setSize` (props .! #size)
-    box' `addClasses` (props .! #classes)
-    forM_ children $ \(Child childProps (Object child)) -> do
-      childWidget <- create child
-      withGtkWidget
-        childWidget
-        (\w ->
-           Gtk.boxPackStart
-             box'
-             w
-             (childProps .! #expand)
-             (childProps .! #fill)
-             (fromIntegral (childProps .! #padding)))
-    return (GtkWidget box')
-  patch widget (Box oldProps oldChildren) (Box newProps newChildren) = do
-    box' <- widget `unsafeCastTo` Gtk.Box
-    box' `setSize` (newProps .! #size)
-    replaceClasses box' (oldProps .! #classes) (newProps .! #classes)
-    patchAll box'
-             (map childObject oldChildren)
-             (map childObject newChildren)
-
--- * ScrollArea
-
-newtype ScrollArea = ScrollArea Object
-  deriving (Eq, Show)
-
-scrollArea :: Object -> Object
-scrollArea = Object . ScrollArea
-
-instance Patchable ScrollArea where
-  create (ScrollArea (Object child)) = do
-    sa <- Gtk.scrolledWindowNew Gtk.noAdjustment Gtk.noAdjustment
-    Gtk.scrolledWindowSetPolicy sa Gtk.PolicyTypeAutomatic Gtk.PolicyTypeNever
-    childWidget <- create child
-    withGtkWidget childWidget (Gtk.containerAdd sa)
-    return (GtkWidget sa)
-  patch widget (ScrollArea oldChild) (ScrollArea newChild) = do
-    box' <- widget `unsafeCastTo` Gtk.ScrolledWindow
-    viewport <-
-      Gtk.unsafeCastTo Gtk.Viewport =<<
-      requireSingle =<< Gtk.containerGetChildren box'
-    patchAll viewport [oldChild] [newChild]
+instance Patchable (GtkObject a) where
+  create (GtkObject ctor attrs) = do
+    widget <- Gtk.new ctor attrOps
+    addClasses widget (fold classSets)
+    return (GtkWidget widget)
     where
-      requireSingle [w] = return w
-      requireSingle _ = fail "Expected a single child widget."
+      toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrConstruct) ClassSet
+      toOpOrClass =
+        \case
+          (attr := value) -> Left (attr Gtk.:= value)
+          Classes c -> Right c
+      (attrOps, classSets) = partitionEithers (map toOpOrClass attrs)
+  patch widget _ (GtkObject ctor attrs) = do
+    w <- widget `unsafeCastTo` ctor
+    Gtk.set w attrOps
+    addClasses w (fold classSets)
+    where
+      toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
+      toOpOrClass =
+        \case
+          (attr := value) -> Left (attr Gtk.:= value)
+          Classes c -> Right c
+      (attrOps, classSets) = partitionEithers (map toOpOrClass attrs)
+
+
+gtk :: (Typeable a, Gtk.IsWidget a) => (Gtk.ManagedPtr a -> a) -> [AttrPair a] -> Object
+gtk ctor = Object . GtkObject ctor
