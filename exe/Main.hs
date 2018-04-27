@@ -10,7 +10,7 @@ import qualified Data.Text             as Text
 import           Data.Word
 import qualified GI.Gdk                as Gdk
 import qualified GI.GLib.Constants     as GLib
-import           GI.GObject
+import           GI.GObject            hiding (Object)
 import qualified GI.Gtk                as Gtk
 import           GI.Gtk.Objects.Window (windowResize)
 
@@ -43,21 +43,23 @@ addKeyboardEventHandler window = do
 
 sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
 sceneRenderLoop events container scene = do
-  let element = SceneView.renderScene scene
-  widget <- create element
-  widget `withGtkWidget` \w -> do
-    Gtk.boxPackEnd container w True True 0
-    Gtk.widgetShowAll container
-  loop element widget scene
+  case SceneView.renderScene scene of
+    o@(Object first) -> do
+      widget <- create first
+      widget `withGtkWidget` \w -> do
+        Gtk.boxPackEnd container w True True 0
+        Gtk.widgetShowAll container
+      loop widget o scene
   where
-    loop prev widget scene = do
+    loop widget prev scene = do
       event <- readChan events
       let scene' = Scene.update scene event
-          new = SceneView.renderScene scene'
-      void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-        patch widget prev new
-        return False
-      loop new widget scene'
+      case SceneView.renderScene scene' of
+        Object new -> do
+          void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+            patchAll container [prev] [Object new]
+            return False
+          loop widget (Object new) scene'
 
 initialScene :: Scene
 initialScene = Scene

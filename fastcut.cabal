@@ -33,6 +33,7 @@ library
                       , haskell-gi
                       , haskell-gi-base
                       , mtl
+                      , row-types >= 0.2 && <0.3
                       , text
                       , time
                       , unordered-containers
