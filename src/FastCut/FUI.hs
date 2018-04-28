@@ -27,6 +27,7 @@ import qualified Data.GI.Base            as GI
 import qualified Data.GI.Base.Attributes as GI
 import           Data.HashSet            (HashSet)
 import qualified Data.HashSet            as HashSet
+import           Data.List               (zip4)
 import           Data.Text               (Text)
 import           Data.Typeable
 import           Data.Word               (Word32)
@@ -68,50 +69,56 @@ replaceClasses widget old new = do
   mapM_ (Gtk.styleContextRemoveClass sc) (HashSet.difference old new)
   mapM_ (Gtk.styleContextAddClass sc)    (HashSet.difference new old)
 
+padMaybes :: [a] -> [Maybe a]
+padMaybes xs = map Just xs ++ repeat Nothing
+
 patchAll :: Gtk.IsContainer c => c -> [Object] -> [Object] -> IO ()
 patchAll container' os' ns' = do
   cs <- Gtk.containerGetChildren container'
-  sequence_ (go [] cs os' ns')
-  -- In case we have a corresponding old and new virtual widget, we patch the
-  -- GTK widget.
-  where
-    go actions (w:ws) (Object (o :: t):os) (Object (n :: t'):ns) =
+  let maxLength = maximum [length cs, length os', length ns']
+      indices = [0 .. pred maxLength]
+  forM_ (zip4 indices (padMaybes cs) (padMaybes os') (padMaybes ns')) $ \case
+
+    -- In case we have a corresponding old and new virtual widget, we patch the
+    -- GTK widget.
+    (_i, Just w, Just (Object (o :: t)), Just (Object (n :: t'))) ->
       case eqT @t @t' of
         Just Refl ->
           case patch o n of
-            Modify f -> go (actions ++ [f w]) ws os ns
-            -- TODO: Replace
-            Replace ->
-              let action = fail "Can't do replace yet."
-              in go (actions ++ [action]) ws os ns
-            Keep -> go actions ws os ns
-        Nothing
-        -- TODO: Replace
-         ->
-          let action = fail "Can't do replace yet."
-          in go (actions ++ [action]) ws os ns
-  -- When there are new virtual widgets, create and add them.
-    go actions [] [] (Object n:ns) =
-      let action = do
-            widget <- create n
-            Gtk.containerAdd container' widget
-      in go (actions ++ [action]) [] [] ns
-  -- When a virtual widget has been removed, remove the GTK widget from the
-  -- container.
-    go actions (w:ws) (_:os) [] =
-      let action = Gtk.containerRemove container' w
-      in go (actions ++ [action]) ws os []
-  -- When there are more old virtual widgets than GTK widgets, we can safely
-  -- drop the virtual widgets and go on.
-    go actions [] (_:_) ns = go actions [] [] ns
-  -- But, when there are stray GTK widgets without corresponding virtual
-  -- widgets, something has gone terribly wrong, and we clean that mess up by
-  -- removing the GTK widget.
-    go actions (w:ws) [] ns =
-      let action = Gtk.containerRemove container' w
-      in go (actions ++ [action]) ws [] ns
-  -- Lastly, when we have gone through all widgets, we return the actions.
-    go actions [] [] [] = actions
+            Modify modify -> modify w
+            Replace       -> fail "Can't do replace yet."
+            Keep          -> return ()
+        Nothing -> fail "Can't do replace yet."
+
+    -- When there is a new object, but there already exists a widget
+    -- in the corresponding place, we need to replace the widget with
+    -- one created from the object.
+    (_i, Just w, Nothing, Just _) ->
+      fail "Can't do replace yet."
+
+    -- When there is a new object, or one that lacks a corresponding GTK
+    -- widget, create and add it.
+    (_i, Nothing, _, Just (Object n)) ->
+      create n >>= Gtk.containerAdd container'
+
+    -- When an object has been removed, remove the GTK widget from the
+    -- container.
+    (_i, Just w, Just _, Nothing) ->
+      Gtk.containerRemove container' w
+
+    -- When there are more old objects than GTK widgets, we can safely
+    -- ignore the old objects.
+    (_i, Nothing, Just _, Nothing) -> return ()
+
+    -- But, when there are stray GTK widgets without corresponding
+    -- objects, something has gone wrong, and we clean that mess
+    -- up by removing the GTK widgets.
+    (_i, Just w, Nothing, Nothing) ->
+      Gtk.containerRemove container' w
+
+    -- No more widgets or objects, we are done.
+    (_i, Nothing, Nothing, Nothing) ->
+      return ()
 
 -- -- * Generic GTK patchable object
 
