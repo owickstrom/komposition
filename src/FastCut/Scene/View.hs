@@ -29,13 +29,15 @@ focusedClass = \case
 
 renderClip' :: Focused -> ClipMetadata -> Object
 renderClip' focused metadata =
-  container Box [classes ["clip", focusedClass focused]
-           , #orientation := OrientationHorizontal
-           , #widthRequest := widthFromDuration (duration metadata)
-           ]
-  [ -- Child defaultBoxChildProps $
-    node Label [#label := clipName metadata, classes ["clip"]]
-  ]
+  container
+    Box
+    [ classes ["clip", focusedClass focused]
+    , #orientation := OrientationHorizontal
+    , #widthRequest := widthFromDuration (duration metadata)
+    ]
+    [ BoxChild False False 0 $
+      node Label [#label := clipName metadata, classes ["clip"]]
+    ]
 
 renderGap :: Focused -> NominalDiffTime -> Object
 renderGap focused duration =
@@ -57,32 +59,39 @@ renderSequence :: Sequence Focused -> Object
 renderSequence =
   \case
     Sequence focused sub ->
-      container Box
-        [ classes ["sequence", focusedClass focused]
-        ]
+      container
+        Box
+        [classes ["sequence", focusedClass focused]]
         (map renderSequence sub)
     Composition focused videoClips audioClips ->
-      container Box
-          [ #orientation := OrientationVertical
-          , classes ["composition", focusedClass focused]
-          ]
-        [ -- Child defaultBoxChildProps $
-          container Box
+      container
+        Box
+        [ #orientation := OrientationVertical
+        , classes ["composition", focusedClass focused]
+        ]
+        [ BoxChild False False 0 $
+          container
+            Box
             [classes ["video", focusedClass focused]]
             (map renderClip videoClips)
-        , -- Child defaultBoxChildProps $
-          container Box
+        , BoxChild False False 0 $
+          container
+            Box
             [classes ["audio", focusedClass focused]]
             (map renderClip audioClips)
         ]
 
 renderScene :: Scene -> Object
 renderScene Scene {..} =
-  container Box [ #orientation := OrientationVertical
-          , classes ["scene"]
-          ]
-    [ -- Child (#expand .== True .+ #fill .== True .+ #padding .== 0) $
-      node Label [#label := sceneName]
-    , -- Child defaultBoxChildProps $
-      container ScrolledWindow [] [renderSequence (applyFocus topSequence focus)]
+  container
+    Box
+    [#orientation := OrientationVertical, classes ["scene"]]
+    [ BoxChild True True 0 $ node Label [#label := sceneName]
+    , BoxChild False False 0 $
+      container
+        ScrolledWindow
+        [ #hscrollbarPolicy := PolicyTypeAutomatic
+        , #vscrollbarPolicy := PolicyTypeNever
+        ]
+        [renderSequence (applyFocus topSequence focus)]
     ]
