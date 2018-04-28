@@ -1,10 +1,11 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Concurrent
 import           Control.Monad         (void)
+import           Data.Function         ((&))
 import           Data.Functor          (($>))
 import           Data.GI.Base
-import           Data.Semigroup        ((<>))
 import           Data.Text
 import qualified Data.Text             as Text
 import           Data.Word
@@ -42,24 +43,25 @@ addKeyboardEventHandler window = do
   ignore = return False
 
 sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
-sceneRenderLoop events container scene = do
-  case SceneView.renderScene scene of
+sceneRenderLoop events container initial =
+  initial
+  & SceneView.renderScene
+  & \case
     o@(Object first) -> do
       widget <- create first
-      widget `withGtkWidget` \w -> do
-        Gtk.boxPackEnd container w True True 0
-        Gtk.widgetShowAll container
-      loop widget o scene
+      Gtk.boxPackEnd container widget True True 0
+      Gtk.widgetShowAll container
+      loop widget o initial
   where
-    loop widget prev scene = do
+    loop widget prevObj scene = do
       event <- readChan events
       let scene' = Scene.update scene event
       case SceneView.renderScene scene' of
-        Object new -> do
+        newObj -> do
           void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-            patchAll container [prev] [Object new]
+            patchAll container [prevObj] [newObj]
             return False
-          loop widget (Object new) scene'
+          loop widget newObj scene'
 
 initialScene :: Scene
 initialScene = Scene

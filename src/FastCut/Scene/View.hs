@@ -9,7 +9,6 @@ module FastCut.Scene.View (renderScene) where
 
 import           Data.Function    ((&))
 import           Data.Int
-import           Data.Row.Records hiding (Label, focus, map)
 import           Data.Text        (Text)
 import           Data.Time.Clock  (NominalDiffTime)
 import           GI.Gtk           hiding ((:=))
@@ -30,22 +29,22 @@ focusedClass = \case
 
 renderClip' :: Focused -> ClipMetadata -> Object
 renderClip' focused metadata =
-  gtk Box [classes ["clip", focusedClass focused]
-          , #orientation := OrientationHorizontal
-          , #widthRequest := widthFromDuration (duration metadata)
-          ]
-  -- [ Child defaultBoxChildProps $
-  --   gtk Label [#label := (clipName metadata), cssClass "clip"]
-  -- ]
+  container Box [classes ["clip", focusedClass focused]
+           , #orientation := OrientationHorizontal
+           , #widthRequest := widthFromDuration (duration metadata)
+           ]
+  [ -- Child defaultBoxChildProps $
+    node Label [#label := clipName metadata, classes ["clip"]]
+  ]
 
 renderGap :: Focused -> NominalDiffTime -> Object
 renderGap focused duration =
-  gtk Box
+  container Box
   [    classes ["gap", focusedClass focused]
   , #orientation := OrientationHorizontal
   , #widthRequest := widthFromDuration duration
   ]
-  -- [Child defaultBoxChildProps (gtk Label [])]
+  [node Label []]
 
 renderClip :: Clip Focused t -> Object
 renderClip = \case
@@ -58,39 +57,32 @@ renderSequence :: Sequence Focused -> Object
 renderSequence =
   \case
     Sequence focused sub ->
-      gtk Box
+      container Box
         [ classes ["sequence", focusedClass focused]
         ]
-        -- (map (Child defaultBoxChildProps . renderSequence) sub)
+        (map renderSequence sub)
     Composition focused videoClips audioClips ->
-      gtk Box
-          [#orientation := OrientationVertical
+      container Box
+          [ #orientation := OrientationVertical
           , classes ["composition", focusedClass focused]
           ]
-        {-
-        [ Child defaultBoxChildProps $
-          box
-            (update #classes (classes ["video", focusedClass focused]) defaultBoxProps)
-            (map (Child defaultBoxChildProps . renderClip) videoClips)
-        , Child defaultBoxChildProps $
-          box
-            (update #classes (classes ["audio", focusedClass focused]) defaultBoxProps)
-            (map (Child defaultBoxChildProps . renderClip) audioClips)
+        [ -- Child defaultBoxChildProps $
+          container Box
+            [classes ["video", focusedClass focused]]
+            (map renderClip videoClips)
+        , -- Child defaultBoxChildProps $
+          container Box
+            [classes ["audio", focusedClass focused]]
+            (map renderClip audioClips)
         ]
-        -}
 
 renderScene :: Scene -> Object
 renderScene Scene {..} =
-  gtk Button [ #label := "YES!"]
-  --gtk Box [ #orientation := OrientationVertical
-  --        , classes ["scene"]
-  --        ]
-  {-
-    [ Child
-        (#expand .== True .+ #fill .== True .+ #padding .== 0)
-        (gtk Label [#label := sceneName])
-    , Child
-        defaultBoxChildProps
-        (scrollArea (renderSequence (applyFocus topSequence focus)))
+  container Box [ #orientation := OrientationVertical
+          , classes ["scene"]
+          ]
+    [ -- Child (#expand .== True .+ #fill .== True .+ #padding .== 0) $
+      node Label [#label := sceneName]
+    , -- Child defaultBoxChildProps $
+      container ScrolledWindow [] [renderSequence (applyFocus topSequence focus)]
     ]
--}
