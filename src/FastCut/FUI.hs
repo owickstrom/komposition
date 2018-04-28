@@ -33,9 +33,14 @@ import           Data.Word               (Word32)
 import           GHC.TypeLits            (Symbol)
 import qualified GI.Gtk                  as Gtk
 
-class Patchable o where
-  create ::  o -> IO Gtk.Widget
-  patch :: Gtk.IsWidget w => w -> o -> o -> IO ()
+data Patch
+  = Modify (Gtk.Widget -> IO ())
+  | Replace
+  | Keep
+
+class Patchable obj where
+  create ::  obj -> IO Gtk.Widget
+  patch :: obj -> obj -> Patch
 
 data Object where
   Object :: (Eq o, Show o, Typeable o, Patchable o) => o -> Object
@@ -67,38 +72,46 @@ patchAll :: Gtk.IsContainer c => c -> [Object] -> [Object] -> IO ()
 patchAll container' os' ns' = do
   cs <- Gtk.containerGetChildren container'
   sequence_ (go [] cs os' ns')
- where
   -- In case we have a corresponding old and new virtual widget, we patch the
   -- GTK widget.
-  go actions (w:ws) (Object (o :: t) : os) (Object (n :: t'):ns) =
-    case eqT @t @t' of
-      Just Refl ->
-        let action = patch w o n in go (actions ++ [action]) ws os ns
-      Nothing ->
+  where
+    go actions (w:ws) (Object (o :: t):os) (Object (n :: t'):ns) =
+      case eqT @t @t' of
+        Just Refl ->
+          case patch o n of
+            Modify f -> go (actions ++ [f w]) ws os ns
+            -- TODO: Replace
+            Replace ->
+              let action = fail "Can't do replace yet."
+              in go (actions ++ [action]) ws os ns
+            Keep -> go actions ws os ns
+        Nothing
         -- TODO: Replace
-        let action = fail "Can't do replace yet." in go (actions ++ [action]) ws os ns
+         ->
+          let action = fail "Can't do replace yet."
+          in go (actions ++ [action]) ws os ns
   -- When there are new virtual widgets, create and add them.
-  go actions [] [] (Object n:ns) =
-    let action = do
-          widget <- create n
-          Gtk.containerAdd container' widget
-    in  go (actions ++ [action]) [] [] ns
+    go actions [] [] (Object n:ns) =
+      let action = do
+            widget <- create n
+            Gtk.containerAdd container' widget
+      in go (actions ++ [action]) [] [] ns
   -- When a virtual widget has been removed, remove the GTK widget from the
   -- container.
-  go actions (w:ws) (_:os) [] =
-    let action = Gtk.containerRemove container' w
-    in  go (actions ++ [action]) ws os []
+    go actions (w:ws) (_:os) [] =
+      let action = Gtk.containerRemove container' w
+      in go (actions ++ [action]) ws os []
   -- When there are more old virtual widgets than GTK widgets, we can safely
   -- drop the virtual widgets and go on.
-  go actions [] (_:_) ns = go actions [] [] ns
+    go actions [] (_:_) ns = go actions [] [] ns
   -- But, when there are stray GTK widgets without corresponding virtual
   -- widgets, something has gone terribly wrong, and we clean that mess up by
   -- removing the GTK widget.
-  go actions (w:ws) [] ns =
-    let action = Gtk.containerRemove container' w
-    in  go (actions ++ [action]) ws [] ns
+    go actions (w:ws) [] ns =
+      let action = Gtk.containerRemove container' w
+      in go (actions ++ [action]) ws [] ns
   -- Lastly, when we have gone through all widgets, we return the actions.
-  go actions [] [] [] = actions
+    go actions [] [] [] = actions
 
 -- -- * Generic GTK patchable object
 
@@ -168,8 +181,7 @@ instance Patchable (GtkLeaf a) where
         \case
           (attr := value) -> Left (attr Gtk.:= value)
           Classes c -> Right c
-  -- TODO: replace entire object if attrs are removed (can't handle nullability yet)
-  patch widget (GtkLeaf _ oldAttrs) (GtkLeaf ctor newAttrs) = do
+  patch (GtkLeaf _ oldAttrs) (GtkLeaf ctor newAttrs) = Modify $ \widget -> do
     let (_, oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
         (newAttrOps, newClassSets) = partitionEithers (map toOpOrClass newAttrs)
     w <- Gtk.unsafeCastTo ctor widget
@@ -212,24 +224,27 @@ instance PatchableContainer Gtk.ScrolledWindow Object where
 
 instance PatchableContainer a child => Patchable (GtkContainer a child) where
   create (GtkContainer ctor attrs children) = do
-        let (attrOps, classSets) = partitionEithers (map toOpOrClass attrs)
-        widget <- Gtk.new ctor attrOps
-        addClasses widget (fold classSets)
-        forM_ children (createChildIn widget)
-        Gtk.toWidget widget
+    let (attrOps, classSets) = partitionEithers (map toOpOrClass attrs)
+    widget <- Gtk.new ctor attrOps
+    addClasses widget (fold classSets)
+    forM_ children (createChildIn widget)
+    Gtk.toWidget widget
     where
-      toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrConstruct) ClassSet
+      toOpOrClass ::
+           AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrConstruct) ClassSet
       toOpOrClass =
         \case
           (attr := value) -> Left (attr Gtk.:= value)
           Classes c -> Right c
-  patch widget (GtkContainer _ oldAttrs oldChildren) (GtkContainer ctor newAttrs newChildren) = do
-    let (_, oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
-        (newAttrOps, newClassSets) = partitionEithers (map toOpOrClass newAttrs)
-    w <- Gtk.unsafeCastTo ctor widget
-    Gtk.set w newAttrOps
-    replaceClasses w (fold oldClassSets) (fold newClassSets)
-    patchChildrenIn w oldChildren newChildren
+  patch (GtkContainer _ oldAttrs oldChildren) (GtkContainer ctor newAttrs newChildren) =
+    Modify $ \widget -> do
+      let (_, oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
+          (newAttrOps, newClassSets) =
+            partitionEithers (map toOpOrClass newAttrs)
+      w <- Gtk.unsafeCastTo ctor widget
+      Gtk.set w newAttrOps
+      replaceClasses w (fold oldClassSets) (fold newClassSets)
+      patchChildrenIn w oldChildren newChildren
     where
       toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
       toOpOrClass =
