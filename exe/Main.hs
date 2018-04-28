@@ -59,7 +59,7 @@ startSceneRenderLoop events container initial =
       case SceneView.renderScene scene' of
         newObj -> do
           void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-            case patchObjects oldObj newObj of
+            case patch oldObj newObj of
               Modify modify -> modify widget
               Replace createNew -> do
                 Gtk.containerRemove container widget
