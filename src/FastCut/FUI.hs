@@ -168,12 +168,14 @@ instance Patchable (GtkLeaf a) where
         \case
           (attr := value) -> Left (attr Gtk.:= value)
           Classes c -> Right c
+  -- TODO: replace entire object if attrs are removed (can't handle nullability yet)
   patch widget (GtkLeaf _ oldAttrs) (GtkLeaf ctor newAttrs) = do
-    let (_, _oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
+    let (_, oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
         (newAttrOps, newClassSets) = partitionEithers (map toOpOrClass newAttrs)
     w <- Gtk.unsafeCastTo ctor widget
     Gtk.set w newAttrOps
-    addClasses w (fold newClassSets)
+    replaceClasses w (fold oldClassSets) (fold newClassSets)
+    Gtk.widgetShowAll w
     where
       toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
       toOpOrClass =
@@ -221,13 +223,13 @@ instance PatchableContainer a child => Patchable (GtkContainer a child) where
         \case
           (attr := value) -> Left (attr Gtk.:= value)
           Classes c -> Right c
-  patch widget (GtkContainer _ _ oldChildren) (GtkContainer ctor newAttrs newChildren) = do
-        let (_, oldClassSets) = partitionEithers (map toOpOrClass newAttrs)
-            (newAttrOps, newClassSets) = partitionEithers (map toOpOrClass newAttrs)
-        w <- Gtk.unsafeCastTo ctor widget
-        Gtk.set w newAttrOps
-        replaceClasses w (fold oldClassSets) (fold newClassSets)
-        patchChildrenIn w oldChildren newChildren
+  patch widget (GtkContainer _ oldAttrs oldChildren) (GtkContainer ctor newAttrs newChildren) = do
+    let (_, oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
+        (newAttrOps, newClassSets) = partitionEithers (map toOpOrClass newAttrs)
+    w <- Gtk.unsafeCastTo ctor widget
+    Gtk.set w newAttrOps
+    replaceClasses w (fold oldClassSets) (fold newClassSets)
+    patchChildrenIn w oldChildren newChildren
     where
       toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
       toOpOrClass =
@@ -250,4 +252,4 @@ container ::
   -> [AttrPair a]
   -> [child]
   -> Object
-container ctor attrs children = Object (GtkContainer ctor attrs children)
+container ctor attrs = Object . GtkContainer ctor attrs

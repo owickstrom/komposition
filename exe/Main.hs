@@ -42,8 +42,8 @@ addKeyboardEventHandler window = do
   publish events event = writeChan events event $> False
   ignore = return False
 
-sceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
-sceneRenderLoop events container initial =
+startSceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
+startSceneRenderLoop events container initial =
   initial
   & SceneView.renderScene
   & \case
@@ -51,15 +51,15 @@ sceneRenderLoop events container initial =
       widget <- create first
       Gtk.boxPackEnd container widget True True 0
       Gtk.widgetShowAll container
-      loop widget o initial
+      void (forkIO (loop widget o initial))
   where
-    loop widget prevObj scene = do
+    loop widget oldObj scene = do
       event <- readChan events
       let scene' = Scene.update scene event
       case SceneView.renderScene scene' of
         newObj -> do
           void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-            patchAll container [prevObj] [newObj]
+            patchAll container [oldObj] [newObj]
             return False
           loop widget newObj scene'
 
@@ -99,7 +99,7 @@ main = do
   Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
 
   events <- addKeyboardEventHandler window
-  void . forkIO $ sceneRenderLoop events mainBox initialScene
+  startSceneRenderLoop events mainBox initialScene
 
   void $ window `Gtk.onWidgetDestroy` Gtk.mainQuit
 

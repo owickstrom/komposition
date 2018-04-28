@@ -7,7 +7,6 @@
 {-# LANGUAGE RecordWildCards   #-}
 module FastCut.Scene.View (renderScene) where
 
-import           Data.Function    ((&))
 import           Data.Int
 import           Data.Text        (Text)
 import           Data.Time.Clock  (NominalDiffTime)
@@ -36,7 +35,7 @@ renderClip' focused metadata =
     , #widthRequest := widthFromDuration (duration metadata)
     ]
     [ BoxChild False False 0 $
-      node Label [#label := clipName metadata, classes ["clip"]]
+      node Label [#label := clipName metadata]
     ]
 
 renderGap :: Focused -> NominalDiffTime -> Object
