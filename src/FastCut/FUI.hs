@@ -36,7 +36,7 @@ import qualified GI.Gtk                  as Gtk
 
 data Patch
   = Modify (Gtk.Widget -> IO ())
-  | Replace
+  | Replace (IO Gtk.Widget)
   | Keep
 
 class Patchable obj where
@@ -45,6 +45,12 @@ class Patchable obj where
 
 data Object where
   Object :: (Eq o, Show o, Typeable o, Patchable o) => o -> Object
+
+patchObjects :: Object -> Object -> Patch
+patchObjects (Object (o1 :: t1)) (Object (o2 :: t2)) =
+  case eqT @t1 @t2 of
+    Just Refl -> patch o1 o2
+    Nothing   -> Replace (create o2)
 
 deriving instance Show Object
 
@@ -72,39 +78,39 @@ replaceClasses widget old new = do
 padMaybes :: [a] -> [Maybe a]
 padMaybes xs = map Just xs ++ repeat Nothing
 
-patchAll :: Gtk.IsContainer c => c -> [Object] -> [Object] -> IO ()
-patchAll container' os' ns' = do
-  cs <- Gtk.containerGetChildren container'
+replaceInBox :: Gtk.Box -> Int -> Gtk.Widget -> Gtk.Widget -> IO ()
+replaceInBox box i old new = return ()
+
+patchInBox :: Gtk.Box -> [Object] -> [Object] -> IO ()
+patchInBox box os' ns' = do
+  cs <- Gtk.containerGetChildren box
   let maxLength = maximum [length cs, length os', length ns']
       indices = [0 .. pred maxLength]
   forM_ (zip4 indices (padMaybes cs) (padMaybes os') (padMaybes ns')) $ \case
 
     -- In case we have a corresponding old and new virtual widget, we patch the
     -- GTK widget.
-    (_i, Just w, Just (Object (o :: t)), Just (Object (n :: t'))) ->
-      case eqT @t @t' of
-        Just Refl ->
-          case patch o n of
-            Modify modify -> modify w
-            Replace       -> fail "Can't do replace yet."
-            Keep          -> return ()
-        Nothing -> fail "Can't do replace yet."
+    (i, Just w, Just old, Just new) ->
+      case patchObjects old new of
+        Modify modify        -> modify w
+        Replace createWidget -> replaceInBox box i w =<< createWidget
+        Keep                 -> return ()
 
     -- When there is a new object, but there already exists a widget
     -- in the corresponding place, we need to replace the widget with
     -- one created from the object.
-    (_i, Just w, Nothing, Just _) ->
-      fail "Can't do replace yet."
+    (i, Just w, Nothing, Just (Object n)) ->
+      replaceInBox box i w =<< create n
 
     -- When there is a new object, or one that lacks a corresponding GTK
     -- widget, create and add it.
     (_i, Nothing, _, Just (Object n)) ->
-      create n >>= Gtk.containerAdd container'
+      create n >>= Gtk.containerAdd box
 
     -- When an object has been removed, remove the GTK widget from the
     -- container.
     (_i, Just w, Just _, Nothing) ->
-      Gtk.containerRemove container' w
+      Gtk.containerRemove box w
 
     -- When there are more old objects than GTK widgets, we can safely
     -- ignore the old objects.
@@ -114,7 +120,7 @@ patchAll container' os' ns' = do
     -- objects, something has gone wrong, and we clean that mess
     -- up by removing the GTK widgets.
     (_i, Just w, Nothing, Nothing) ->
-      Gtk.containerRemove container' w
+      Gtk.containerRemove box w
 
     -- No more widgets or objects, we are done.
     (_i, Nothing, Nothing, Nothing) ->
@@ -137,8 +143,8 @@ data AttrPair obj where
     => ClassSet
     -> AttrPair obj
 
-classes :: Gtk.IsWidget obj => ClassSet -> AttrPair obj
-classes = Classes
+classes :: Gtk.IsWidget obj => [Text] -> AttrPair obj
+classes = Classes . HashSet.fromList
 
 instance Eq (AttrPair obj) where
   ((_ :: GI.AttrLabelProxy attr1) := v1) == ((_ :: GI.AttrLabelProxy attr2) := v2) =
@@ -159,19 +165,19 @@ instance Show (GtkLeaf a) where
   show = \case
     GtkLeaf{} -> "GtkLeaf"
 
-data GtkContainer a child where
+data GtkContainer a children where
   GtkContainer
-    :: (Typeable a, Gtk.IsWidget a, Gtk.IsContainer a, Eq child)
+    :: (Typeable a, Gtk.IsWidget a, Eq children)
     => (Gtk.ManagedPtr a -> a)
     -> [AttrPair a]
-    -> [child]
-    -> GtkContainer a child
+    -> children
+    -> GtkContainer a children
 
-instance Eq (GtkContainer a child) where
+instance Eq (GtkContainer a children) where
   GtkContainer _ a1 c1 == GtkContainer _ a2 c2 =
     a1 == a2 && c1 == c2
 
-instance Show (GtkContainer a child) where
+instance Show (GtkContainer a children) where
   show = \case
     GtkContainer{} -> "GtkContainer"
 
@@ -202,39 +208,51 @@ instance Patchable (GtkLeaf a) where
           (attr := value) -> Left (attr Gtk.:= value)
           Classes c -> Right c
 
-class PatchableContainer obj child where
-  createChildIn :: obj -> child -> IO ()
-  patchChildrenIn :: obj -> [child] -> [child] -> IO ()
+class PatchableContainer obj children where
+  createChildrenIn :: obj -> children -> IO ()
+  patchChildrenIn :: obj -> children -> children -> IO ()
 
-instance PatchableContainer Gtk.Box Object where
-  createChildIn box (Object child) = create child >>= Gtk.containerAdd box
-  patchChildrenIn = patchAll
+instance PatchableContainer Gtk.Box [Object] where
+  createChildrenIn box = mapM_ $ \(Object child) ->
+    create child >>= Gtk.containerAdd box
+  patchChildrenIn = patchInBox
+
 
 data BoxChild = BoxChild { expand :: Bool, fill :: Bool, padding :: Word32, child :: Object }
   deriving (Eq, Show)
 
-instance PatchableContainer Gtk.Box BoxChild where
-  createChildIn box BoxChild {child = Object child, ..} = do
-    o <- create child
-    Gtk.boxPackStart box o expand fill padding
+instance PatchableContainer Gtk.Box [BoxChild] where
+  createChildrenIn box = mapM_ $ \BoxChild {child = Object child, ..} -> do
+    widget <- create child
+    Gtk.boxPackStart box widget expand fill padding
   patchChildrenIn box oldChildren newChildren =
-    patchAll box (map child oldChildren) (map child newChildren)
+    patchInBox box (map child oldChildren) (map child newChildren)
 
 instance PatchableContainer Gtk.ScrolledWindow Object where
-  createChildIn box (Object child) = create child >>= Gtk.containerAdd box
-  patchChildrenIn scrolledWindow oldChildren newChildren =
-    Gtk.containerGetChildren scrolledWindow >>= \case
-      (c:_) -> do
-        viewport <- Gtk.unsafeCastTo Gtk.Viewport c
-        patchAll viewport oldChildren newChildren
-      _ -> fail "Expected a viewport in the scrolled window."
+  createChildrenIn box (Object child) = create child >>= Gtk.containerAdd box
+  patchChildrenIn scrolledWindow oldChild newChild = do
+    viewport <- Gtk.containerGetChildren scrolledWindow
+      >>= requireSingle "Viewport"
+      >>= Gtk.unsafeCastTo Gtk.Viewport
+    childWidget <- Gtk.containerGetChildren viewport
+      >>= requireSingle "scrolled child"
+    case patchObjects oldChild newChild of
+      Modify modify -> modify childWidget
+      Replace createNew -> do
+        Gtk.containerRemove viewport childWidget
+        Gtk.containerAdd viewport =<< createNew
+      Keep -> return ()
+    where
+      requireSingle what = \case
+        [w] -> return w
+        _ -> fail ("Expected a single " ++ what ++ " in the container.")
 
-instance PatchableContainer a child => Patchable (GtkContainer a child) where
+instance PatchableContainer a children => Patchable (GtkContainer a children) where
   create (GtkContainer ctor attrs children) = do
     let (attrOps, classSets) = partitionEithers (map toOpOrClass attrs)
     widget <- Gtk.new ctor attrOps
     addClasses widget (fold classSets)
-    forM_ children (createChildIn widget)
+    createChildrenIn widget children
     Gtk.toWidget widget
     where
       toOpOrClass ::
@@ -263,15 +281,14 @@ node :: (Typeable a, Gtk.IsWidget a) => (Gtk.ManagedPtr a -> a) -> [AttrPair a] 
 node ctor attrs = Object (GtkLeaf ctor attrs)
 
 container ::
-     ( Eq child
-     , PatchableContainer a child
-     , Typeable child
+     ( Eq children
+     , PatchableContainer a children
+     , Typeable children
      , Typeable a
      , Gtk.IsWidget a
-     , Gtk.IsContainer a
      )
   => (Gtk.ManagedPtr a -> a)
   -> [AttrPair a]
-  -> [child]
+  -> children
   -> Object
 container ctor attrs = Object . GtkContainer ctor attrs

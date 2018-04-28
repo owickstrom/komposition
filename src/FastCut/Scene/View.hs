@@ -2,7 +2,6 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module FastCut.Scene.View (renderScene) where
@@ -92,5 +91,5 @@ renderScene Scene {..} =
         [ #hscrollbarPolicy := PolicyTypeAutomatic
         , #vscrollbarPolicy := PolicyTypeNever
         ]
-        [renderSequence (applyFocus topSequence focus)]
+        (renderSequence (applyFocus topSequence focus))
     ]
