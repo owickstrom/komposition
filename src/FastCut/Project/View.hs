@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-module FastCut.Scene.View (renderScene) where
+module FastCut.Project.View (render) where
 
 import           Data.Int
 import           Data.Text          (Text)
@@ -12,7 +12,7 @@ import           Data.Time.Clock    (NominalDiffTime)
 import           GI.Gtk             hiding ((:=))
 
 import           FastCut.Focus
-import           FastCut.Scene      hiding (update)
+import           FastCut.Project    hiding (update)
 import           FastCut.Sequence
 import           GI.Gtk.Declarative
 
@@ -79,12 +79,12 @@ renderSequence =
             (map renderClip audioClips)
         ]
 
-renderScene :: Scene -> Object
-renderScene Scene {..} =
+render :: Project -> Object
+render Project {..} =
   container
     Box
     [#orientation := OrientationVertical, classes ["scene"]]
-    [ BoxChild True True 0 $ node Label [#label := sceneName]
+    [ BoxChild True True 0 $ node Label [#label := projectName]
     , BoxChild False False 0 $
       container
         ScrolledWindow

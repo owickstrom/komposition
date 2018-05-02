@@ -16,9 +16,9 @@ import qualified GI.Gtk                as Gtk
 import           GI.Gtk.Objects.Window (windowResize)
 
 import           FastCut.Focus
-import           FastCut.Scene         (Scene (..))
-import qualified FastCut.Scene         as Scene
-import qualified FastCut.Scene.View    as SceneView
+import           FastCut.Project       (Project (..))
+import qualified FastCut.Project       as Project
+import qualified FastCut.Project.View  as Project
 import           FastCut.Sequence
 import           GI.Gtk.Declarative
 import           Paths_fastcut
@@ -26,26 +26,26 @@ import           Paths_fastcut
 cssPriority :: Word32
 cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER :: Word32
 
-addKeyboardEventHandler :: Gtk.Window -> IO (Chan Scene.Event)
+addKeyboardEventHandler :: Gtk.Window -> IO (Chan Project.Event)
 addKeyboardEventHandler window = do
   events <- newChan
   void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
     keyVal <- Gdk.getEventKeyKeyval eventKey
     case keyVal of
-      Gdk.KEY_Left  -> publish events (Scene.FocusEvent FocusLeft)
-      Gdk.KEY_Right -> publish events (Scene.FocusEvent FocusRight)
-      Gdk.KEY_Up    -> publish events (Scene.FocusEvent FocusUp)
-      Gdk.KEY_Down  -> publish events (Scene.FocusEvent FocusDown)
+      Gdk.KEY_Left  -> publish events (Project.FocusEvent FocusLeft)
+      Gdk.KEY_Right -> publish events (Project.FocusEvent FocusRight)
+      Gdk.KEY_Up    -> publish events (Project.FocusEvent FocusUp)
+      Gdk.KEY_Down  -> publish events (Project.FocusEvent FocusDown)
       _             -> ignore
   return events
  where
   publish events event = writeChan events event $> False
   ignore = return False
 
-startSceneRenderLoop :: Chan Scene.Event -> Gtk.Box -> Scene -> IO ()
+startSceneRenderLoop :: Chan Project.Event -> Gtk.Box -> Project -> IO ()
 startSceneRenderLoop events container initial =
   initial
-  & SceneView.renderScene
+  & Project.render
   & \case
     o@(Object first) -> do
       widget <- create first
@@ -55,8 +55,8 @@ startSceneRenderLoop events container initial =
   where
     loop widget oldObj scene = do
       event <- readChan events
-      let scene' = Scene.update scene event
-      case SceneView.renderScene scene' of
+      let scene' = Project.update scene event
+      case Project.render scene' of
         newObj -> do
           void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
             case patch oldObj newObj of
@@ -68,9 +68,9 @@ startSceneRenderLoop events container initial =
             return False
           loop widget newObj scene'
 
-initialScene :: Scene
-initialScene = Scene
-  { sceneName   = "Test"
+initialScene :: Project
+initialScene = Project
+  { projectName   = "Test"
   , topSequence = Sequence
     ()
     [ Composition () [gap1s, video1s, gap3s]  [audio1s, audio5s, audio1s]

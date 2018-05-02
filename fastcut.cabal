@@ -20,8 +20,8 @@ data-files:           gui.glade
 library
   main-is:              Main.hs
   exposed-modules:      FastCut.Focus
-                      , FastCut.Scene
-                      , FastCut.Scene.View
+                      , FastCut.Project
+                      , FastCut.Project.View
                       , FastCut.Sequence
                       , GI.Gtk.Declarative
                       , GI.Gtk.Declarative.Container

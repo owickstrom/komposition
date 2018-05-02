@@ -5,22 +5,22 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
-module FastCut.Scene where
+module FastCut.Project where
 
 import           Data.Text        (Text)
 
 import           FastCut.Focus
 import           FastCut.Sequence
 
-data Scene = Scene { sceneName :: Text, topSequence :: Sequence (), focus :: Focus }
+data Project = Project { projectName :: Text, topSequence :: Sequence (), focus :: Focus }
   deriving (Eq, Show)
 
-data Event = FocusEvent FocusEvent
+newtype Event = FocusEvent FocusEvent
   deriving (Eq, Show)
 
-update :: Scene -> Event -> Scene
-update scene = \case
+update :: Project -> Event -> Project
+update project = \case
   FocusEvent focusEvent ->
-    case modifyFocus (topSequence scene) focusEvent (focus scene) of
-      Left _       -> scene
-      Right focus' -> scene { focus = focus' }
+    case modifyFocus (topSequence project) focusEvent (focus project) of
+      Left _       -> project
+      Right focus' -> project { focus = focus' }
