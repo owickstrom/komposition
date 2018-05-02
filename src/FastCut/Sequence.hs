@@ -12,7 +12,6 @@
 module FastCut.Sequence where
 
 import           Data.Foldable   (foldl')
-import           Data.Semigroup
 import           Data.Text       (Text)
 import           Data.Time.Clock (NominalDiffTime)
 
