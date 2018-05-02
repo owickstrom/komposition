@@ -16,11 +16,11 @@ import qualified GI.Gtk                as Gtk
 import           GI.Gtk.Objects.Window (windowResize)
 
 import           FastCut.Focus
-import           FastCut.FUI
 import           FastCut.Scene         (Scene (..))
 import qualified FastCut.Scene         as Scene
 import qualified FastCut.Scene.View    as SceneView
 import           FastCut.Sequence
+import           GI.Gtk.Declarative
 import           Paths_fastcut
 
 cssPriority :: Word32

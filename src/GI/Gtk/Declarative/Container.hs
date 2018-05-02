@@ -1,153 +1,34 @@
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
-{-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLabels      #-}
-{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeOperators         #-}
 
--- | The "functional user interface" module (FUI) represents a hierarchy of
--- immutable user interface objects, usually constructed in a pure setting, and
--- provides a patching mechanism for performing minimal updates using the
--- underlying imperative GTK library.
-module FastCut.FUI where
+-- | Implementations of 'Patchable' for common GTK+ container widgets.
 
-import           Control.Monad           (forM_)
-import           Data.Either             (partitionEithers)
-import           Data.Foldable           (fold)
-import qualified Data.GI.Base            as GI
-import qualified Data.GI.Base.Attributes as GI
-import           Data.HashSet            (HashSet)
-import qualified Data.HashSet            as HashSet
-import           Data.Int                (Int32)
-import           Data.List               (zip4)
-import           Data.Text               (Text)
+module GI.Gtk.Declarative.Container
+  ( BoxChild(..)
+  , PatchableContainer(..)
+  , container
+  ) where
+
+import           Control.Monad             (forM_)
+import           Data.Either               (partitionEithers)
+import           Data.Foldable             (fold)
+import qualified Data.GI.Base              as GI
+import qualified Data.GI.Base.Attributes   as GI
+import           Data.Int                  (Int32)
+import           Data.List                 (zip4)
 import           Data.Typeable
-import           Data.Word               (Word32)
-import           GHC.TypeLits            (Symbol)
-import qualified GI.Gtk                  as Gtk
+import           Data.Word                 (Word32)
+import qualified GI.Gtk                    as Gtk
 
-data Patch
-  = Modify (Gtk.Widget -> IO ())
-  | Replace (IO Gtk.Widget)
-  | Keep
-
-class Patchable obj where
-  create ::  obj -> IO Gtk.Widget
-  patch :: obj -> obj -> Patch
-
-data Object where
-  Object :: (Eq o, Show o, Typeable o, Patchable o) => o -> Object
-
-instance Patchable Object where
-  create (Object obj) = create obj
-  patch (Object (o1 :: t1)) (Object (o2 :: t2)) =
-    case eqT @t1 @t2 of
-      Just Refl -> patch o1 o2
-      Nothing   -> Replace (create o2)
-
-deriving instance Show Object
-
-instance Eq Object where
-  Object (a :: o) == Object (b :: n) =
-    case eqT @o @n  of
-      Just Refl -> a == b
-      Nothing   -> False
-
--- * CSS
-
-type ClassSet = HashSet Text
-
-addClasses :: Gtk.IsWidget w => w -> ClassSet -> IO ()
-addClasses widget cs = do
-  sc <- Gtk.widgetGetStyleContext widget
-  mapM_ (Gtk.styleContextAddClass sc) cs
-
-replaceClasses :: Gtk.IsWidget w => w -> ClassSet -> ClassSet -> IO ()
-replaceClasses widget old new = do
-  sc <- Gtk.widgetGetStyleContext widget
-  mapM_ (Gtk.styleContextRemoveClass sc) (HashSet.difference old new)
-  mapM_ (Gtk.styleContextAddClass sc)    (HashSet.difference new old)
-
--- * Generic GTK patchable object
-
-data AttrPair obj where
-  (:=)
-    :: (GI.AttrGetC info obj attr value
-      , GI.AttrOpAllowed 'GI.AttrConstruct info obj
-      , GI.AttrOpAllowed 'GI.AttrSet info obj
-      , GI.AttrSetTypeConstraint info value
-      , Typeable attr
-      , Eq value
-      )
-    =>  GI.AttrLabelProxy (attr :: Symbol) -> value -> AttrPair obj
-  Classes
-    :: Gtk.IsWidget obj
-    => ClassSet
-    -> AttrPair obj
-
-classes :: Gtk.IsWidget obj => [Text] -> AttrPair obj
-classes = Classes . HashSet.fromList
-
-instance Eq (AttrPair obj) where
-  ((_ :: GI.AttrLabelProxy attr1) := v1) == ((_ :: GI.AttrLabelProxy attr2) := v2) =
-    case eqT @attr1 @attr2 of
-      Just Refl -> v1 == v2
-      Nothing   -> False
-  Classes c1 == Classes c2 = c1 == c2
-  _ == _ = False
-
--- * Node (single object)
-
-data GtkNode a where
-  GtkNode :: (Typeable a, Gtk.IsWidget a) => (Gtk.ManagedPtr a -> a) -> [AttrPair a] -> GtkNode a
-
-instance Eq (GtkNode a) where
-  GtkNode _ a1 == GtkNode _ a2 =
-    a1 == a2
-
-instance Show (GtkNode a) where
-  show = \case
-    GtkNode{} -> "GtkNode"
-
-instance Patchable (GtkNode a) where
-  create = \case
-    (GtkNode ctor attrs) -> do
-        let (attrOps, classSets) = partitionEithers (map toOpOrClass attrs)
-        widget <- Gtk.new ctor attrOps
-        addClasses widget (fold classSets)
-        Gtk.toWidget widget
-    where
-      toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrConstruct) ClassSet
-      toOpOrClass =
-        \case
-          (attr := value) -> Left (attr Gtk.:= value)
-          Classes c -> Right c
-  patch (GtkNode _ oldAttrs) (GtkNode ctor newAttrs) = Modify $ \widget -> do
-    let (_, oldClassSets) = partitionEithers (map toOpOrClass oldAttrs)
-        (newAttrOps, newClassSets) = partitionEithers (map toOpOrClass newAttrs)
-    w <- Gtk.unsafeCastTo ctor widget
-    Gtk.set w newAttrOps
-    replaceClasses w (fold oldClassSets) (fold newClassSets)
-    Gtk.widgetShowAll w
-    where
-      toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
-      toOpOrClass =
-        \case
-          (attr := value) -> Left (attr Gtk.:= value)
-          Classes c -> Right c
-
-node :: (Typeable a, Gtk.IsWidget a) => (Gtk.ManagedPtr a -> a) -> [AttrPair a] -> Object
-node ctor attrs = Object (GtkNode ctor attrs)
-
--- * Patchable Container
+import           GI.Gtk.Declarative.CSS
+import           GI.Gtk.Declarative.Object
+import           GI.Gtk.Declarative.Patch
+import           GI.Gtk.Declarative.Props
 
 class PatchableContainer obj children where
   createChildrenIn :: obj -> children -> IO ()
@@ -268,7 +149,7 @@ data GtkContainer a children where
   GtkContainer
     :: (Typeable a, Gtk.IsWidget a, Eq children)
     => (Gtk.ManagedPtr a -> a)
-    -> [AttrPair a]
+    -> [PropPair a]
     -> children
     -> GtkContainer a children
 
@@ -289,7 +170,7 @@ instance PatchableContainer a children => Patchable (GtkContainer a children) wh
     Gtk.toWidget widget
     where
       toOpOrClass ::
-           AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrConstruct) ClassSet
+           PropPair obj -> Either (GI.AttrOp obj 'GI.AttrConstruct) ClassSet
       toOpOrClass =
         \case
           (attr := value) -> Left (attr Gtk.:= value)
@@ -304,7 +185,7 @@ instance PatchableContainer a children => Patchable (GtkContainer a children) wh
       replaceClasses w (fold oldClassSets) (fold newClassSets)
       patchChildrenIn w oldChildren newChildren
     where
-      toOpOrClass :: AttrPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
+      toOpOrClass :: PropPair obj -> Either (GI.AttrOp obj 'GI.AttrSet) ClassSet
       toOpOrClass =
         \case
           (attr := value) -> Left (attr Gtk.:= value)
@@ -318,7 +199,7 @@ container ::
      , Gtk.IsWidget a
      )
   => (Gtk.ManagedPtr a -> a)
-  -> [AttrPair a]
+  -> [PropPair a]
   -> children
   -> Object
 container ctor attrs = Object . GtkContainer ctor attrs

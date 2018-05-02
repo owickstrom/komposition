@@ -7,14 +7,14 @@
 module FastCut.Scene.View (renderScene) where
 
 import           Data.Int
-import           Data.Text        (Text)
-import           Data.Time.Clock  (NominalDiffTime)
-import           GI.Gtk           hiding ((:=))
+import           Data.Text          (Text)
+import           Data.Time.Clock    (NominalDiffTime)
+import           GI.Gtk             hiding ((:=))
 
 import           FastCut.Focus
-import           FastCut.FUI
-import           FastCut.Scene    hiding (update)
+import           FastCut.Scene      hiding (update)
 import           FastCut.Sequence
+import           GI.Gtk.Declarative
 
 widthFromDuration :: (RealFrac d) => d -> Int32
 widthFromDuration duration = fromIntegral (ceiling duration :: Int) * 50

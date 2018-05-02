@@ -23,7 +23,13 @@ library
                       , FastCut.Scene
                       , FastCut.Scene.View
                       , FastCut.Sequence
-                      , FastCut.FUI
+                      , GI.Gtk.Declarative
+                      , GI.Gtk.Declarative.Container
+                      , GI.Gtk.Declarative.CSS
+                      , GI.Gtk.Declarative.Node
+                      , GI.Gtk.Declarative.Object
+                      , GI.Gtk.Declarative.Patch
+                      , GI.Gtk.Declarative.Props
   build-depends:        base >=4.10 && <4.12
                       , gi-gobject
                       , gi-glib
