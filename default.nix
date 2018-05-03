@@ -1,4 +1,16 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "default", doBenchmark ? false }:
+let overlay = self: super: {
+  all-cabal-hashes = self.fetchurl {
+    url = "https://github.com/commercialhaskell/all-cabal-hashes/archive/5ed06084aa1933c8131bb674b5de86bbb977c5f0.tar.gz";
+    sha256 = "06nva1c2wj7z8pagchlc5ax3rhb9mgc9myxh9k07p9vyi7s10zrk";
+  };
+  haskellPackages = super.haskellPackages.extend (sel: sup: {
+    haskell-gi = sel.callHackage "haskell-gi" "0.21.2" {};
+    haskell-gi-base = self.haskell.lib.addBuildDepend (sel.callHackage "haskell-gi-base" "0.21.1" {}) self.pkgs.gobjectIntrospection;
+    haskell-gi-overloading = self.haskell.lib.dontHaddock (sel.callHackage "haskell-gi-overloading" "0.0" {});
+  });
+};
+in
+{ nixpkgs ? import <nixpkgs> { overlays = [ overlay ]; }, compiler ? "default", doBenchmark ? false }:
 
 let
 
@@ -20,6 +32,7 @@ let
           base gi-gdk gi-glib gi-gobject gi-gtk gi-pango haskell-gi
           haskell-gi-base mtl text time unordered-containers
         ];
+        librarySystemDepends = [ pkgs.pkgconfig pkgs.cairo ];
         executableHaskellDepends = [
           base gi-gdk gi-glib gi-gobject gi-gtk gi-pango haskell-gi
           haskell-gi-base text time
@@ -30,10 +43,6 @@ let
         ];
         description = "High-productivity video and audio editing";
         license = stdenv.lib.licenses.mpl20;
-        preCompileBuildDriver = ''
-          PKG_CONFIG_PATH+=":${pkgs.cairo}/lib/pkgconfig"
-          setupCompileFlags+=" $(pkg-config --libs cairo-gobject)"
-        '';
       };
 
   haskellPackages = if compiler == "default"

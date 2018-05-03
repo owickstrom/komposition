@@ -129,6 +129,30 @@ renderSequence =
             (map renderClip as)
         ]
 
+renderLibrary :: Library -> ClipType -> Int -> Object
+renderLibrary library clipType idx =
+  case clipType of
+    Video -> renderClips (library ^. videoClips) idx
+    Audio -> renderClips (library ^. audioClips) idx
+  where
+    renderClips clips _idx =
+      container
+        ScrolledWindow
+        [ #hscrollbarPolicy := PolicyTypeNever
+        , #vscrollbarPolicy := PolicyTypeAutomatic
+        ]
+        (container
+           Box
+           [#orientation := OrientationVertical]
+           (map (BoxChild False False 0 . renderClip) clips))
+    renderClip :: Clip a t -> Object
+    renderClip =
+      \case
+        VideoClip _ m -> node Label [#label := clipName m]
+        AudioClip _ m -> node Label [#label := clipName m]
+        VideoGap _ d -> node Label [#label := "GAP?"]
+        AudioGap _ d -> node Label [#label := "GAP?"]
+
 render :: Controller -> Object
 render controller =
   case controller ^. state of
@@ -149,4 +173,5 @@ render controller =
                   (controller ^. project . topSequence)
                   (controller ^. focus)))
         ]
-    SelectingLibraryClip {} -> node Label [#label := "Selecting..."]
+    SelectingLibraryClip clipType idx ->
+      renderLibrary (controller ^. project.library) clipType idx

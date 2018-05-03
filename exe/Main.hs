@@ -17,7 +17,7 @@ import qualified GI.Gtk                     as Gtk
 import           GI.Gtk.Objects.Window      (windowResize)
 
 import           FastCut.Focus
-import           FastCut.Project            (Project (..))
+import           FastCut.Project            (Library (..), Project (..))
 import qualified FastCut.Project            as Project
 import           FastCut.Project.Controller (Controller)
 import qualified FastCut.Project.Controller as ProjectController
@@ -92,7 +92,7 @@ initialProject = Project
     [ Composition () [gap1s, video1s, gap3s]  [audio1s, audio5s, audio1s]
     , Composition () [gap3s, video10s, gap1s] [audio8s, audio5s, audio1s]
     ]
-  , _library = mempty
+  , _library = Library [video1s, video1s] [audio1s, audio5s, audio8s]
   }
  where
   video1s  = VideoClip () (ClipMetadata "video-1s" "/tmp/1.mp4" 1)
