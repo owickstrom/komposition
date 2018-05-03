@@ -2,23 +2,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Control.Concurrent
-import           Control.Monad         (void)
-import           Data.Function         ((&))
-import           Data.Functor          (($>))
+import           Control.Monad              (void)
+import           Data.Function              ((&))
+import           Data.Functor               (($>))
 import           Data.GI.Base
+import           Data.IORef
 import           Data.Text
-import qualified Data.Text             as Text
+import qualified Data.Text                  as Text
 import           Data.Word
-import qualified GI.Gdk                as Gdk
-import qualified GI.GLib.Constants     as GLib
-import           GI.GObject            hiding (Object)
-import qualified GI.Gtk                as Gtk
-import           GI.Gtk.Objects.Window (windowResize)
+import qualified GI.Gdk                     as Gdk
+import qualified GI.GLib.Constants          as GLib
+import           GI.GObject                 hiding (Object)
+import qualified GI.Gtk                     as Gtk
+import           GI.Gtk.Objects.Window      (windowResize)
 
 import           FastCut.Focus
-import           FastCut.Project       (Project (..))
-import qualified FastCut.Project       as Project
-import qualified FastCut.Project.View  as Project
+import           FastCut.Project            (Project (..))
+import qualified FastCut.Project            as Project
+import           FastCut.Project.Controller (Controller)
+import qualified FastCut.Project.Controller as ProjectController
 import           FastCut.Sequence
 import           GI.Gtk.Declarative
 import           Paths_fastcut
@@ -26,57 +28,71 @@ import           Paths_fastcut
 cssPriority :: Word32
 cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER :: Word32
 
-addKeyboardEventHandler :: Gtk.Window -> IO (Chan Project.Event)
+addKeyboardEventHandler :: Gtk.Window -> IO (Chan ProjectController.Event)
 addKeyboardEventHandler window = do
   events <- newChan
   void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
     keyVal <- Gdk.getEventKeyKeyval eventKey
     case keyVal of
-      Gdk.KEY_Left  -> publish events (Project.FocusEvent FocusLeft)
-      Gdk.KEY_Right -> publish events (Project.FocusEvent FocusRight)
-      Gdk.KEY_Up    -> publish events (Project.FocusEvent FocusUp)
-      Gdk.KEY_Down  -> publish events (Project.FocusEvent FocusDown)
+      Gdk.KEY_Left  -> publish events (ProjectController.FocusEvent FocusLeft)
+      Gdk.KEY_Right -> publish events (ProjectController.FocusEvent FocusRight)
+      Gdk.KEY_Up    -> publish events (ProjectController.FocusEvent FocusUp)
+      Gdk.KEY_Down  -> publish events (ProjectController.FocusEvent FocusDown)
+      Gdk.KEY_l     -> publish events ProjectController.OpenLibrary
+      Gdk.KEY_a     -> publish events ProjectController.Append
+      Gdk.KEY_Escape     -> publish events ProjectController.Cancel
       _             -> ignore
   return events
  where
   publish events event = writeChan events event $> False
   ignore = return False
 
-startSceneRenderLoop :: Chan Project.Event -> Gtk.Box -> Project -> IO ()
-startSceneRenderLoop events container initial =
-  initial
-  & Project.render
-  & \case
-    o@(Object first) -> do
-      widget <- create first
-      Gtk.boxPackEnd container widget True True 0
-      Gtk.widgetShowAll container
-      void (forkIO (loop widget o initial))
+startRenderLoopBox ::
+     Gtk.Box -> (m -> e -> m) -> (m -> Object) -> Chan e -> m -> IO ()
+startRenderLoopBox box update render events initial = do
+  let firstObj = render initial
+  firstWidget <- create firstObj
+  Gtk.boxPackStart box firstWidget True True 0
+  Gtk.widgetShowAll box
+  widget <- newIORef firstWidget
+  void (forkIO (loop widget firstObj initial))
   where
-    loop widget oldObj scene = do
+    patchBox w o1 o2 =
+      case patch o1 o2 of
+        Modify f  -> f =<< readIORef w
+        Replace createNew -> do
+          Gtk.containerRemove box =<< readIORef w
+          newWidget <- createNew
+          writeIORef w newWidget
+          Gtk.boxPackStart box newWidget True True 0
+          Gtk.widgetShowAll box
+        Keep      -> return ()
+    loop widget oldObj model= do
       event <- readChan events
-      let scene' = Project.update scene event
-      case Project.render scene' of
-        newObj -> do
-          void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-            case patch oldObj newObj of
-              Modify modify -> modify widget
-              Replace createNew -> do
-                Gtk.containerRemove container widget
-                Gtk.containerAdd container =<< createNew
-              Keep -> return ()
-            return False
-          loop widget newObj scene'
+      let model' = update model event
+      let newObj = render model'
+      void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+        patchBox widget oldObj newObj
+        return False
+      loop widget newObj model'
 
-initialScene :: Project
-initialScene = Project
-  { projectName   = "Test"
-  , topSequence = Sequence
+startProjectRenderLoop :: Chan ProjectController.Event -> Gtk.Box -> Controller -> IO ()
+startProjectRenderLoop events box =
+  startRenderLoopBox
+    box
+    ProjectController.update
+    ProjectController.render
+    events
+
+initialProject :: Project
+initialProject = Project
+  { _projectName   = "Test"
+  , _topSequence = Sequence
     ()
     [ Composition () [gap1s, video1s, gap3s]  [audio1s, audio5s, audio1s]
     , Composition () [gap3s, video10s, gap1s] [audio8s, audio5s, audio1s]
     ]
-  , focus       = InSequenceFocus 0 Nothing
+  , _library = mempty
   }
  where
   video1s  = VideoClip () (ClipMetadata "video-1s" "/tmp/1.mp4" 1)
@@ -104,7 +120,10 @@ main = do
   Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
 
   events <- addKeyboardEventHandler window
-  startSceneRenderLoop events mainBox initialScene
+  startProjectRenderLoop
+    events
+    mainBox
+    (ProjectController.makeController initialProject)
 
   void $ window `Gtk.onWidgetDestroy` Gtk.mainQuit
 

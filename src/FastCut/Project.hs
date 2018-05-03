@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -5,22 +6,44 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TemplateHaskell       #-}
 module FastCut.Project where
 
+import           Control.Lens
 import           Data.Text        (Text)
 
 import           FastCut.Focus
 import           FastCut.Sequence
 
-data Project = Project { projectName :: Text, topSequence :: Sequence (), focus :: Focus }
-  deriving (Eq, Show)
+data Library = Library
+  { _videoClips :: [Clip () Video]
+  , _audioClips :: [Clip () Audio]
+  } deriving (Eq, Show)
 
-newtype Event = FocusEvent FocusEvent
-  deriving (Eq, Show)
+makeLenses ''Library
 
-update :: Project -> Event -> Project
-update project = \case
-  FocusEvent focusEvent ->
-    case modifyFocus (topSequence project) focusEvent (focus project) of
-      Left _       -> project
-      Right focus' -> project { focus = focus' }
+instance Semigroup Library where
+  l1 <> l2 =
+    Library
+    { _videoClips = _videoClips l1 <> _videoClips l2
+    , _audioClips = _audioClips l1 <> _audioClips l2
+    }
+
+instance Monoid Library where
+  mempty = Library mempty mempty
+
+data Project = Project
+  { _projectName :: Text
+  , _topSequence :: Sequence ()
+  , _library     :: Library
+  } deriving (Eq, Show)
+
+makeLenses ''Project
+
+appendAt :: Focus -> Sequence () -> Sequence ()
+appendAt =
+  withParentOf onSequence onVideoClips onAudioClips
+  where
+    onSequence _ = id
+    onVideoClips _ = id
+    onAudioClips _ = id

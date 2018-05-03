@@ -1,10 +1,14 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds      #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE TypeOperators  #-}
 module FastCut.Focus where
 
+import           Control.Lens         hiding (below)
 import           Control.Monad.Except (throwError)
+import           Data.Function        ((&))
+
 import           FastCut.Sequence
 
 data Focus
@@ -141,3 +145,24 @@ modifyFocus s e f = case (s, e, f) of
   (Sequence _ sub, _, InSequenceFocus idx (Just subFocus)) ->
     InSequenceFocus idx . Just <$> modifyFocus (sub !! idx) e subFocus
   _ -> throwError (UnhandledFocusModification s e f)
+
+withParentOf ::
+   (Int -> Sequence a -> Sequence a)
+  -> (Int -> [Clip a Video] -> [Clip a Video])
+  -> (Int -> [Clip a Audio] -> [Clip a Audio])
+  -> Focus
+  -> Sequence a
+  -> Sequence a
+withParentOf onSequence onVideoClips onAudioClips f s =
+  case (f, s) of
+    (InSequenceFocus idx Nothing, Sequence ann sub) ->
+      sub & ix idx %~ onSequence idx & Sequence ann
+    (InSequenceFocus idx (Just subFocus), Sequence ann sub) ->
+      sub & ix idx %~ go subFocus & Sequence ann
+    (InCompositionFocus clipType idx, Composition ann videoClips audioClips) ->
+      case clipType of
+        Video -> Composition ann (onVideoClips idx videoClips) audioClips
+        Audio -> Composition ann videoClips (onAudioClips idx audioClips)
+    _ -> s
+  where
+    go = withParentOf onSequence onVideoClips onAudioClips

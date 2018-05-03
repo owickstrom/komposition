@@ -4,17 +4,67 @@
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-module FastCut.Project.View (render) where
+{-# LANGUAGE TemplateHaskell   #-}
+module FastCut.Project.Controller
+  ( Controller
+  , makeController
+  , Event(..)
+  , update
+  , render
+  ) where
 
+import           Control.Lens
 import           Data.Int
 import           Data.Text          (Text)
 import           Data.Time.Clock    (NominalDiffTime)
 import           GI.Gtk             hiding ((:=))
 
 import           FastCut.Focus
-import           FastCut.Project    hiding (update)
+import           FastCut.Project
 import           FastCut.Sequence
 import           GI.Gtk.Declarative
+
+data State
+  = InSequence
+  | SelectingLibraryClip ClipType Int
+  deriving (Eq, Show)
+
+data Controller = Controller
+  { _project :: Project
+  , _state   :: State
+  , _focus   :: Focus
+  } deriving (Eq, Show)
+
+makeLenses ''Controller
+
+makeController :: Project -> Controller
+makeController p =
+  Controller p InSequence (InSequenceFocus 0 Nothing)
+
+data Event
+  = FocusEvent FocusEvent
+  | OpenLibrary
+  | Append
+  | Cancel
+  deriving (Eq, Show)
+
+update :: Controller -> Event -> Controller
+update controller event =
+  case (controller ^. state, event) of
+    (InSequence, FocusEvent focusEvent) ->
+      -- TODO: Fix this ugly mess. How to transform the focus and get
+      -- the Either on "the outside"?
+      case modifyFocus
+             (controller ^. project.topSequence)
+             focusEvent
+             (controller ^. focus) of
+        Left _       -> controller
+        Right focus' -> controller & focus .~ focus'
+    -- TODO: Figure out what kind of clips to show.
+    (InSequence, OpenLibrary) -> controller & state .~ SelectingLibraryClip Video 0
+    (SelectingLibraryClip{}, Append) -> controller & project.topSequence %~ appendAt (controller ^. focus)
+    (SelectingLibraryClip{}, Cancel) -> controller & state .~ InSequence
+    _ -> controller
 
 widthFromDuration :: (RealFrac d) => d -> Int32
 widthFromDuration duration = fromIntegral (ceiling duration :: Int) * 50
@@ -61,7 +111,7 @@ renderSequence =
         Box
         [classes ["sequence", focusedClass focused]]
         (map renderSequence sub)
-    Composition focused videoClips audioClips ->
+    Composition focused vs as ->
       container
         Box
         [ #orientation := OrientationVertical
@@ -71,25 +121,32 @@ renderSequence =
           container
             Box
             [classes ["video", focusedClass focused]]
-            (map renderClip videoClips)
+            (map renderClip vs)
         , BoxChild False False 0 $
           container
             Box
             [classes ["audio", focusedClass focused]]
-            (map renderClip audioClips)
+            (map renderClip as)
         ]
 
-render :: Project -> Object
-render Project {..} =
-  container
-    Box
-    [#orientation := OrientationVertical, classes ["scene"]]
-    [ BoxChild True True 0 $ node Label [#label := projectName]
-    , BoxChild False False 0 $
+render :: Controller -> Object
+render controller =
+  case controller ^. state of
+    InSequence ->
       container
-        ScrolledWindow
-        [ #hscrollbarPolicy := PolicyTypeAutomatic
-        , #vscrollbarPolicy := PolicyTypeNever
+        Box
+        [#orientation := OrientationVertical, classes ["scene"]]
+        [ BoxChild True True 0 $
+          node Label [#label := (controller ^. project . projectName)]
+        , BoxChild False False 0 $
+          container
+            ScrolledWindow
+            [ #hscrollbarPolicy := PolicyTypeAutomatic
+            , #vscrollbarPolicy := PolicyTypeNever
+            ]
+            (renderSequence
+               (applyFocus
+                  (controller ^. project . topSequence)
+                  (controller ^. focus)))
         ]
-        (renderSequence (applyFocus topSequence focus))
-    ]
+    SelectingLibraryClip {} -> node Label [#label := "Selecting..."]

@@ -3,13 +3,10 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
 
@@ -26,6 +23,7 @@ import qualified Data.HashSet            as HashSet
 import           Data.Text               (Text)
 import           Data.Typeable
 import           GHC.TypeLits            (Symbol)
+import           GHC.TypeLits            (KnownSymbol, symbolVal)
 import qualified GI.Gtk                  as Gtk
 
 import           GI.Gtk.Declarative.CSS
@@ -36,6 +34,7 @@ data PropPair obj where
       , GI.AttrOpAllowed 'GI.AttrConstruct info obj
       , GI.AttrOpAllowed 'GI.AttrSet info obj
       , GI.AttrSetTypeConstraint info value
+      , KnownSymbol attr
       , Typeable attr
       , Eq value
       )
@@ -55,3 +54,7 @@ instance Eq (PropPair obj) where
       Nothing   -> False
   Classes c1 == Classes c2 = c1 == c2
   _ == _ = False
+
+instance Show a => Show (PropPair a) where
+  show (attr := _value) = symbolVal attr <> " := " <> "???"
+  show (Classes cs)     = "Classes " <> show cs

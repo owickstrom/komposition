@@ -44,6 +44,7 @@ replaceInBox append box i old new = do
   Gtk.containerRemove box old
   append new
   Gtk.boxReorderChild box new i
+  Gtk.widgetShowAll box
 
 patchInBox
   :: Patchable child

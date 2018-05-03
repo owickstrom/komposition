@@ -21,7 +21,7 @@ library
   main-is:              Main.hs
   exposed-modules:      FastCut.Focus
                       , FastCut.Project
-                      , FastCut.Project.View
+                      , FastCut.Project.Controller
                       , FastCut.Sequence
                       , GI.Gtk.Declarative
                       , GI.Gtk.Declarative.Container
@@ -38,6 +38,7 @@ library
                       , gi-pango
                       , haskell-gi
                       , haskell-gi-base
+                      , lens
                       , mtl
                       , text
                       , time
@@ -59,7 +60,6 @@ executable fastcut
                       , gi-pango
                       , haskell-gi
                       , haskell-gi-base
-                      --, haskell-gi-overloading == 0.0.*
                       , text
                       , time
   hs-source-dirs:       exe
