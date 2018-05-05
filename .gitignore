@@ -3,3 +3,4 @@
 /.stack-work
 /tags
 /TAGS
+/.ghc.environment*

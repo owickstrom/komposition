@@ -1,0 +1,2 @@
+packages: ., ../motor/motor
+allow-newer: bifunctors
