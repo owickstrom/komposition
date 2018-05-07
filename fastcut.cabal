@@ -26,6 +26,8 @@ library
                       , FastCut.Sequence
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
+                      , FastCut.UserInterface.GtkInterface.TimelineView
+                      , FastCut.UserInterface.GtkInterface.LibraryView
                       , GI.Gtk.Declarative
                       , GI.Gtk.Declarative.Container
                       , GI.Gtk.Declarative.CSS

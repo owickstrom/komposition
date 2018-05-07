@@ -33,14 +33,14 @@ libraryMode ::
   -> Project
   -> Focus
   -> m (n .== State m 'LibraryMode) Empty ()
-libraryMode gui project focus = do
+libraryMode gui project focus' = do
   sleep 2
   nextLibraryEvent gui >>>= \case
     LibraryEscape -> do
-      exitLibrary gui project focus
-      timelineMode gui project focus
+      exitLibrary gui project focus'
+      timelineMode gui project focus'
     _ ->
-      libraryMode gui project focus
+      libraryMode gui project focus'
   where
     (>>) = (>>>)
 
@@ -50,17 +50,17 @@ timelineMode ::
   -> Project
   -> Focus
   -> m (n .== State m 'TimelineMode) Empty ()
-timelineMode gui project focus = do
-  updateTimeline gui project focus
+timelineMode gui project focus' = do
+  updateTimeline gui project focus'
   sleep 2
   nextTimelineEvent gui >>>= \case
     FocusEvent e ->
-      case modifyFocus (project ^. topSequence) e focus of
-        Left _err    -> timelineMode gui project focus
-        Right focus' -> timelineMode gui project focus'
+      case modifyFocus (project ^. topSequence) e focus' of
+        Left _err      -> timelineMode gui project focus'
+        Right newFocus -> timelineMode gui project newFocus
     OpenLibrary -> do
       enterLibrary gui (project ^. library) Video 0
-      libraryMode gui project focus
+      libraryMode gui project focus'
     Exit -> exit gui
   where
     (>>) = (>>>)
