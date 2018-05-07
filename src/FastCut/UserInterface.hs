@@ -33,6 +33,10 @@ data LibraryEvent
   | LibraryUp
   | LibraryDown
 
+type family Event (t :: UserInterfaceState) where
+  Event TimelineMode = TimelineEvent
+  Event LibraryMode = LibraryEvent
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: UserInterfaceState -> Type
@@ -45,22 +49,19 @@ class MonadFSM m =>
     :: Name n
     -> Project
     -> Focus
-    -> Actions m '[ n :-> State m TimelineMode !--> State m TimelineMode] r ()
-  nextTimelineEvent ::
-       Name n
-    -> Actions m '[ n :-> Remain (State m TimelineMode)] r TimelineEvent
+    -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n
     -> Library
     -> ClipType
     -> Int
-    -> Actions m '[ n :-> State m TimelineMode !--> State m LibraryMode] r ()
-  nextLibraryEvent ::
-       Name n
-    -> Actions m '[ n :-> Remain (State m LibraryMode)] r LibraryEvent
+    -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
   exitLibrary ::
        Name n
     -> Project
     -> Focus
-    -> Actions m '[ n :-> State m LibraryMode !--> State m TimelineMode] r ()
+    -> Actions m '[ n := State m LibraryMode !--> State m TimelineMode] r ()
+  nextEvent ::
+       Name n
+    -> Actions m '[ n := Remain (State m t)] r (Event t)
   exit :: Name n -> Actions m '[ n !- State m s] r ()

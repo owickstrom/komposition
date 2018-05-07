@@ -35,7 +35,7 @@ libraryMode ::
   -> m (n .== State m 'LibraryMode) Empty ()
 libraryMode gui project focus' = do
   sleep 2
-  nextLibraryEvent gui >>>= \case
+  nextEvent gui >>>= \case
     LibraryEscape -> do
       exitLibrary gui project focus'
       timelineMode gui project focus'
@@ -53,7 +53,7 @@ timelineMode ::
 timelineMode gui project focus' = do
   updateTimeline gui project focus'
   sleep 2
-  nextTimelineEvent gui >>>= \case
+  nextEvent gui >>>= \case
     FocusEvent e ->
       case modifyFocus (project ^. topSequence) e focus' of
         Left _err      -> timelineMode gui project focus'

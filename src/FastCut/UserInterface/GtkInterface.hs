@@ -120,12 +120,14 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   updateTimeline n project focus =
     FSM.get n >>>= \(GtkTimelineMode s) ->
       render s (timelineView project focus) >>>= (FSM.enter n . GtkTimelineMode)
-  nextTimelineEvent _n = ireturn OpenLibrary
   enterLibrary n lib clipType idx =
     FSM.get n >>>= \(GtkTimelineMode s) ->
       render s (libraryView lib clipType idx) >>>=
       (FSM.enter n . GtkLibraryMode)
-  nextLibraryEvent _n = ireturn LibraryEscape
+  nextEvent n =
+    FSM.get n >>>= \case
+      GtkTimelineMode {} -> ireturn OpenLibrary
+      GtkLibraryMode {} -> ireturn LibraryEscape
   exitLibrary n project focus =
     FSM.get n >>>= \(GtkLibraryMode s) ->
       render s (timelineView project focus) >>>= (FSM.enter n . GtkTimelineMode)
