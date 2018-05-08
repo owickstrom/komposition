@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns               #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
 {-# LANGUAGE DataKinds                  #-}
@@ -30,14 +31,21 @@ import           Control.Monad.Indexed
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
+import           Data.Functor                                    (($>))
+import qualified Data.GI.Base.Signals                            as GI
 import           Data.Row.Records                                (Empty)
 import           Data.String
 import qualified Data.Text                                       as Text
+import           Data.Word
 import qualified GI.Gdk                                          as Gdk
 import qualified GI.GLib.Constants                               as GLib
+import qualified GI.GObject.Functions                            as GObject
 import           Motor.FSM                                       as FSM
 
 import           Control.Monad.Indexed.IO
+import           FastCut.Focus
+import           FastCut.Project
+import           FastCut.Sequence
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
@@ -65,8 +73,24 @@ deriving instance Monad m => Applicative (GtkInterface m i i)
 deriving instance Monad m => Monad (GtkInterface m i i)
 
 data GtkInterfaceState s where
-  GtkTimelineMode :: SharedState -> GtkInterfaceState TimelineMode
-  GtkLibraryMode :: SharedState -> GtkInterfaceState LibraryMode
+  GtkTimelineMode
+    :: SharedState
+    -> EventListener (Event TimelineMode)
+    -> GtkInterfaceState TimelineMode
+  GtkLibraryMode
+    :: SharedState
+    -> EventListener (Event LibraryMode)
+    -> GtkInterfaceState LibraryMode
+
+sharedState :: GtkInterfaceState s -> SharedState
+sharedState = \case
+  GtkTimelineMode s _ -> s
+  GtkLibraryMode s _ -> s
+
+eventListener :: GtkInterfaceState s -> EventListener (Event s)
+eventListener = \case
+  GtkTimelineMode _ e -> e
+  GtkLibraryMode _ e -> e
 
 runUI :: IO () -> IO ()
 runUI f = void (Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT (f *> return False))
@@ -91,11 +115,10 @@ initializeWindow Env{cssPath, screen} obj = do
   where
     cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
 
-render :: IxMonadIO m => SharedState -> Object -> m i i SharedState
-render s@SharedState {..} newObj =
-  iliftIO $ do
-    runUI (patchBox window currentObject newObj)
-    return s { currentObject = newObj }
+render :: Object -> SharedState -> IO SharedState
+render newObj s@SharedState {..} = do
+  runUI (patchBox window currentObject newObj)
+  return s {currentObject = newObj}
   where
     patchBox :: Gtk.Window -> Object -> Object -> IO ()
     patchBox w o1 o2 =
@@ -111,26 +134,91 @@ render s@SharedState {..} newObj =
           Gtk.widgetShowAll w
         Keep -> return ()
 
+data EventListener e = EventListener
+  { events          :: Chan e
+  , signalHandlerId :: GI.SignalHandlerId
+  }
+
+subscribeEvents :: (Word32 -> Maybe e) -> SharedState -> IO (EventListener e)
+subscribeEvents toEvent s = do
+  events <- newChan
+  signalHandlerId <- window s `Gtk.onWidgetKeyPressEvent` \eventKey -> do
+      keyVal <- Gdk.getEventKeyKeyval eventKey
+      case toEvent keyVal of
+        Just event -> writeChan events event $> False
+        _          -> return False
+  return EventListener{..}
+
+unsubscribeEvents :: GtkInterfaceState s -> IO ()
+unsubscribeEvents s = do
+  let EventListener{..} = eventListener s
+  GObject.signalHandlerDisconnect (window (sharedState s)) signalHandlerId
+
+awaitNext :: GtkInterfaceState s -> IO (Event s)
+awaitNext (eventListener -> EventListener {events}) = readChan events
+
+toTimelineEvent :: Word32 -> Maybe TimelineEvent
+toTimelineEvent =
+  \case
+    Gdk.KEY_Left -> Just (FocusEvent FocusLeft)
+    Gdk.KEY_Right -> Just (FocusEvent FocusRight)
+    Gdk.KEY_Up -> Just (FocusEvent FocusUp)
+    Gdk.KEY_Down -> Just (FocusEvent FocusDown)
+    Gdk.KEY_l -> Just OpenLibrary
+    Gdk.KEY_q -> Just Exit
+    _ -> Nothing
+
+firstTimelineView ::  Project -> Focus -> Env -> IO (GtkInterfaceState TimelineMode)
+firstTimelineView project focus env =
+  initializeWindow env (timelineView project focus) >>= \s ->
+    GtkTimelineMode s <$> subscribeEvents toTimelineEvent s
+
+newTimelineView :: Project -> Focus -> GtkInterfaceState s -> IO (GtkInterfaceState TimelineMode)
+newTimelineView project focus is = do
+  unsubscribeEvents is
+  render (timelineView project focus) (sharedState is) >>= \s ->
+    GtkTimelineMode s <$> subscribeEvents toTimelineEvent s
+
+toLibraryEvent :: Word32 -> Maybe LibraryEvent
+toLibraryEvent =
+  \case
+    Gdk.KEY_Escape -> Just LibraryEscape
+    Gdk.KEY_Up -> Just LibraryUp
+    Gdk.KEY_Down -> Just LibraryDown
+    _ -> Nothing
+
+newLibraryView :: Library -> ClipType -> Int -> GtkInterfaceState s -> IO (GtkInterfaceState LibraryMode)
+newLibraryView library' clipType idx is = do
+  unsubscribeEvents is
+  render (libraryView library' clipType idx) (sharedState is) >>= \s ->
+    GtkLibraryMode s <$> subscribeEvents toLibraryEvent s
+
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
+
   start n project focus =
-    ilift ask >>>= \env ->
-      iliftIO (initializeWindow env (timelineView project focus))
-      >>>= FSM.new n . GtkTimelineMode
+    ilift ask
+    >>>= iliftIO . firstTimelineView project focus
+    >>>= FSM.new n
+
+  -- NOTE: This re-renders (with diff) and re-attaches event listener:
   updateTimeline n project focus =
-    FSM.get n >>>= \(GtkTimelineMode s) ->
-      render s (timelineView project focus) >>>= (FSM.enter n . GtkTimelineMode)
+    FSM.get n
+    >>>= iliftIO . newTimelineView project focus
+    >>>= FSM.enter n
+
   enterLibrary n lib clipType idx =
-    FSM.get n >>>= \(GtkTimelineMode s) ->
-      render s (libraryView lib clipType idx) >>>=
-      (FSM.enter n . GtkLibraryMode)
-  nextEvent n =
-    FSM.get n >>>= \case
-      GtkTimelineMode {} -> ireturn OpenLibrary
-      GtkLibraryMode {} -> ireturn LibraryEscape
+    FSM.get n
+    >>>= iliftIO . newLibraryView lib clipType idx
+    >>>= FSM.enter n
+
+  nextEvent n = FSM.get n >>>= iliftIO . awaitNext
+
   exitLibrary n project focus =
-    FSM.get n >>>= \(GtkLibraryMode s) ->
-      render s (timelineView project focus) >>>= (FSM.enter n . GtkTimelineMode)
+    FSM.get n
+    >>>= iliftIO . newTimelineView project focus
+    >>>= FSM.enter n
+
   exit n = iliftIO Gtk.mainQuit >>> delete n
 
 run :: FilePath -> GtkInterface (ReaderT Env IO) Empty Empty () -> IO ()

@@ -12,7 +12,6 @@ module FastCut.Application where
 
 import           Prelude                  hiding ((>>))
 
-import           Control.Concurrent       (threadDelay)
 import           Control.Lens
 import           Data.Row.Records
 import           GHC.OverloadedLabels
@@ -24,17 +23,13 @@ import           FastCut.Project
 import           FastCut.Sequence
 import           FastCut.UserInterface
 
-sleep :: (IxMonadIO m) => Int -> m i i ()
-sleep seconds = iliftIO (threadDelay (seconds * 1000000))
-
 libraryMode ::
-     (UserInterface m, IxMonadIO m)
+    (UserInterface m, IxMonadIO m)
   => Name n
   -> Project
   -> Focus
   -> m (n .== State m 'LibraryMode) Empty ()
-libraryMode gui project focus' = do
-  sleep 2
+libraryMode gui project focus' =
   nextEvent gui >>>= \case
     LibraryEscape -> do
       exitLibrary gui project focus'
@@ -52,7 +47,6 @@ timelineMode ::
   -> m (n .== State m 'TimelineMode) Empty ()
 timelineMode gui project focus' = do
   updateTimeline gui project focus'
-  sleep 2
   nextEvent gui >>>= \case
     FocusEvent e ->
       case modifyFocus (project ^. topSequence) e focus' of

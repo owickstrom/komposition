@@ -1,0 +1,3 @@
+[submodule "lib/motor"]
+	path = lib/motor
+	url = git@github.com:owickstrom/motor.git

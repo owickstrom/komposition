@@ -3,9 +3,7 @@ resolver: nightly-2018-04-27
 # Local packages, usually specified by relative directory name
 packages:
     - '.'
-    - location: ../motor
-      #   git: https://github.com/owickstrom/motor.git
-      #   commit: bf8f532b2a0d820c454f290d6eb0d538933caa8c
+    - location: lib/motor
       subdirs:
         - motor
       extra-dep: true

@@ -6,24 +6,6 @@ import           FastCut.Sequence
 import qualified FastCut.UserInterface.GtkInterface as GtkInterface
 import           Paths_fastcut
 
--- addKeyboardEventHandler :: Gtk.Window -> IO (Chan ProjectController.Event)
--- addKeyboardEventHandler window = do
---   events <- newChan
---   void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
---     keyVal <- Gdk.getEventKeyKeyval eventKey
---     case keyVal of
---       Gdk.KEY_Left  -> publish events (ProjectController.FocusEvent FocusLeft)
---       Gdk.KEY_Right -> publish events (ProjectController.FocusEvent FocusRight)
---       Gdk.KEY_Up    -> publish events (ProjectController.FocusEvent FocusUp)
---       Gdk.KEY_Down  -> publish events (ProjectController.FocusEvent FocusDown)
---       Gdk.KEY_l     -> publish events ProjectController.OpenLibrary
---       Gdk.KEY_a     -> publish events ProjectController.Append
---       Gdk.KEY_Escape     -> publish events ProjectController.Cancel
---       _             -> ignore
---   return events
---  where
---   publish events event = writeChan events event $> False
---   ignore = return False
 
 initialProject :: Project
 initialProject = Project
