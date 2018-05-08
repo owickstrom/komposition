@@ -53,7 +53,7 @@ class MonadFSM m =>
   enterLibrary
     :: Name n
     -> Library
-    -> ClipType
+    -> MediaType
     -> Int
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
   exitLibrary ::

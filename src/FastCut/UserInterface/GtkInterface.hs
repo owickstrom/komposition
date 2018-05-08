@@ -187,7 +187,7 @@ toLibraryEvent =
     Gdk.KEY_Down -> Just LibraryDown
     _ -> Nothing
 
-newLibraryView :: Library -> ClipType -> Int -> GtkInterfaceState s -> IO (GtkInterfaceState LibraryMode)
+newLibraryView :: Library -> MediaType -> Int -> GtkInterfaceState s -> IO (GtkInterfaceState LibraryMode)
 newLibraryView library' clipType idx is = do
   unsubscribeEvents is
   render (libraryView library' clipType idx) (sharedState is) >>= \s ->

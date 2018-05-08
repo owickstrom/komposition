@@ -11,7 +11,6 @@ module FastCut.UserInterface.GtkInterface.TimelineView
 import           Control.Lens
 import           Data.Int           (Int32)
 import           Data.Text          (Text)
-import           Data.Time.Clock
 
 import           FastCut.Focus
 import           FastCut.Project
@@ -39,22 +38,19 @@ renderClip' focused metadata =
       node Label [#label := clipName metadata]
     ]
 
-renderGap :: Focused -> NominalDiffTime -> Object
-renderGap focused duration' =
-  container
-    Box
-    [ classes ["gap", focusedClass focused]
-    , #orientation := OrientationHorizontal
-    , #widthRequest := widthFromDuration duration'
-    ]
-    [node Label []]
-
-renderClip :: Clip Focused t -> Object
-renderClip = \case
-  VideoClip focused metadata -> renderClip' focused metadata
-  AudioClip focused metadata -> renderClip' focused metadata
-  VideoGap  focused duration' -> renderGap focused duration'
-  AudioGap  focused duration' -> renderGap focused duration'
+renderPart :: SequencePart Focused t -> Object
+renderPart =
+  \case
+    Clip (VideoClip focused metadata) -> renderClip' focused metadata
+    Clip (AudioClip focused metadata) -> renderClip' focused metadata
+    Gap focused duration' ->
+      container
+        Box
+        [ classes ["gap", focusedClass focused]
+        , #orientation := OrientationHorizontal
+        , #widthRequest := widthFromDuration duration'
+        ]
+        [node Label []]
 
 renderSequence :: Sequence Focused -> Object
 renderSequence =
@@ -74,12 +70,12 @@ renderSequence =
           container
             Box
             [classes ["video", focusedClass focused]]
-            (map renderClip vs)
+            (map renderPart vs)
         , BoxChild False False 0 $
           container
             Box
             [classes ["audio", focusedClass focused]]
-            (map renderClip as)
+            (map renderPart as)
         ]
 
 timelineView :: Project -> Focus -> Object

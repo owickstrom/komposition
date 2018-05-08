@@ -14,7 +14,7 @@ import           FastCut.Project
 import           FastCut.Sequence
 import           GI.Gtk.Declarative as Gtk
 
-libraryView :: Library -> ClipType -> Int -> Object
+libraryView :: Library -> MediaType -> Int -> Object
 libraryView lib clipType idx =
   case clipType of
     Video -> renderClips (lib ^. videoClips) idx
@@ -35,5 +35,3 @@ libraryView lib clipType idx =
       \case
         VideoClip _ m -> node Label [#label := clipName m]
         AudioClip _ m -> node Label [#label := clipName m]
-        VideoGap _ _ -> node Label [#label := "GAP?"]
-        AudioGap _ _ -> node Label [#label := "GAP?"]
