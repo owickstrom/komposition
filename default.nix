@@ -17,7 +17,7 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, base, gi-gdk, gi-glib, gi-gobject, gi-gtk
-      , gi-pango, haskell-gi, haskell-gi-base, mtl, stdenv, tasty
+      , gi-pango, hashable, haskell-gi, haskell-gi-base, mtl, stdenv, tasty
       , tasty-discover, tasty-hspec, tasty-hunit, text, time
       , unordered-containers
       }:
@@ -29,7 +29,7 @@ let
         isExecutable = true;
         enableSeparateDataOutput = true;
         libraryHaskellDepends = [
-          base gi-gdk gi-glib gi-gobject gi-gtk gi-pango haskell-gi
+          base gi-gdk gi-glib gi-gobject gi-gtk gi-pango hashable haskell-gi
           haskell-gi-base mtl text time unordered-containers
         ];
         librarySystemDepends = [ pkgs.pkgconfig pkgs.cairo ];

@@ -15,6 +15,7 @@ import           Data.Text          (Text)
 import           FastCut.Focus
 import           FastCut.Project
 import           FastCut.Sequence
+
 import           GI.Gtk.Declarative as Gtk
 
 widthFromDuration :: (RealFrac d) => d -> Int32
@@ -82,7 +83,7 @@ timelineView :: Project -> Focus -> Object
 timelineView project focus =
   container
     Box
-    [#orientation := OrientationVertical, classes ["scene"]]
+    [#orientation := OrientationVertical, classes ["timeline"]]
     [ BoxChild True True 0 $ node Label [#label := (project ^. projectName)]
     , BoxChild False False 0 $
       container

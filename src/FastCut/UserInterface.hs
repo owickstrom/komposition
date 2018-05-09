@@ -2,6 +2,8 @@
 
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE DeriveAnyClass   #-}
+{-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE KindSignatures   #-}
 {-# LANGUAGE RankNTypes       #-}
@@ -12,7 +14,10 @@
 
 module FastCut.UserInterface where
 
+import           Data.Hashable
+import           Data.HashSet     (HashSet)
 import           Data.Kind
+import           GHC.Generics
 import           Motor.FSM
 
 import           FastCut.Focus
@@ -23,19 +28,20 @@ data UserInterfaceState
   = TimelineMode
   | LibraryMode
 
-data TimelineEvent
-  = FocusEvent FocusEvent
-  | OpenLibrary
-  | Exit
+data Modifier
+  = Ctrl
+  | Shift
+  | Meta
 
-data LibraryEvent
-  = LibraryEscape
-  | LibraryUp
-  | LibraryDown
+data Key
+  = KeyChar Char
+  | KeyModifier
+  | KeyEnter
+  deriving (Show, Eq, Generic, Hashable)
 
-type family Event (t :: UserInterfaceState) where
-  Event TimelineMode = TimelineEvent
-  Event LibraryMode = LibraryEvent
+type KeyCombo = HashSet Key
+
+newtype Event = KeyPress KeyCombo
 
 class MonadFSM m =>
       UserInterface m where
@@ -52,10 +58,11 @@ class MonadFSM m =>
     -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n
-    -> Library
-    -> MediaType
-    -> Int
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
+  updateLibrary
+    :: Name n
+    -> [Clip Focused mt]
+    -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
   exitLibrary ::
        Name n
     -> Project
@@ -63,5 +70,6 @@ class MonadFSM m =>
     -> Actions m '[ n := State m LibraryMode !--> State m TimelineMode] r ()
   nextEvent ::
        Name n
-    -> Actions m '[ n := Remain (State m t)] r (Event t)
+    -> Actions m '[ n := Remain (State m t)] r Event
+  beep :: Name n -> Actions m '[] r ()
   exit :: Name n -> Actions m '[ n !- State m s] r ()

@@ -33,10 +33,10 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Data.Functor                                    (($>))
 import qualified Data.GI.Base.Signals                            as GI
+import qualified Data.HashSet                                    as HashSet
 import           Data.Row.Records                                (Empty)
 import           Data.String
 import qualified Data.Text                                       as Text
-import           Data.Word
 import qualified GI.Gdk                                          as Gdk
 import qualified GI.GLib.Constants                               as GLib
 import qualified GI.GObject.Functions                            as GObject
@@ -58,6 +58,7 @@ data Env = Env
 
 data SharedState = SharedState
   { window        :: Gtk.Window
+  , eventListener :: EventListener
   , currentObject :: Object
   }
 
@@ -75,25 +76,49 @@ deriving instance Monad m => Monad (GtkInterface m i i)
 data GtkInterfaceState s where
   GtkTimelineMode
     :: SharedState
-    -> EventListener (Event TimelineMode)
     -> GtkInterfaceState TimelineMode
   GtkLibraryMode
     :: SharedState
-    -> EventListener (Event LibraryMode)
     -> GtkInterfaceState LibraryMode
 
 sharedState :: GtkInterfaceState s -> SharedState
 sharedState = \case
-  GtkTimelineMode s _ -> s
-  GtkLibraryMode s _ -> s
-
-eventListener :: GtkInterfaceState s -> EventListener (Event s)
-eventListener = \case
-  GtkTimelineMode _ e -> e
-  GtkLibraryMode _ e -> e
+  GtkTimelineMode s -> s
+  GtkLibraryMode s -> s
 
 runUI :: IO () -> IO ()
 runUI f = void (Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT (f *> return False))
+
+data EventListener = EventListener
+  { events          :: Chan Event
+  , signalHandlerId :: GI.SignalHandlerId
+  }
+
+subscribeEvents :: Gtk.Window -> IO EventListener
+subscribeEvents w = do
+  events <- newChan
+  signalHandlerId <-
+    w `Gtk.onWidgetKeyPressEvent` \eventKey -> do
+      keyVal <- Gdk.getEventKeyKeyval eventKey
+      keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
+      case toKeyCombo (keyChar :: Char, keyVal) of
+        Just keyCombo ->
+          writeChan events (KeyPress (HashSet.fromList keyCombo)) $> False
+        _ -> return False
+  return EventListener {..}
+  where
+    toKeyCombo =
+      \case
+        ('\0', Gdk.KEY_Return) -> Just [KeyEnter]
+        (c, _) -> Just [KeyChar c]
+
+unsubscribeEvents :: GtkInterfaceState s -> IO ()
+unsubscribeEvents (sharedState -> s) = do
+  let EventListener{..} = eventListener s
+  GObject.signalHandlerDisconnect (window s) signalHandlerId
+
+awaitNext :: GtkInterfaceState s -> IO Event
+awaitNext = readChan . events . eventListener . sharedState
 
 initializeWindow :: Env -> Object -> IO SharedState
 initializeWindow Env{cssPath, screen} obj = do
@@ -111,7 +136,8 @@ initializeWindow Env{cssPath, screen} obj = do
     Gtk.widgetShowAll window
     putMVar w window
   window <- takeMVar w
-  return (SharedState window obj)
+  listener <- subscribeEvents window
+  return (SharedState window listener obj)
   where
     cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
 
@@ -126,7 +152,9 @@ render newObj s@SharedState {..} = do
         Modify f ->
           Gtk.containerGetChildren w >>= \case
             [] -> return ()
-            (c:_) -> f =<< Gtk.toWidget c
+            (c:_) -> do
+              f =<< Gtk.toWidget c
+              Gtk.widgetShowAll w
         Replace createNew -> do
           Gtk.containerForall w (Gtk.containerRemove w)
           newWidget <- createNew
@@ -134,64 +162,17 @@ render newObj s@SharedState {..} = do
           Gtk.widgetShowAll w
         Keep -> return ()
 
-data EventListener e = EventListener
-  { events          :: Chan e
-  , signalHandlerId :: GI.SignalHandlerId
-  }
-
-subscribeEvents :: (Word32 -> Maybe e) -> SharedState -> IO (EventListener e)
-subscribeEvents toEvent s = do
-  events <- newChan
-  signalHandlerId <- window s `Gtk.onWidgetKeyPressEvent` \eventKey -> do
-      keyVal <- Gdk.getEventKeyKeyval eventKey
-      case toEvent keyVal of
-        Just event -> writeChan events event $> False
-        _          -> return False
-  return EventListener{..}
-
-unsubscribeEvents :: GtkInterfaceState s -> IO ()
-unsubscribeEvents s = do
-  let EventListener{..} = eventListener s
-  GObject.signalHandlerDisconnect (window (sharedState s)) signalHandlerId
-
-awaitNext :: GtkInterfaceState s -> IO (Event s)
-awaitNext (eventListener -> EventListener {events}) = readChan events
-
-toTimelineEvent :: Word32 -> Maybe TimelineEvent
-toTimelineEvent =
-  \case
-    Gdk.KEY_Left -> Just (FocusEvent FocusLeft)
-    Gdk.KEY_Right -> Just (FocusEvent FocusRight)
-    Gdk.KEY_Up -> Just (FocusEvent FocusUp)
-    Gdk.KEY_Down -> Just (FocusEvent FocusDown)
-    Gdk.KEY_l -> Just OpenLibrary
-    Gdk.KEY_q -> Just Exit
-    _ -> Nothing
-
 firstTimelineView ::  Project -> Focus -> Env -> IO (GtkInterfaceState TimelineMode)
 firstTimelineView project focus env =
-  initializeWindow env (timelineView project focus) >>= \s ->
-    GtkTimelineMode s <$> subscribeEvents toTimelineEvent s
+  GtkTimelineMode <$> initializeWindow env (timelineView project focus)
 
 newTimelineView :: Project -> Focus -> GtkInterfaceState s -> IO (GtkInterfaceState TimelineMode)
-newTimelineView project focus is = do
-  unsubscribeEvents is
-  render (timelineView project focus) (sharedState is) >>= \s ->
-    GtkTimelineMode s <$> subscribeEvents toTimelineEvent s
+newTimelineView project focus is =
+  GtkTimelineMode <$> render (timelineView project focus) (sharedState is)
 
-toLibraryEvent :: Word32 -> Maybe LibraryEvent
-toLibraryEvent =
-  \case
-    Gdk.KEY_Escape -> Just LibraryEscape
-    Gdk.KEY_Up -> Just LibraryUp
-    Gdk.KEY_Down -> Just LibraryDown
-    _ -> Nothing
-
-newLibraryView :: Library -> MediaType -> Int -> GtkInterfaceState s -> IO (GtkInterfaceState LibraryMode)
-newLibraryView library' clipType idx is = do
-  unsubscribeEvents is
-  render (libraryView library' clipType idx) (sharedState is) >>= \s ->
-    GtkLibraryMode s <$> subscribeEvents toLibraryEvent s
+newLibraryView :: [Clip Focused t] -> GtkInterfaceState s -> IO (GtkInterfaceState LibraryMode)
+newLibraryView clips is =
+  GtkLibraryMode <$> render (libraryView clips) (sharedState is)
 
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
@@ -207,9 +188,14 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     >>>= iliftIO . newTimelineView project focus
     >>>= FSM.enter n
 
-  enterLibrary n lib clipType idx =
+  enterLibrary n =
     FSM.get n
-    >>>= iliftIO . newLibraryView lib clipType idx
+    >>>= iliftIO . newLibraryView []
+    >>>= FSM.enter n
+
+  updateLibrary n clips =
+    FSM.get n
+    >>>= iliftIO . newLibraryView clips
     >>>= FSM.enter n
 
   nextEvent n = FSM.get n >>>= iliftIO . awaitNext
@@ -219,7 +205,12 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     >>>= iliftIO . newTimelineView project focus
     >>>= FSM.enter n
 
-  exit n = iliftIO Gtk.mainQuit >>> delete n
+  beep _ = iliftIO (runUI Gdk.beep)
+
+  exit n =
+    (FSM.get n >>>= iliftIO . unsubscribeEvents)
+    >>> iliftIO Gtk.mainQuit
+    >>> delete n
 
 run :: FilePath -> GtkInterface (ReaderT Env IO) Empty Empty () -> IO ()
 run cssPath ui = do

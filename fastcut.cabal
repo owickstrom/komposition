@@ -42,6 +42,7 @@ library
                       , gi-gdk
                       , gi-pango
                       , indexed
+                      , hashable
                       , haskell-gi
                       , haskell-gi-base
                       , lens

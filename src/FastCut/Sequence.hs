@@ -26,6 +26,10 @@ data ClipMetadata = ClipMetadata
 data MediaType = Video | Audio
   deriving (Eq, Show)
 
+data SMediaType (mt :: MediaType) where
+  SVideo :: SMediaType Video
+  SAudio :: SMediaType Audio
+
 type family InverseMediaType (t :: MediaType) :: MediaType where
   InverseMediaType Video = Audio
   InverseMediaType Audio = Video
@@ -36,6 +40,11 @@ data Clip a (mt :: MediaType)  where
 
 deriving instance Eq a => Eq (Clip a t)
 deriving instance Show a => Show (Clip a t)
+
+setClipAnnotation :: a -> Clip b t -> Clip a t
+setClipAnnotation a = \case
+  VideoClip _ m -> VideoClip a m
+  AudioClip _ m -> AudioClip a m
 
 data SequencePart a (mt :: MediaType) where
   Clip :: Clip a mt -> SequencePart a mt

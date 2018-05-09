@@ -8,30 +8,46 @@ module FastCut.UserInterface.GtkInterface.LibraryView
   ( libraryView
   ) where
 
-import           Control.Lens
+import           Data.Text          (Text)
 
-import           FastCut.Project
+import           FastCut.Focus      (Focused (..))
 import           FastCut.Sequence
 import           GI.Gtk.Declarative as Gtk
 
-libraryView :: Library -> MediaType -> Int -> Object
-libraryView lib clipType idx =
-  case clipType of
-    Video -> renderClips (lib ^. videoClips) idx
-    Audio -> renderClips (lib ^. audioClips) idx
+renderClip :: Clip Focused mt -> BoxChild
+renderClip clip =
+  BoxChild False False 0 $
+  case clip of
+    VideoClip focused m ->
+      node Label [#label := clipName m, classes ["clip", focusedClass focused]]
+    AudioClip focused m ->
+      node Label [#label := clipName m, classes ["clip", focusedClass focused]]
   where
-    renderClips clips _idx =
-      container
-        ScrolledWindow
-        [ #hscrollbarPolicy := PolicyTypeNever
-        , #vscrollbarPolicy := PolicyTypeAutomatic
-        ]
-        (container
-           Box
-           [#orientation := OrientationVertical]
-           (map (BoxChild False False 0 . renderClip) clips))
-    renderClip :: Clip a t -> Object
-    renderClip =
+    focusedClass :: Focused -> Text
+    focusedClass =
       \case
-        VideoClip _ m -> node Label [#label := clipName m]
-        AudioClip _ m -> node Label [#label := clipName m]
+        Focused -> "focused"
+        TransitivelyFocused -> "transitively-focused"
+        Blurred -> "blurred"
+
+libraryView :: [Clip Focused mt] -> Object
+libraryView clips =
+  container
+    ScrolledWindow
+    [ #hscrollbarPolicy := PolicyTypeNever
+    , #vscrollbarPolicy := PolicyTypeAutomatic
+    ]
+    (container
+       Box
+       [#orientation := OrientationVertical, classes ["library"]]
+       [ BoxChild
+           False
+           False
+           0
+           (node Label [#label := "Library", classes ["heading"]])
+       , BoxChild True True 0 $
+         container
+           Box
+           [#orientation := OrientationVertical, classes ["clips"]]
+           (map renderClip clips)
+       ])
