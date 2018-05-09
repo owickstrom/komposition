@@ -25,5 +25,3 @@ extra-deps:
   - indexed-0.1.3
   - tasty-discover-4.2.0
   - row-types-0.2.2.0
-
-allow-newer: true
