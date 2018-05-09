@@ -7,6 +7,8 @@ packages:
       subdirs:
         - motor
       extra-dep: true
+    - location: lib/indexed-extras
+      extra-dep: true
 
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
@@ -21,7 +23,6 @@ extra-deps:
   - gi-pango-1.0.16
   - gi-vte-2.91.17
   - indexed-0.1.3
-  - indexed-extras-0.2
   - tasty-discover-4.2.0
   - row-types-0.2.2.0
 

@@ -1,3 +1,6 @@
 [submodule "lib/motor"]
 	path = lib/motor
 	url = git@github.com:owickstrom/motor.git
+[submodule "lib/indexed-extras"]
+	path = lib/indexed-extras
+	url = git@github.com:typedrat/indexed-extras.git
