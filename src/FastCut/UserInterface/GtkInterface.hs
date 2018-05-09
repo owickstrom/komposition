@@ -109,7 +109,7 @@ subscribeEvents w = do
   where
     toKeyCombo =
       \case
-        ('\0', Gdk.KEY_Return) -> Just [KeyEnter]
+        (_, Gdk.KEY_Return) -> Just [KeyEnter]
         (c, _) -> Just [KeyChar c]
 
 unsubscribeEvents :: GtkInterfaceState s -> IO ()
