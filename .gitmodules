@@ -4,3 +4,6 @@
 [submodule "lib/indexed-extras"]
 	path = lib/indexed-extras
 	url = git@github.com:typedrat/indexed-extras.git
+[submodule "lib/ffmpeg-light"]
+	path = lib/ffmpeg-light
+	url = git@github.com:acowley/ffmpeg-light.git

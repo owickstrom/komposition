@@ -1,3 +1,4 @@
 packages:       fastcut.cabal
               , lib/motor/motor
               , lib/indexed-extras
+              , lib/ffmpeg-light

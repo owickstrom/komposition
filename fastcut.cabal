@@ -27,6 +27,7 @@ library
                       , FastCut.UserInterface.GtkInterface
                       , FastCut.UserInterface.GtkInterface.TimelineView
                       , FastCut.UserInterface.GtkInterface.LibraryView
+                      , FastCut.Video.FFmpeg
                       , GI.Gtk.Declarative
                       , GI.Gtk.Declarative.Container
                       , GI.Gtk.Declarative.CSS
@@ -35,12 +36,16 @@ library
                       , GI.Gtk.Declarative.Patch
                       , GI.Gtk.Declarative.Props
   build-depends:        base >=4.10 && <4.12
+                      , directory
+                      , ffmpeg-light >= 0.12.1 && <0.13
+                      , filepath
                       , gi-gobject
                       , gi-glib
                       , gi-gtk
                       , gi-gdk
                       , gi-pango
                       , indexed
+                      , JuicyPixels
                       , hashable
                       , haskell-gi
                       , haskell-gi-base
@@ -73,6 +78,25 @@ executable fastcut
   hs-source-dirs:       exe
   default-language:     Haskell2010
   ghc-options:        -Wall -threaded
+
+executable fastcut-split
+  main-is:              Split.hs
+  other-modules:        Paths_fastcut
+  -- other-extensions:
+  build-depends:        base >=4.10 && <4.12
+                      , fastcut
+                      , gi-gobject
+                      , gi-glib
+                      , gi-gtk
+                      , gi-gdk
+                      , gi-pango
+                      , haskell-gi
+                      , haskell-gi-base
+                      , text
+                      , time
+  hs-source-dirs:       exe
+  default-language:     Haskell2010
+  ghc-options:        -Wall -threaded -O2
 
 test-suite fastcut-tests
   type:            exitcode-stdio-1.0
