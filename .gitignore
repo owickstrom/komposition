@@ -4,3 +4,4 @@
 /tags
 /TAGS
 /.ghc.environment*
+/cabal.project.local
