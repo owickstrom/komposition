@@ -1,13 +1,8 @@
 module Main where
 
-import Control.Lens.Traversal
 import           Codec.Picture
-import           Codec.Picture.Types
-import           Codec.Picture.Png
 import           Criterion.Main
 import qualified Data.ByteString      as ByteString
-import           Data.Vector.Storable          (Vector)
-import qualified Data.Vector.Storable          as Vector
 
 import           FastCut.Video.FFmpeg
 
@@ -20,9 +15,7 @@ readTestImage n = do
     Right (ImageRGB8 img) -> return img
     Right _               -> fail "Unexpected image type."
 
-equalFrame' (img1, img2) =
-  equalFrame img1 img2
-
+main :: IO ()
 main = do
   img1 <- readTestImage 1
   img2 <- readTestImage 2
@@ -30,7 +23,11 @@ main = do
   defaultMain
     [ bgroup
         "fib"
-        [ bench "equal" $ whnf equalFrame' (img1, img1)
-        , bench "nonequal" $ whnf equalFrame' (img1, img2)
+        [ bench "equalFrame" $ whnf (equalFrame img1) img1
+        , bench "!equalFrame" $ whnf (equalFrame img1) img2
+        , bench "equalFrame2(1)" $ whnf (equalFrame2 1 img1) img1
+        , bench "!equalFrame2(1)" $ whnf (equalFrame2 1 img1) img2
+        , bench "equalFrame2(32)" $ whnf (equalFrame2 32 img1) img1
+        , bench "!equalFrame2(32)" $ whnf (equalFrame2 32 img1) img2
         ]
     ]

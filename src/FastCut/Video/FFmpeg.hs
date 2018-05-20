@@ -4,11 +4,7 @@ module FastCut.Video.FFmpeg where
 import           Codec.FFmpeg
 import           Codec.FFmpeg.Encode
 import           Codec.Picture
-import           Control.DeepSeq
-import           Control.Monad
-import           Control.Parallel.Strategies
-import           Data.Vector.Storable        (Vector)
-import qualified Data.Vector.Storable        as Vector
+import qualified Data.Vector.Storable as Vector
 import           System.Directory
 import           System.FilePath
 
@@ -25,38 +21,29 @@ type Frame = Image PixelRGB8
 
 data SplitterState
   = Initial
-  | InPart { partNumber      :: Int
+  | InPart { partNumber      :: !Int
            , writeToPart     :: Maybe Frame -> IO ()
-           , lastFrame       :: Frame
-           , equalFrameCount :: Int }
-  | InSplit { partNumber :: Int
-            , splitFrame :: Frame }
-
-parVector :: (NFData a, Vector.Storable a) => Strategy (Vector a)
-parVector vec =
-  let vLen = Vector.length vec
-      half = vLen `div` 2
-      minChunk = 1024
-  in  if vLen > minChunk
-      then do
-        let v1 = Vector.unsafeSlice 0 half vec
-            v2 = Vector.unsafeSlice half (vLen - half) vec
-        void (parVector v1)
-        void (parVector v2)
-        return vec
-      else
-        evalChunk (vLen-1) >>
-        return vec
-  where
-  evalChunk 0 = rpar (rdeepseq (vec Vector.! 0)) >> return vec
-  evalChunk i = rpar (rdeepseq (vec Vector.! i)) >> evalChunk (i-1)
+           , lastFrame       :: !Frame
+           , equalFrameCount :: !Int }
+  | InSplit { partNumber :: !Int
+            , splitFrame :: !Frame }
 
 equalFrame :: Frame -> Frame ->  Bool
-equalFrame a b =
-  Vector.and (Vector.zipWith (==) (imageData a) (imageData b))
+equalFrame a b = Vector.and (Vector.zipWith (==) (imageData a) (imageData b))
+
+equalFrame2 :: Int -> Frame -> Frame ->  Bool
+equalFrame2 skip a b = la == lb && go 0
+  where
+    da = imageData a
+    db = imageData b
+    la = Vector.length da
+    lb = Vector.length db
+    go i
+      | i >= la = True
+      | otherwise = Vector.unsafeIndex da i == Vector.unsafeIndex db i && go (i + skip)
 
 equalFrameCountThreshold :: Int
-equalFrameCountThreshold = 25
+equalFrameCountThreshold = 60
 
 splitReader :: IO (Maybe (Image PixelRGB8)) -> IO a -> FilePath -> IO a
 splitReader getFrame cleanup outDir = loop Initial
@@ -72,7 +59,7 @@ splitReader getFrame cleanup outDir = loop Initial
       maybeNew <- getFrame
       case maybeNew of
         Just newFrame
-          | equalFrame newFrame lastFrame ->
+          | equalFrame2 32 newFrame lastFrame ->
             if succ equalFrameCount > equalFrameCountThreshold
             then do writeToPart Nothing
                     loop (InSplit partNumber newFrame )
@@ -88,7 +75,7 @@ splitReader getFrame cleanup outDir = loop Initial
       maybeNew <- getFrame
       case maybeNew of
         Just newFrame
-          | imageData splitFrame == imageData newFrame ->
+          | equalFrame2 32 splitFrame newFrame ->
             loop (InSplit partNumber splitFrame)
           | otherwise -> do
             w <- partWriter outDir (succ partNumber)
