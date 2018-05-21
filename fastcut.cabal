@@ -54,6 +54,8 @@ library
                       , motor >= 0.3 && < 0.4
                       , mtl
                       , parallel
+                      , pipes
+                      , pipes-extras
                       , row-types
                       , text
                       , time
