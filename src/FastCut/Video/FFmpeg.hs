@@ -69,7 +69,7 @@ instance Monoid EqCount where
   mempty = EqCount 0 0
 
 equalFrame2 :: Double -> Frame -> Frame ->  Bool
-equalFrame2 eps a b = traceShow sim $ (wa, ha) == (wb, hb) && sim > (1 - eps)
+equalFrame2 eps a b = (wa, ha) == (wb, hb) && sim > (1 - eps)
   where
     wa = imageWidth a
     ha = imageHeight a
@@ -86,7 +86,7 @@ equalFrame2 eps a b = traceShow sim $ (wa, ha) == (wb, hb) && sim > (1 - eps)
       in fromIntegral eq / fromIntegral (eq + neq)
 
 equalFrameCountThreshold :: Int
-equalFrameCountThreshold = 15
+equalFrameCountThreshold = 12
 
 data MovementFrame
   = Moving Frame
@@ -134,10 +134,10 @@ classifyMovement =
          Monad m
       => ClassifierState
       -> StateT (Producer Frame m ()) (Producer MovementFrame m) ()
-    go state = do
+    go state =
        (state,) <$> draw' >>= \case
         (InMoving {..}, Just frame)
-          | equalFrame2 0.02 frame (Vector.head equalFrames) ->
+          | equalFrame2 0.005 frame (Vector.head equalFrames) ->
             if Vector.length equalFrames >= equalFrameCountThreshold
               then do
                 Vector.mapM_ (yield' . Still) equalFrames
@@ -149,7 +149,7 @@ classifyMovement =
             go (InMoving (Vector.singleton frame))
         (InMoving {..}, Nothing) -> Vector.mapM_ (yield' . Moving) equalFrames
         (InStill {..}, Just frame)
-          | equalFrame2 0.02 stillFrame frame -> do
+          | equalFrame2 0.01 stillFrame frame -> do
             yield' (Still frame)
             go (InStill stillFrame)
           | otherwise -> go (InMoving (Vector.singleton frame))

@@ -4,8 +4,7 @@
 module FastCut.Video.FFmpegTest where
 
 import           Codec.Picture
-import           Codec.Picture.Types
-import           Pipes                as Pipes
+import           Pipes
 import qualified Pipes.Prelude        as Pipes
 import           Test.Tasty.Hspec
 
@@ -21,7 +20,13 @@ f1, f2 :: Frame
 f1 = colorImage red
 f2 = colorImage green
 
+shouldClassifyAs inFrames outFrames =
+  Pipes.toList (classifyMovement (Pipes.each inFrames)) `shouldBe` outFrames
+
 spec_classifyMovement = do
+  it "discards too short still section" $
+    concat [[f1], replicate 10 f2, [f1]] `shouldClassifyAs`
+    (Moving f1 : replicate 10 (Moving f2) ++ [Moving f1])
   it "classifies a still section" $
-    Pipes.toList (classifyMovement (Pipes.each [f1, f2, f2, f1])) `shouldBe`
-    [Moving f1, Moving f2, Moving f2, Moving f1]
+    concat [[f1], replicate 20 f2, [f1]] `shouldClassifyAs`
+    concat [[Moving f1], replicate 20 (Still f2), [Moving f1]]
