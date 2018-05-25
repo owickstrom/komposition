@@ -9,12 +9,13 @@ import           Codec.Picture
 import           Codec.Picture.Types
 import           Control.Monad.IO.Class
 import           Control.Monad.Primitive
-import qualified Data.Vector.Storable    as Vector
+import           Data.Foldable
+import           Data.Vector             (Vector)
+import qualified Data.Vector.Generic     as Vector
 import           Data.Word
 import           Debug.Trace
 import           Pipes                   (Consumer', Pipe, Producer)
 import           Pipes                   as Pipes
-import           Pipes.Extras            (scan1M)
 import qualified Pipes.Prelude           as Pipes
 import           System.Directory
 import           System.FilePath
@@ -58,23 +59,30 @@ dropTime = Pipes.map fst
 equalFrame :: Frame -> Frame ->  Bool
 equalFrame a b = Vector.and (Vector.zipWith (==) (imageData a) (imageData b))
 
-equalFrame2 :: Int -> Frame -> Frame ->  Bool
-equalFrame2 skip a b = la == lb && sim > 0.95
+data EqCount = EqCount Int Int
+
+instance Semigroup EqCount where
+  EqCount eq neq <> EqCount eq' neq' = EqCount (eq + eq') (neq + neq')
+
+instance Monoid EqCount where
+  mempty = EqCount 0 0
+
+equalFrame2 :: Double -> Frame -> Frame ->  Bool
+equalFrame2 eps a b = traceShow sim $ (wa, ha) == (wb, hb) && sim > (1 - eps)
   where
-    da = imageData a
-    db = imageData b
-    la = Vector.length da
-    lb = Vector.length db
-    go i (eq, neq)
-      | i >= la = (eq, neq)
-      | otherwise =
-        if Vector.unsafeIndex da i == Vector.unsafeIndex db i
-        then go (i + skip) (succ eq, neq)
-        else go (i + skip) (eq, succ neq)
+    wa = imageWidth a
+    ha = imageHeight a
+    wb = imageWidth b
+    hb = imageHeight b
+    go (x, y) =
+      if pixelAt a x y == pixelAt b x y
+        then EqCount 1 0
+        else EqCount 0 1
     sim :: Double
     sim =
-      let (eq, neq) = go 0 (0, 0)
-      in eq / (eq + neq)
+      let (EqCount eq neq) =
+            foldMap go [(x, y) | x <- [0 .. pred wa], y <- [0 .. pred ha]]
+      in fromIntegral eq / fromIntegral (eq + neq)
 
 equalFrameCountThreshold :: Int
 equalFrameCountThreshold = 15
@@ -83,6 +91,14 @@ data MovementFrame
   = Moving Frame
   | Still Frame
 
+unMovementFrame :: MovementFrame -> Frame
+unMovementFrame = \case
+  Moving f -> f
+  Still f -> f
+
+instance Eq MovementFrame where
+  f1 == f2 = imageData (unMovementFrame f1) == imageData (unMovementFrame f2)
+
 instance Show MovementFrame where
   show mf =
     case mf of
@@ -90,30 +106,40 @@ instance Show MovementFrame where
       Still _  -> "Still <frame>"
 
 data ClassifierState
-  = InMoving { lastFrame       :: !Frame
-             , equalFrameCount :: !Int }
-  | InStill { stillFrame :: !Frame, lastFrame :: !Frame }
+  = InMoving { equalFrames       :: !(Vector Frame)
+             }
+  | InStill { stillFrame :: !Frame }
 
+instance Show ClassifierState where
+  show s =
+    case s of
+      InMoving {..} -> "InMoving " <> show (Vector.length equalFrames)
+      InStill {}    -> "InStill"
 
-classifyMovement :: MonadIO m => Pipe Frame MovementFrame m ()
-classifyMovement = scan1M nextFrame (pure . firstFrame) (pure . toMovementFrame)
+classifyMovement :: Monad m => Pipe Frame MovementFrame m ()
+classifyMovement = do
+  frame <- await
+  void $ go (InMoving (Vector.singleton frame))
   where
-    firstFrame frame = InMoving frame 1
-    nextFrame state frame =
+    go state = do
+      frame <- await
       case state of
         InMoving {..}
-          | equalFrame2 1 frame lastFrame ->
-            if equalFrameCount > equalFrameCountThreshold
-              then pure (InStill frame frame)
-              else pure (InMoving frame (succ equalFrameCount))
-          | otherwise -> pure (InMoving frame 1)
+          | equalFrame2 0.02 frame (Vector.head equalFrames) ->
+            if Vector.length equalFrames >= equalFrameCountThreshold
+              then do
+                Vector.mapM_ (yield . Still) equalFrames
+                yield (Still frame)
+                go (InStill frame)
+              else go (InMoving (Vector.snoc equalFrames frame))
+          | otherwise -> do
+            Vector.mapM_ (yield . Moving) equalFrames
+            go (InMoving (Vector.singleton frame))
         InStill {..}
-          | equalFrame2 1 stillFrame frame -> pure (InStill stillFrame frame)
-          | otherwise -> pure (InMoving frame 1)
-    toMovementFrame =
-      \case
-        InMoving {..} -> Moving lastFrame
-        InStill {..} -> Still lastFrame
+          | equalFrame2 0.02 stillFrame frame -> do
+              yield (Still frame)
+              go (InStill stillFrame)
+          | otherwise -> go (InMoving (Vector.singleton frame))
 
 colorClassifiedMovement :: (PrimMonad m, MonadIO m) => Pipe MovementFrame Frame m ()
 colorClassifiedMovement =
@@ -204,7 +230,7 @@ printProcessingInfo =
     liftIO $ do
       let s = floor n :: Int
       printf
-        "Processing at %02d:%02d:%02d\r"
+        "Processing at %02d:%02d:%02d\n"
         (s `div` 3600)
         (s `div` 60)
         (s `mod` 60)
@@ -215,7 +241,7 @@ split src outDir = do
   createDirectoryIfMissing True outDir
   writeVideoFile (outDir </> "debug.mp4") $
     readVideoFile src
-    >-> Pipes.tee printProcessingInfo
+    -- >-> Pipes.tee printProcessingInfo
     >-> dropTime
     >-> classifyMovement
     >-> colorClassifiedMovement

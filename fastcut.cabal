@@ -55,7 +55,6 @@ library
                       , mtl
                       , parallel
                       , pipes
-                      , pipes-extras
                       , primitive
                       , row-types
                       , text
@@ -113,6 +112,8 @@ test-suite fastcut-tests
   build-depends:   base                 >= 4        && < 5
                  , unordered-containers >= 0.2      && < 0.3
                  , fastcut
+                 , JuicyPixels
+                 , pipes
                  , tasty
                  , tasty-hunit
                  , tasty-hspec
