@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE TupleSections    #-}
 module FastCut.Video.FFmpeg where
 
 import           Codec.FFmpeg
@@ -9,13 +10,13 @@ import           Codec.Picture
 import           Codec.Picture.Types
 import           Control.Monad.IO.Class
 import           Control.Monad.Primitive
-import           Data.Foldable
 import           Data.Vector             (Vector)
 import qualified Data.Vector.Generic     as Vector
 import           Data.Word
 import           Debug.Trace
 import           Pipes                   (Consumer', Pipe, Producer)
 import           Pipes                   as Pipes
+import           Pipes.Parse
 import qualified Pipes.Prelude           as Pipes
 import           System.Directory
 import           System.FilePath
@@ -116,30 +117,43 @@ instance Show ClassifierState where
       InMoving {..} -> "InMoving " <> show (Vector.length equalFrames)
       InStill {}    -> "InStill"
 
-classifyMovement :: Monad m => Pipe Frame MovementFrame m ()
-classifyMovement = do
-  frame <- await
-  void $ go (InMoving (Vector.singleton frame))
+yield' :: Monad m => b -> StateT (Producer a m x) (Producer b m) ()
+yield' = lift . yield
+
+draw' :: Monad m => StateT (Producer a m x) (Producer b m) (Maybe a)
+draw' = hoist lift draw
+
+classifyMovement :: Monad m => Producer Frame m () -> Producer MovementFrame m ()
+classifyMovement =
+  evalStateT $
+  draw' >>= \case
+    Just frame -> go (InMoving (Vector.singleton frame))
+    Nothing -> pure ()
   where
+    go ::
+         Monad m
+      => ClassifierState
+      -> StateT (Producer Frame m ()) (Producer MovementFrame m) ()
     go state = do
-      frame <- await
-      case state of
-        InMoving {..}
+       (state,) <$> draw' >>= \case
+        (InMoving {..}, Just frame)
           | equalFrame2 0.02 frame (Vector.head equalFrames) ->
             if Vector.length equalFrames >= equalFrameCountThreshold
               then do
-                Vector.mapM_ (yield . Still) equalFrames
-                yield (Still frame)
+                Vector.mapM_ (yield' . Still) equalFrames
+                yield' (Still frame)
                 go (InStill frame)
               else go (InMoving (Vector.snoc equalFrames frame))
           | otherwise -> do
-            Vector.mapM_ (yield . Moving) equalFrames
+            Vector.mapM_ (yield' . Moving) equalFrames
             go (InMoving (Vector.singleton frame))
-        InStill {..}
+        (InMoving {..}, Nothing) -> Vector.mapM_ (yield' . Moving) equalFrames
+        (InStill {..}, Just frame)
           | equalFrame2 0.02 stillFrame frame -> do
-              yield (Still frame)
-              go (InStill stillFrame)
+            yield' (Still frame)
+            go (InStill stillFrame)
           | otherwise -> go (InMoving (Vector.singleton frame))
+        (InStill {..}, Nothing) -> pure ()
 
 colorClassifiedMovement :: (PrimMonad m, MonadIO m) => Pipe MovementFrame Frame m ()
 colorClassifiedMovement =
@@ -240,8 +254,7 @@ split :: FilePath -> FilePath -> IO ()
 split src outDir = do
   createDirectoryIfMissing True outDir
   writeVideoFile (outDir </> "debug.mp4") $
-    readVideoFile src
+    classifyMovement (readVideoFile src >-> dropTime)
     -- >-> Pipes.tee printProcessingInfo
-    >-> dropTime
-    >-> classifyMovement
-    >-> colorClassifiedMovement
+    --
+   >-> colorClassifiedMovement

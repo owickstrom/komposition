@@ -55,6 +55,7 @@ library
                       , mtl
                       , parallel
                       , pipes
+                      , pipes-parse
                       , primitive
                       , row-types
                       , text
@@ -114,6 +115,7 @@ test-suite fastcut-tests
                  , fastcut
                  , JuicyPixels
                  , pipes
+                 , pipes-parse
                  , tasty
                  , tasty-hunit
                  , tasty-hspec

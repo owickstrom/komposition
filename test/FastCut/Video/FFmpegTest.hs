@@ -23,5 +23,5 @@ f2 = colorImage green
 
 spec_classifyMovement = do
   it "classifies a still section" $
-    Pipes.toList (Pipes.each [f1, f2, f2, f1] >-> classifyMovement) `shouldBe`
+    Pipes.toList (classifyMovement (Pipes.each [f1, f2, f2, f1])) `shouldBe`
     [Moving f1, Moving f2, Moving f2, Moving f1]

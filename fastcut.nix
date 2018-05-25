@@ -1,8 +1,8 @@
 { mkDerivation, base, bytestring, criterion, deepseq, directory
 , ffmpeg-light, filepath, gi-gdk, gi-glib, gi-gobject, gi-gtk
 , gi-pango, hashable, haskell-gi, haskell-gi-base, indexed
-, JuicyPixels, lens, motor, mtl, parallel, pipes, pipes-extras
-, row-types, stdenv, tasty, tasty-discover, tasty-hspec
+, JuicyPixels, lens, motor, mtl, parallel, pipes, pipes-parse
+, primitive, row-types, stdenv, tasty, tasty-discover, tasty-hspec
 , tasty-hunit, text, time, unordered-containers, vector
 }:
 mkDerivation {
@@ -15,16 +15,16 @@ mkDerivation {
   libraryHaskellDepends = [
     base deepseq directory ffmpeg-light filepath gi-gdk gi-glib
     gi-gobject gi-gtk gi-pango hashable haskell-gi haskell-gi-base
-    indexed JuicyPixels lens motor mtl parallel pipes pipes-extras
-    row-types text time unordered-containers vector
+    indexed JuicyPixels lens motor mtl parallel pipes pipes-parse
+    primitive row-types text time unordered-containers vector
   ];
   executableHaskellDepends = [
     base gi-gdk gi-glib gi-gobject gi-gtk gi-pango haskell-gi
     haskell-gi-base text time
   ];
   testHaskellDepends = [
-    base tasty tasty-discover tasty-hspec tasty-hunit
-    unordered-containers
+    base JuicyPixels pipes pipes-parse tasty tasty-discover tasty-hspec
+    tasty-hunit unordered-containers
   ];
   benchmarkHaskellDepends = [
     base bytestring criterion JuicyPixels lens vector
