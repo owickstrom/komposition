@@ -86,7 +86,7 @@ equalFrame2 eps a b = (wa, ha) == (wb, hb) && sim > (1 - eps)
       in fromIntegral eq / fromIntegral (eq + neq)
 
 equalFrameCountThreshold :: Int
-equalFrameCountThreshold = 12
+equalFrameCountThreshold = 8
 
 data MovementFrame
   = Moving Frame
@@ -137,7 +137,7 @@ classifyMovement =
     go state =
        (state,) <$> draw' >>= \case
         (InMoving {..}, Just frame)
-          | equalFrame2 0.005 frame (Vector.head equalFrames) ->
+          | equalFrame2 0.002 frame (Vector.head equalFrames) ->
             if Vector.length equalFrames >= equalFrameCountThreshold
               then do
                 Vector.mapM_ (yield' . Still) equalFrames
@@ -149,7 +149,7 @@ classifyMovement =
             go (InMoving (Vector.singleton frame))
         (InMoving {..}, Nothing) -> Vector.mapM_ (yield' . Moving) equalFrames
         (InStill {..}, Just frame)
-          | equalFrame2 0.01 stillFrame frame -> do
+          | equalFrame2 0.005 stillFrame frame -> do
             yield' (Still frame)
             go (InStill stillFrame)
           | otherwise -> go (InMoving (Vector.singleton frame))
