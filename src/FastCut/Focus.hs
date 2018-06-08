@@ -1,3 +1,4 @@
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds      #-}
 {-# LANGUAGE ExplicitForAll #-}
@@ -11,9 +12,11 @@ import           Data.Function        ((&))
 
 import           FastCut.Sequence
 
-data Focus
-  = InSequenceFocus Int (Maybe Focus)
-  | InCompositionFocus MediaType Int
+data Focus where
+  SequenceFocus :: Int -> Focus
+  SubFocus :: Int -> Focus -> Focus
+  VideoFocus :: Int -> Focus
+  AudioFocus :: Int -> Focus
   deriving (Eq, Show)
 
 data Focused
@@ -31,11 +34,11 @@ blurSequence = \case
 blurPart :: SequencePart a t -> SequencePart Focused t
 blurPart = setPartAnnotation Blurred
 
-applyFocus :: Sequence a -> Focus -> Sequence Focused
+applyFocus :: Sequence a -> Focus ft -> Sequence Focused
 applyFocus s f = go s (Just f)
  where
 
-  go (Sequence _ sub) (Just (InSequenceFocus idx subFocus)) = Sequence
+  go (Sequence _ sub) (Just (SequenceFocus idx subFocus)) = Sequence
     TransitivelyFocused
     (zipWith (applyAtSubSequence idx subFocus) sub [0 ..])
   go (Sequence _ sub) _ = Sequence Focused (map blurSequence sub)
@@ -166,3 +169,11 @@ withParentOf onSequence onVideoParts onAudioParts f s =
     _ -> s
   where
     go = withParentOf onSequence onVideoParts onAudioParts
+
+appendAt :: Focus -> Sequence () -> Sequence ()
+appendAt =
+  withParentOf onSequence onVideoClips onAudioClips
+  where
+    onSequence _ = id
+    onVideoClips _ = id
+    onAudioClips _ = id

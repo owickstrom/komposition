@@ -2,8 +2,9 @@
 , ffmpeg-light, filepath, gi-gdk, gi-glib, gi-gobject, gi-gtk
 , gi-pango, hashable, haskell-gi, haskell-gi-base, indexed
 , JuicyPixels, lens, motor, mtl, parallel, pipes, pipes-parse
-, primitive, row-types, stdenv, tasty, tasty-discover, tasty-hspec
-, tasty-hunit, text, time, unordered-containers, vector
+, primitive, row-types, singletons, stdenv, tasty, tasty-discover
+, tasty-hspec, tasty-hunit, text, time, unordered-containers
+, vector
 }:
 mkDerivation {
   pname = "fastcut";
@@ -23,8 +24,8 @@ mkDerivation {
     haskell-gi-base text time
   ];
   testHaskellDepends = [
-    base JuicyPixels pipes pipes-parse tasty tasty-discover tasty-hspec
-    tasty-hunit unordered-containers
+    base JuicyPixels pipes pipes-parse singletons tasty tasty-discover
+    tasty-hspec tasty-hunit unordered-containers
   ];
   benchmarkHaskellDepends = [
     base bytestring criterion JuicyPixels lens vector

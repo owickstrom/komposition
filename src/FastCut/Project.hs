@@ -39,11 +39,3 @@ data Project = Project
   } deriving (Eq, Show)
 
 makeLenses ''Project
-
-appendAt :: Focus -> Sequence () -> Sequence ()
-appendAt =
-  withParentOf onSequence onVideoClips onAudioClips
-  where
-    onSequence _ = id
-    onVideoClips _ = id
-    onAudioClips _ = id

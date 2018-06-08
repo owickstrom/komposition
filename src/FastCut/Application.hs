@@ -165,6 +165,7 @@ timelineMode gui project focus' = do
       clip <- selectClip gui project focus' SVideo
       iliftIO (print clip)
       -- TODO: append clip
+      -- let project' = project & topSequence .~ appendAt focus
       timelineMode gui project focus'
     Just Exit -> exit gui
     Nothing -> do
