@@ -51,6 +51,8 @@ library
                       , haskell-gi
                       , haskell-gi-base
                       , lens
+                      , massiv
+                      , massiv-io >= 0.1.4 && < 0.2
                       , motor >= 0.3 && < 0.4
                       , mtl
                       , parallel
@@ -102,7 +104,7 @@ executable fastcut-split
                       , time
   hs-source-dirs:       exe
   default-language:     Haskell2010
-  ghc-options:        -Wall -threaded -O2
+  ghc-options:        -Wall -threaded -O2 -rtsopts -with-rtsopts=-N
 
 test-suite fastcut-tests
   type:            exitcode-stdio-1.0
@@ -116,6 +118,8 @@ test-suite fastcut-tests
                  , JuicyPixels
                  , pipes
                  , pipes-parse
+                 , massiv
+                 , massiv-io >= 0.1.4 && < 0.2
                  , tasty
                  , tasty-hunit
                  , tasty-hspec

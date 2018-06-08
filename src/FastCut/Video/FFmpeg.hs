@@ -6,14 +6,17 @@ module FastCut.Video.FFmpeg where
 
 import           Codec.FFmpeg
 import           Codec.FFmpeg.Encode
-import           Codec.Picture
-import           Codec.Picture.Types
+import           Codec.Picture           as CP
+import           Codec.Picture.Types     as CP
 import           Control.Monad.IO.Class
 import           Control.Monad.Primitive
-import           Data.Vector             (Vector)
-import qualified Data.Vector.Generic     as Vector
+import           Data.Massiv.Array       as A
+import           Data.Massiv.Array.IO    as A hiding (Image)
+import           Data.Maybe              (fromMaybe)
+import qualified Data.Vector             as V
+import qualified Data.Vector.Generic     as VG
 import           Data.Word
-import           Debug.Trace
+import           Graphics.ColorSpace     as A
 import           Pipes                   (Consumer', Pipe, Producer)
 import           Pipes                   as Pipes
 import           Pipes.Parse
@@ -47,6 +50,19 @@ readVideoFile path = do
           yieldNext getFrame cleanup
         Nothing -> liftIO cleanup
 
+type RGB8Frame = A.Array A.S A.Ix2 (A.Pixel RGB Word8)
+
+toMassiv :: MonadIO m => Pipe Frame RGB8Frame m ()
+toMassiv =
+  Pipes.map
+    (A.setComp A.Seq .
+     fromMaybe (error "Could not convert image") .
+     A.fromDynamicImage . CP.ImageRGB8)
+
+fromMassiv :: MonadIO m => Pipe RGB8Frame Frame m ()
+fromMassiv = Pipes.map A.toJPImageRGB8
+
+
 writeVideoFile :: MonadIO m => FilePath -> Producer Frame m () -> m ()
 writeVideoFile path source = do
   let ep = defaultH264 1920 1080
@@ -56,9 +72,6 @@ writeVideoFile path source = do
 
 dropTime :: Monad m => Pipe TimedFrame Frame m ()
 dropTime = Pipes.map fst
-
-equalFrame :: Frame -> Frame ->  Bool
-equalFrame a b = Vector.and (Vector.zipWith (==) (imageData a) (imageData b))
 
 data EqCount = EqCount Int Int
 
@@ -85,20 +98,29 @@ equalFrame2 eps a b = (wa, ha) == (wb, hb) && sim > (1 - eps)
             foldMap go [(x, y) | x <- [0 .. pred wa], y <- [0 .. pred ha]]
       in fromIntegral eq / fromIntegral (eq + neq)
 
+equalFrame3 :: Word8 -> Double -> RGB8Frame -> RGB8Frame ->  Bool
+equalFrame3 eps minEqPct f1 f2 =
+  pct > minEqPct
+  where
+    cmp :: A.Pixel RGB Word8 -> A.Pixel RGB Word8 -> Int
+    cmp px1 px2 = if A.eqTolPx eps px1 px2 then 1 else 0
+    {-# INLINE cmp #-}
+    sumEq = A.sum (A.zipWith cmp f1 f2)
+    total = A.totalElem (A.size f1)
+    pct = fromIntegral sumEq / fromIntegral total
+
 equalFrameCountThreshold :: Int
 equalFrameCountThreshold = 8
 
 data MovementFrame
-  = Moving Frame
-  | Still Frame
+  = Moving RGB8Frame
+  | Still RGB8Frame
+  deriving (Eq)
 
-unMovementFrame :: MovementFrame -> Frame
+unMovementFrame :: MovementFrame -> RGB8Frame
 unMovementFrame = \case
   Moving f -> f
   Still f -> f
-
-instance Eq MovementFrame where
-  f1 == f2 = imageData (unMovementFrame f1) == imageData (unMovementFrame f2)
 
 instance Show MovementFrame where
   show mf =
@@ -107,14 +129,14 @@ instance Show MovementFrame where
       Still _  -> "Still <frame>"
 
 data ClassifierState
-  = InMoving { equalFrames       :: !(Vector Frame)
+  = InMoving { equalFrames       :: !(V.Vector RGB8Frame)
              }
-  | InStill { stillFrame :: !Frame }
+  | InStill { stillFrame :: !RGB8Frame }
 
 instance Show ClassifierState where
   show s =
     case s of
-      InMoving {..} -> "InMoving " <> show (Vector.length equalFrames)
+      InMoving {..} -> "InMoving " <> show (VG.length equalFrames)
       InStill {}    -> "InStill"
 
 yield' :: Monad m => b -> StateT (Producer a m x) (Producer b m) ()
@@ -123,50 +145,53 @@ yield' = lift . yield
 draw' :: Monad m => StateT (Producer a m x) (Producer b m) (Maybe a)
 draw' = hoist lift draw
 
-classifyMovement :: Monad m => Producer Frame m () -> Producer MovementFrame m ()
+classifyMovement :: Monad m => Producer RGB8Frame m () -> Producer MovementFrame m ()
 classifyMovement =
   evalStateT $
   draw' >>= \case
-    Just frame -> go (InMoving (Vector.singleton frame))
+    Just frame -> go (InMoving (VG.singleton frame))
     Nothing -> pure ()
   where
     go ::
          Monad m
       => ClassifierState
-      -> StateT (Producer Frame m ()) (Producer MovementFrame m) ()
+      -> StateT (Producer RGB8Frame m ()) (Producer MovementFrame m) ()
     go state =
        (state,) <$> draw' >>= \case
         (InMoving {..}, Just frame)
-          | equalFrame2 0.002 frame (Vector.head equalFrames) ->
-            if Vector.length equalFrames >= equalFrameCountThreshold
+          | equalFrame3 1 0.995 frame (VG.head equalFrames) ->
+            if VG.length equalFrames >= equalFrameCountThreshold
               then do
-                Vector.mapM_ (yield' . Still) equalFrames
+                VG.mapM_ (yield' . Still) equalFrames
                 yield' (Still frame)
                 go (InStill frame)
-              else go (InMoving (Vector.snoc equalFrames frame))
+              else go (InMoving (VG.snoc equalFrames frame))
           | otherwise -> do
-            Vector.mapM_ (yield' . Moving) equalFrames
-            go (InMoving (Vector.singleton frame))
-        (InMoving {..}, Nothing) -> Vector.mapM_ (yield' . Moving) equalFrames
+            VG.mapM_ (yield' . Moving) equalFrames
+            go (InMoving (VG.singleton frame))
+        (InMoving {..}, Nothing) -> VG.mapM_ (yield' . Moving) equalFrames
         (InStill {..}, Just frame)
-          | equalFrame2 0.005 stillFrame frame -> do
+          | equalFrame3 1 0.995 stillFrame frame -> do
             yield' (Still frame)
             go (InStill stillFrame)
-          | otherwise -> go (InMoving (Vector.singleton frame))
+          | otherwise -> go (InMoving (VG.singleton frame))
         (InStill {..}, Nothing) -> pure ()
 
-colorClassifiedMovement :: (PrimMonad m, MonadIO m) => Pipe MovementFrame Frame m ()
+colorClassifiedMovement :: (PrimMonad m, MonadIO m) => Pipe MovementFrame RGB8Frame m ()
 colorClassifiedMovement =
   Pipes.mapM $ \case
     Moving frame -> tint' green frame
     Still frame -> tint' red frame
   where
-    tint' color frame = do
-      mf <- thawImage frame
-      tint color mf
-      freezeImage mf
-    red = PixelRGB8 255 0 0
-    green = PixelRGB8 0 255 0
+    tint' color frame =
+      pure $ A.compute $ A.map (\px -> meanWord8 <$> color <*> px) frame
+      -- liftIO $ do
+      -- mf <- A.unsafeThaw frame
+      -- flip A.imapP_ frame $ \ix px ->
+      --   A.unsafeWrite mf ix (meanWord8 <$> color <*> px)
+      -- A.unsafeFreeze A.Par mf
+    red = PixelRGB 255 0 0
+    green = PixelRGB 0 255 0
 
 blend :: PixelRGB8 -> PixelRGB8 -> PixelRGB8
 blend = mixWith (const meanWord8)
@@ -185,59 +210,6 @@ tint color frame =
   , y <- [0 .. pred (mutableImageHeight frame)]
   ]
 
--- data SplitterState
---   = Initial
---   | InPart { partNumber      :: !Int
---            , writeToPart     :: Maybe Frame -> IO ()
---            , lastFrame       :: !Frame
---            , equalFrameCount :: !Int }
---   | InSplit { partNumber :: !Int
---             , splitFrame :: !Frame }
---
---
--- splitReader :: IO (Maybe (Image PixelRGB8)) -> IO a -> FilePath -> IO a
--- splitReader getFrame cleanup outDir = loop Initial
---   where
---     loop Initial = do
---       mf <- getFrame
---       case mf of
---         Just f  -> do
---           w <- partWriter outDir 0
---           loop (InPart 0 w f 1)
---         Nothing -> cleanup
---     loop InPart {..} = do
---       maybeNew <- getFrame
---       case maybeNew of
---         Just newFrame
---           | equalFrame2 32 newFrame lastFrame ->
---             if succ equalFrameCount > equalFrameCountThreshold
---             then do writeToPart Nothing
---                     loop (InSplit partNumber newFrame )
---             else do writeToPart (Just newFrame)
---                     loop (InPart partNumber writeToPart newFrame (succ equalFrameCount))
---           | otherwise -> do
---             writeToPart (Just newFrame)
---             loop (InPart partNumber writeToPart newFrame 1)
---         Nothing -> do
---           writeToPart Nothing
---           cleanup
---     loop InSplit {..} = do
---       maybeNew <- getFrame
---       case maybeNew of
---         Just newFrame
---           | equalFrame2 32 splitFrame newFrame ->
---             loop (InSplit partNumber splitFrame)
---           | otherwise -> do
---             w <- partWriter outDir (succ partNumber)
---             loop (InPart (succ partNumber) w newFrame 1)
---         Nothing ->
---           cleanup
---
--- partWriter :: FilePath -> Int -> IO (Maybe Frame -> IO ())
--- partWriter outDir n =
---   let ep = defaultH264 1920 1080
---   in imageWriter ep (outDir </> Prelude.show n <> ".mp4")
-
 printProcessingInfo :: MonadIO m => Consumer' TimedFrame m ()
 printProcessingInfo =
   Pipes.mapM_ $ \(_, n) ->
@@ -254,7 +226,8 @@ split :: FilePath -> FilePath -> IO ()
 split src outDir = do
   createDirectoryIfMissing True outDir
   writeVideoFile (outDir </> "debug.mp4") $
-    classifyMovement (readVideoFile src >-> dropTime)
+    classifyMovement (readVideoFile src >-> dropTime >-> toMassiv)
     -- >-> Pipes.tee printProcessingInfo
     --
    >-> colorClassifiedMovement
+   >-> fromMassiv

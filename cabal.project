@@ -1,3 +1,5 @@
 packages:       fastcut.cabal
               , lib/indexed-extras
               , lib/ffmpeg-light
+              , lib/massiv/massiv
+              , lib/massiv/massiv-io
