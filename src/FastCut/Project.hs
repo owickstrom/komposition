@@ -12,7 +12,6 @@ module FastCut.Project where
 import           Control.Lens
 import           Data.Text        (Text)
 
-import           FastCut.Focus
 import           FastCut.Sequence
 
 data Library = Library

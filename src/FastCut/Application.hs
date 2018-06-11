@@ -177,4 +177,4 @@ fastcut project = do
   start #gui project initialFocus
   timelineMode #gui project initialFocus
   where
-    initialFocus = InSequenceFocus 0 Nothing
+    initialFocus = SubFocus 0 SequenceFocus

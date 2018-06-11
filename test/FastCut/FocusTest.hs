@@ -32,97 +32,97 @@ spec_applyFocus = do
 
   it "applies focus to first-level sequence"
     $          applyFocus (Sequence () [Sequence () [Composition () [Gap () 1] []]])
-                          (InSequenceFocus 0 Nothing)
+                          (SubFocus 0 SequenceFocus)
     `shouldBe` Sequence TransitivelyFocused [Sequence Focused [Composition Blurred [Gap Blurred 1] []]]
 
   it "applies focus to second-level composition"
     $          applyFocus (Sequence () [Sequence () [Composition () [Gap () 1] []]])
-                          (InSequenceFocus 0 (Just (InSequenceFocus 0 Nothing)))
+                          (SubFocus 0 (  (SubFocus 0 SequenceFocus)))
     `shouldBe` Sequence TransitivelyFocused [Sequence TransitivelyFocused [Composition Focused [Gap Blurred 1] []]]
 
 spec_modifyFocus = do
 
   it "moves the focus left within a single-level sequence" $ do
-    let before' = InSequenceFocus 1 Nothing
-        after'  = InSequenceFocus 0 Nothing
+    let before' = SubFocus 1 SequenceFocus
+        after'  = SubFocus 0 SequenceFocus
     modifyFocus singleLevelSequence FocusLeft before' `shouldBe` pure after'
 
   it "maintains sequence focus when left move is out of bounds" $ do
-    let before' = InSequenceFocus 0 Nothing
+    let before' = SubFocus 0 SequenceFocus
     modifyFocus singleLevelSequence FocusLeft before'
       `shouldBe` Left (OutOfBounds singleLevelSequence FocusLeft before')
 
   it "maintains sequence focus when right move is out of bounds" $ do
-    let before' = InSequenceFocus 1 Nothing
+    let before' = SubFocus 1 SequenceFocus
     modifyFocus singleLevelSequence FocusRight before'
       `shouldBe` Left (OutOfBounds singleLevelSequence FocusRight before')
 
   it "moves the focus left within innermost sequence of multi-level sequence"
     $ do
-        let before' = InSequenceFocus 1 (Just (InSequenceFocus 1 Nothing))
-            after'  = InSequenceFocus 1 (Just (InSequenceFocus 0 Nothing))
+        let before' = SubFocus 1 (SubFocus 1 SequenceFocus)
+            after'  = SubFocus 1 (SubFocus 0 SequenceFocus)
         modifyFocus twoLevelSequence FocusLeft before' `shouldBe` pure after'
 
   it "maintains composition focus when left move is out of bounds" $ do
-    let before' = InSequenceFocus 0 (Just (InCompositionFocus Video 0))
+    let before' = SubFocus 0 (ClipFocus Video 0)
     modifyFocus singleLevelSequence FocusLeft before' `shouldBe` Left
-      (OutOfBounds composition1 FocusLeft (InCompositionFocus Video 0))
+      (OutOfBounds composition1 FocusLeft (ClipFocus Video 0))
 
   it "maintains composition focus when right move is out of bounds" $ do
-    let before' = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+    let before' = SubFocus 0 (ClipFocus Video 1)
     modifyFocus singleLevelSequence FocusRight before' `shouldBe` Left
-      (OutOfBounds composition1 FocusRight (InCompositionFocus Video 1))
+      (OutOfBounds composition1 FocusRight (ClipFocus Video 1))
 
   it "moves the focus up from innermost sequence of multi-level sequence" $ do
-    let before' = InSequenceFocus 1 (Just (InSequenceFocus 1 Nothing))
-        after'  = InSequenceFocus 1 Nothing
+    let before' = SubFocus 1 (SubFocus 1 SequenceFocus)
+        after'  = SubFocus 1 SequenceFocus
     modifyFocus twoLevelSequence FocusUp before' `shouldBe` pure after'
 
   it "moves the focus up from video in multi-level sequence" $ do
-    let before' = InSequenceFocus
+    let before' = SubFocus
           1
-          (Just (InSequenceFocus 1 (Just (InCompositionFocus Video 1))))
-        after' = InSequenceFocus 1 (Just (InSequenceFocus 1 Nothing))
+          (SubFocus 1 (ClipFocus Video 1))
+        after' = SubFocus 1 (SubFocus 1 SequenceFocus)
     modifyFocus twoLevelSequence FocusUp before' `shouldBe` pure after'
 
   it "moves the focus up from audio into video with nearest start to the left" $ do
     let sequence' = Sequence
           () [ Composition () [gap3s, video4s] [gap1s, gap3s, audio1s] ]
-        before' = InSequenceFocus 0 (Just (InCompositionFocus Audio 2))
-        after'  = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+        before' = SubFocus 0 (ClipFocus Audio 2)
+        after'  = SubFocus 0 (ClipFocus Video 1)
     modifyFocus sequence' FocusUp before' `shouldBe` pure after'
 
   it "moves the focus up from audio into video with same starting point" $ do
     let sequence' = Sequence () [ Composition () [gap3s, video10s] [gap3s, audio10s] ]
-        before' = InSequenceFocus 0 (Just (InCompositionFocus Audio 1))
-        after'  = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
+        before' = SubFocus 0 (ClipFocus Audio 1)
+        after'  = SubFocus 0 (ClipFocus Video 1)
     modifyFocus sequence' FocusUp before' `shouldBe` pure after'
 
   it "maintains top sequence focus when trying to move up" $ do
-    let before' = InSequenceFocus 0 Nothing
+    let before' = SubFocus 0 SequenceFocus
     modifyFocus twoLevelSequence FocusUp before' `shouldBe` Left CannotMoveUp
 
   it "moves the focus down into a composition in single-level sequence" $ do
-    let before' = InSequenceFocus 0 Nothing
-        after'  = InSequenceFocus 0 (Just (InCompositionFocus Video 0))
+    let before' = SubFocus 0 SequenceFocus
+        after'  = SubFocus 0 (ClipFocus Video 0)
     modifyFocus singleLevelSequence FocusDown before' `shouldBe` pure after'
 
   it "moves the focus down from video into audio in composition" $ do
-    let before' = InSequenceFocus 0 (Just (InCompositionFocus Video 0))
-        after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 0))
+    let before' = SubFocus 0 (ClipFocus Video 0)
+        after'  = SubFocus 0 (ClipFocus Audio 0)
     modifyFocus singleLevelSequence FocusDown before' `shouldBe` pure after'
 
   it "moves the focus down from video into audio with nearest start to the left" $ do
     let sequence' = Sequence
           () [ Composition () [gap3s, video4s] [gap1s, gap3s, audio1s] ]
-        before' = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
-        after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 1))
+        before' = SubFocus 0 (ClipFocus Video 1)
+        after'  = SubFocus 0 (ClipFocus Audio 1)
     modifyFocus sequence' FocusDown before' `shouldBe` pure after'
 
   it "moves the focus up from audio into video with same starting point" $ do
     let sequence' = Sequence () [ Composition () [gap3s, video10s] [gap3s, audio10s] ]
-        before' = InSequenceFocus 0 (Just (InCompositionFocus Video 1))
-        after'  = InSequenceFocus 0 (Just (InCompositionFocus Audio 1))
+        before' = SubFocus 0 (ClipFocus Video 1)
+        after'  = SubFocus 0 (ClipFocus Audio 1)
     modifyFocus sequence' FocusDown before' `shouldBe` pure after'
 
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}

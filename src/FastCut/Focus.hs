@@ -1,7 +1,8 @@
-{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds      #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE GADTs          #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase     #-}
 {-# LANGUAGE TypeOperators  #-}
 module FastCut.Focus where
@@ -13,10 +14,9 @@ import           Data.Function        ((&))
 import           FastCut.Sequence
 
 data Focus where
-  SequenceFocus :: Int -> Focus
+  SequenceFocus :: Focus
   SubFocus :: Int -> Focus -> Focus
-  VideoFocus :: Int -> Focus
-  AudioFocus :: Int -> Focus
+  ClipFocus :: MediaType -> Int -> Focus
   deriving (Eq, Show)
 
 data Focused
@@ -34,30 +34,33 @@ blurSequence = \case
 blurPart :: SequencePart a t -> SequencePart Focused t
 blurPart = setPartAnnotation Blurred
 
-applyFocus :: Sequence a -> Focus ft -> Sequence Focused
-applyFocus s f = go s (Just f)
- where
-
-  go (Sequence _ sub) (Just (SequenceFocus idx subFocus)) = Sequence
-    TransitivelyFocused
-    (zipWith (applyAtSubSequence idx subFocus) sub [0 ..])
-  go (Sequence _ sub) _ = Sequence Focused (map blurSequence sub)
-  go (Composition _ videoParts audioParts) (Just (InCompositionFocus focusPartType idx))
-    = let focusInParts clips = zipWith (focusPartAt idx) clips [0 ..]
-          (videoParts', audioParts') = case focusPartType of
-            Video -> (focusInParts videoParts, map blurPart audioParts)
-            Audio -> (map blurPart videoParts, focusInParts audioParts)
-      in  Composition TransitivelyFocused videoParts' audioParts'
-  go (Composition _ videoParts audioParts) _ =
-    Composition Focused (map blurPart videoParts) (map blurPart audioParts)
+applyFocus :: Sequence a -> Focus -> Sequence Focused
+applyFocus = go
+  where
+    go (Sequence _ sub) (SubFocus idx subFocus) =
+      Sequence
+        TransitivelyFocused
+        (zipWith (applyAtSubSequence idx subFocus) sub [0 ..])
+    go (Sequence _ sub) _ = Sequence Focused (map blurSequence sub)
+    go (Composition _ videoParts audioParts) (ClipFocus focusPartType idx) =
+      let focusInParts :: [SequencePart a mt] -> [SequencePart Focused mt]
+          focusInParts clips = zipWith (focusPartAt idx) clips [0 ..]
+          (videoParts', audioParts') =
+            case focusPartType of
+              Video -> (focusInParts videoParts, map blurPart audioParts)
+              Audio -> (map blurPart videoParts, focusInParts audioParts)
+      in Composition TransitivelyFocused videoParts' audioParts'
+    go (Composition _ videoParts audioParts) _ =
+      Composition Focused (map blurPart videoParts) (map blurPart audioParts)
   -- Apply focus at the sub-sequence specified by 'idx'.
-  applyAtSubSequence idx subFocus subSequence subIdx
-    | subIdx == idx = go subSequence subFocus
-    | otherwise     = blurSequence subSequence
+    applyAtSubSequence idx subFocus subSequence subIdx
+      | subIdx == idx = go subSequence subFocus
+      | otherwise = blurSequence subSequence
   -- Apply focus at the clip specified by 'idx'.
-  focusPartAt idx clip clipIdx
-    | clipIdx == idx = setPartAnnotation Focused clip
-    | otherwise      = blurPart clip
+    focusPartAt :: Int -> SequencePart a mt -> Int -> SequencePart Focused mt
+    focusPartAt idx clip clipIdx
+      | clipIdx == idx = setPartAnnotation Focused clip
+      | otherwise = blurPart clip
 
 data FocusEvent = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show)
@@ -91,62 +94,62 @@ modifyFocus s e f = case (s, e, f) of
 
   -- Up
   -- We can move up from audio to video within a composition.
-  (Composition _ videoParts audioParts, FocusUp, InCompositionFocus Audio i)
+  (Composition _ videoParts audioParts, FocusUp, ClipFocus Audio i)
     -> case nearestPartIndexLeftOf audioParts i videoParts of
-      Just i' -> pure (InCompositionFocus Video i')
+      Just i' -> pure (ClipFocus Video i')
       Nothing -> throwError (OutOfBounds s e f)
   --  In these cases we've hit a focus "leaf" and cannot move up.
-  (Composition{}, FocusUp, InCompositionFocus _ _   ) -> throwError CannotMoveUp
-  (Sequence{}   , FocusUp, InSequenceFocus _ Nothing) -> throwError CannotMoveUp
+  (Composition{}, FocusUp, ClipFocus _ _   ) -> throwError CannotMoveUp
+  (Sequence{}   , FocusUp, SubFocus _ SequenceFocus) -> throwError CannotMoveUp
   -- In case we have a parent, we try to move up within the child, or
   -- fall back to focus this parent.
-  (Sequence _ sub, FocusUp, InSequenceFocus i (Just subFocus)) ->
+  (Sequence _ sub, FocusUp, SubFocus i subFocus) ->
     case modifyFocus (sub !! i) FocusUp subFocus of
-      Left  CannotMoveUp -> pure (InSequenceFocus i Nothing)
+      Left  CannotMoveUp -> pure (SubFocus i SequenceFocus)
       Left  err          -> throwError err
-      Right f'           -> pure (InSequenceFocus i (Just f'))
+      Right f'           -> pure (SubFocus i f')
 
   -- Down
-  (Sequence _ sub, FocusDown, InSequenceFocus i Nothing) -> case sub !! i of
-    Sequence{} -> InSequenceFocus i . Just <$> modifyFocus
+  (Sequence _ sub, FocusDown, SubFocus i SequenceFocus) -> case sub !! i of
+    Sequence{} -> SubFocus i <$> modifyFocus
       s
       FocusDown
-      (InSequenceFocus 0 Nothing)
+      (SubFocus 0 SequenceFocus)
     Composition{} ->
-      pure (InSequenceFocus i (Just (InCompositionFocus Video 0)))
+      pure (SubFocus i (ClipFocus Video 0))
   -- We can move down from video to audio within a composition.
-  (Composition _ videoParts audioParts, FocusDown, InCompositionFocus Video i)
+  (Composition _ videoParts audioParts, FocusDown, ClipFocus Video i)
     -> case nearestPartIndexLeftOf videoParts i audioParts of
-      Just i' -> pure (InCompositionFocus Audio i')
+      Just i' -> pure (ClipFocus Audio i')
       Nothing -> throwError (OutOfBounds s e f)
 
   -- Left
-  (Sequence{}, FocusLeft, InSequenceFocus idx Nothing)
-    | idx > 0   -> pure (InSequenceFocus (pred idx) Nothing)
+  (Sequence{}, FocusLeft, SubFocus idx SequenceFocus)
+    | idx > 0   -> pure (SubFocus (pred idx) SequenceFocus)
     | otherwise -> throwError (OutOfBounds s e f)
-  (Composition _ videoParts audioParts, FocusLeft, InCompositionFocus type' idx)
+  (Composition _ videoParts audioParts, FocusLeft, ClipFocus type' idx)
     | type' == Video && idx > 0 && idx < length videoParts
-    -> pure (InCompositionFocus Video (pred idx))
+    -> pure (ClipFocus Video (pred idx))
     | type' == Audio && idx > 0 && idx < length audioParts
-    -> pure (InCompositionFocus Audio (pred idx))
+    -> pure (ClipFocus Audio (pred idx))
     | otherwise
     -> throwError (OutOfBounds s e f)
 
   -- Right
-  (Sequence _ sub, FocusRight, InSequenceFocus idx Nothing)
-    | idx < (length sub - 1) -> pure (InSequenceFocus (succ idx) Nothing)
+  (Sequence _ sub, FocusRight, SubFocus idx SequenceFocus)
+    | idx < (length sub - 1) -> pure (SubFocus (succ idx) SequenceFocus)
     | otherwise              -> throwError (OutOfBounds s e f)
-  (Composition _ videoParts audioParts, FocusRight, InCompositionFocus type' idx)
+  (Composition _ videoParts audioParts, FocusRight, ClipFocus type' idx)
     | type' == Video && idx >= 0 && idx < (length videoParts - 1)
-    -> pure (InCompositionFocus Video (succ idx))
+    -> pure (ClipFocus Video (succ idx))
     | type' == Audio && idx >= 0 && idx < (length audioParts - 1)
-    -> pure (InCompositionFocus Audio (succ idx))
+    -> pure (ClipFocus Audio (succ idx))
     | otherwise
     -> throwError (OutOfBounds s e f)
 
   -- Left or Right further down.
-  (Sequence _ sub, _, InSequenceFocus idx (Just subFocus)) ->
-    InSequenceFocus idx . Just <$> modifyFocus (sub !! idx) e subFocus
+  (Sequence _ sub, _, SubFocus idx subFocus) ->
+    SubFocus idx <$> modifyFocus (sub !! idx) e subFocus
   _ -> throwError (UnhandledFocusModification s e f)
 
 withParentOf ::
@@ -158,11 +161,11 @@ withParentOf ::
   -> Sequence a
 withParentOf onSequence onVideoParts onAudioParts f s =
   case (f, s) of
-    (InSequenceFocus idx Nothing, Sequence ann sub) ->
+    (SubFocus idx SequenceFocus, Sequence ann sub) ->
       sub & ix idx %~ onSequence idx & Sequence ann
-    (InSequenceFocus idx (Just subFocus), Sequence ann sub) ->
+    (SubFocus idx subFocus, Sequence ann sub) ->
       sub & ix idx %~ go subFocus & Sequence ann
-    (InCompositionFocus clipType idx, Composition ann videoParts audioParts) ->
+    (ClipFocus clipType idx, Composition ann videoParts audioParts) ->
       case clipType of
         Video -> Composition ann (onVideoParts idx videoParts) audioParts
         Audio -> Composition ann videoParts (onAudioParts idx audioParts)
