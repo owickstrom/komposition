@@ -27,7 +27,7 @@ import           Prelude                                         hiding (log)
 
 import           Control.Concurrent
 import           Control.Monad                                   (void)
-import           Control.Monad.Indexed
+import           Control.Monad.Indexed                           ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
@@ -59,7 +59,7 @@ data Env = Env
 data SharedState = SharedState
   { window        :: Gtk.Window
   , eventListener :: EventListener
-  , currentObject :: Object
+  , currentMarkup :: Markup
   }
 
 instance MonadIO m => IxMonadIO (GtkInterface m) where
@@ -120,7 +120,7 @@ unsubscribeEvents (sharedState -> s) = do
 awaitNext :: GtkInterfaceState s -> IO Event
 awaitNext = readChan . events . eventListener . sharedState
 
-initializeWindow :: Env -> Object -> IO SharedState
+initializeWindow :: Env -> Markup -> IO SharedState
 initializeWindow Env{cssPath, screen} obj = do
   w <- newEmptyMVar
   runUI $ do
@@ -141,12 +141,12 @@ initializeWindow Env{cssPath, screen} obj = do
   where
     cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
 
-render :: Object -> SharedState -> IO SharedState
-render newObj s@SharedState {..} = do
-  runUI (patchBox window currentObject newObj)
-  return s {currentObject = newObj}
+render :: Markup -> SharedState -> IO SharedState
+render newMarkup s@SharedState {..} = do
+  runUI (patchBox window currentMarkup newMarkup)
+  return s {currentMarkup = newMarkup}
   where
-    patchBox :: Gtk.Window -> Object -> Object -> IO ()
+    patchBox :: Gtk.Window -> Markup -> Markup -> IO ()
     patchBox w o1 o2 =
       case patch o1 o2 of
         Modify f ->

@@ -30,7 +30,7 @@ renderClip clip =
         TransitivelyFocused -> "transitively-focused"
         Blurred -> "blurred"
 
-libraryView :: [Clip Focused mt] -> Object
+libraryView :: [Clip Focused mt] -> Markup
 libraryView clips =
   container
     ScrolledWindow

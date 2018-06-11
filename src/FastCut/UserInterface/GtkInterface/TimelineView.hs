@@ -27,7 +27,7 @@ focusedClass = \case
   TransitivelyFocused -> "transitively-focused"
   Blurred             -> "blurred"
 
-renderClip' :: Focused -> ClipMetadata -> Object
+renderClip' :: Focused -> ClipMetadata -> Markup
 renderClip' focused metadata =
   container
     Box
@@ -39,7 +39,7 @@ renderClip' focused metadata =
       node Label [#label := clipName metadata]
     ]
 
-renderPart :: SequencePart Focused t -> Object
+renderPart :: SequencePart Focused t -> Markup
 renderPart =
   \case
     Clip (VideoClip focused metadata) -> renderClip' focused metadata
@@ -53,7 +53,7 @@ renderPart =
         ]
         [node Label []]
 
-renderSequence :: Sequence Focused -> Object
+renderSequence :: Sequence Focused -> Markup
 renderSequence =
   \case
     Sequence focused sub ->
@@ -79,7 +79,7 @@ renderSequence =
             (map renderPart as)
         ]
 
-timelineView :: Project -> Focus -> Object
+timelineView :: Project -> Focus -> Markup
 timelineView project focus =
   container
     Box
