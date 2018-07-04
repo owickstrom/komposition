@@ -1,15 +1,18 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-{-# LANGUAGE DataKinds      #-}
-{-# LANGUAGE ExplicitForAll #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase     #-}
-{-# LANGUAGE TypeOperators  #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE ExplicitForAll  #-}
+{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE KindSignatures  #-}
+{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators   #-}
 module FastCut.Focus where
 
 import           Control.Lens         hiding (below)
+import           Control.Monad
 import           Control.Monad.Except (throwError)
 import           Data.Function        ((&))
+import           Data.Maybe           (fromMaybe)
 
 import           FastCut.Sequence
 
@@ -152,31 +155,75 @@ modifyFocus s e f = case (s, e, f) of
     SubFocus idx <$> modifyFocus (sub !! idx) e subFocus
   _ -> throwError (UnhandledFocusModification s e f)
 
-withParentOf ::
-   (Int -> Sequence a -> Sequence a)
-  -> (Int -> [SequencePart a Video] -> [SequencePart a Video])
-  -> (Int -> [SequencePart a Audio] -> [SequencePart a Audio])
+data FocusedTraversal m a = FocusedTraversal
+  { onSequence   :: Int -> Sequence a -> m (Sequence a)
+  , onVideoParts :: Int -> [SequencePart a Video] -> m [SequencePart a Video]
+  , onAudioParts :: Int -> [SequencePart a Audio] -> m [SequencePart a Audio]
+  }
+
+focusedTraversal :: Applicative m => FocusedTraversal m a
+focusedTraversal =
+  FocusedTraversal
+    (const pure)
+    (const pure)
+    (const pure)
+
+withParentOfM ::
+  (MonadPlus m, Monad m)
+  => FocusedTraversal m a
   -> Focus
   -> Sequence a
-  -> Sequence a
-withParentOf onSequence onVideoParts onAudioParts f s =
+  -> m (Sequence a)
+withParentOfM t@FocusedTraversal{..} f s =
   case (f, s) of
     (SubFocus idx SequenceFocus, Sequence ann sub) ->
-      sub & ix idx %~ onSequence idx & Sequence ann
+      onSequence idx (Sequence ann sub)
     (SubFocus idx subFocus, Sequence ann sub) ->
-      sub & ix idx %~ go subFocus & Sequence ann
+      sub
+      & ix idx %%~ withParentOfM t subFocus
+      & fmap (Sequence ann)
     (ClipFocus clipType idx, Composition ann videoParts audioParts) ->
       case clipType of
-        Video -> Composition ann (onVideoParts idx videoParts) audioParts
-        Audio -> Composition ann videoParts (onAudioParts idx audioParts)
-    _ -> s
-  where
-    go = withParentOf onSequence onVideoParts onAudioParts
+        Video -> onVideoParts idx videoParts >>= \vs ->
+          pure (Composition ann vs audioParts)
+        Audio -> onAudioParts idx audioParts >>= \as ->
+          pure (Composition ann videoParts as)
+    _ -> mzero
 
-appendAt :: Focus -> Sequence () -> Sequence ()
-appendAt =
-  withParentOf onSequence onVideoClips onAudioClips
+insertAt :: Int -> a -> [a] -> [a]
+insertAt i x xs =
+  let (before, after) = splitAt i xs
+  in before <> (x : after)
+
+appendAt ::
+    Focus
+  -> Either (Sequence a) (SequencePart a mt)
+  -> Sequence a
+  -> Maybe (Sequence a)
+appendAt focus (Left sequence') parent =
+  let
+    onSequence i = \case
+      Sequence ann children' -> pure (Sequence ann (insertAt (succ i) sequence' children'))
+      _  -> mzero
+    traversal = focusedTraversal { onSequence = onSequence }
+  in withParentOfM traversal focus parent
+appendAt focus (Right part) parent = withParentOfM traversal focus parent
   where
-    onSequence _ = id
-    onVideoClips _ = id
-    onAudioClips _ = id
+    insertVideo v i = pure . insertAt (succ i) v
+    insertAudio a i = pure . insertAt (succ i) a
+    traversal =
+      case part of
+        v@(Clip VideoClip {}) -> focusedTraversal {onVideoParts = insertVideo v}
+        a@(Clip AudioClip {}) -> focusedTraversal {onAudioParts = insertAudio a}
+        Gap ann dur ->
+          focusedTraversal
+          { onVideoParts = insertVideo (Gap ann dur)
+          , onAudioParts = insertAudio (Gap ann dur)
+          }
+
+appendAt' ::
+    Focus
+  -> Either (Sequence a) (SequencePart a mt)
+  -> Sequence a
+  -> Sequence a
+appendAt' f p s = fromMaybe s $ appendAt f p s

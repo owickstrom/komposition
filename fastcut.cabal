@@ -45,7 +45,7 @@ library
                       , haskell-gi
                       , haskell-gi-base
                       , lens
-                      , massiv
+                      , massiv >= 0.1.6.1 && < 0.2
                       , massiv-io >= 0.1.4 && < 0.2
                       , motor >= 0.3 && < 0.4
                       , mtl
@@ -54,7 +54,7 @@ library
                       , pipes-parse
                       , primitive
                       , row-types
-                      , singletons
+                      , transformers
                       , text
                       , time
                       , unordered-containers
@@ -114,7 +114,7 @@ test-suite fastcut-tests
                  , pipes
                  , pipes-parse
                  , massiv
-                 , massiv-io >= 0.1.4 && < 0.2
+                 , massiv-io
                  , tasty
                  , tasty-hunit
                  , tasty-hspec
@@ -132,5 +132,7 @@ benchmark fastcut-benchmark
                  , fastcut
                  , JuicyPixels
                  , lens
+                 , massiv
+                 , massiv-io
                  , vector
   ghc-options:     -Wall -O2

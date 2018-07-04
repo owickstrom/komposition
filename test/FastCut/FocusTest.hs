@@ -125,4 +125,22 @@ spec_modifyFocus = do
         after'  = SubFocus 0 (ClipFocus Audio 1)
     modifyFocus sequence' FocusDown before' `shouldBe` pure after'
 
+spec_appendAt = do
+  it "appends a group after the focused one" $ do
+    let focus = SubFocus (0 :: Int) SequenceFocus
+        before = Sequence 1 [ Sequence 2 [], Sequence 4 [] ]
+        after = Sequence 1 [ Sequence 2 [], Sequence 3 [], Sequence 4 [] ]
+    appendAt focus (Left (Sequence 3 [])) before `shouldBe` Just after
+
+  it "appends a video clip after the focused one" $ do
+    let focus = SubFocus 0 (ClipFocus Video 0)
+        before = Sequence () [Composition () [video4s, video10s] []]
+        after = Sequence () [Composition () [video4s, gap3s, video10s] []]
+    appendAt focus (Right gap3s) before `shouldBe` Just after
+
+  it "does not append at the top group" $ do
+    let focus = SequenceFocus
+        before = Sequence (0 :: Int) []
+    appendAt focus (Left (Sequence 2 [])) before `shouldBe` Nothing
+
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}

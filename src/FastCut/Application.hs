@@ -161,12 +161,14 @@ timelineMode gui project focus' = do
           beep gui
           timelineMode gui project focus'
         Right newFocus -> timelineMode gui project newFocus
-    Just AppendClip -> do
-      clip <- selectClip gui project focus' SVideo
-      iliftIO (print clip)
-      -- TODO: append clip
-      -- let project' = project & topSequence .~ appendAt focus
-      timelineMode gui project focus'
+    Just AppendClip ->
+      selectClip gui project focus' SVideo >>= \case
+        Just clip ->
+          project
+            & topSequence %~ appendAt' focus' (Right (Clip clip))
+            & \p -> timelineMode gui p focus'
+        Nothing ->
+          timelineMode gui project focus'
     Just Exit -> exit gui
     Nothing -> do
       beep gui

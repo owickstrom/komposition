@@ -8,6 +8,4 @@ import           Test.Tasty.Hspec
 
 import           FastCut.Sequence
 
-spec_appendAt = it "(TODO)" $ 1 `shouldBe` 1
-
 {-# ANN module ("HLint: ignore Use camelCase" :: String) #-}
