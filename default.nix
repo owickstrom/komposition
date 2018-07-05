@@ -15,8 +15,8 @@ let
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
       haskell-gi-overloading = pkgs.haskell.lib.dontHaddock (self.callHackage "haskell-gi-overloading" "1.0" {});
-      massiv = pkgs.haskell.lib.dontHaddock (self.callHackage "massiv" "0.1.6.1" {});
-      massiv-io = pkgs.haskell.lib.dontHaddock (self.callHackage "massiv-io" "0.1.4.0" {});
+      massiv = self.callHackage "massiv" "0.1.6.1" {};
+      massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
       gi-gtk-declarative = self.callPackage ./lib/gi-gtk-declarative/gi-gtk-declarative.nix {};
       indexed-extras = self.callPackage ./indexed-extras.nix {};
       motor = self.callPackage ./motor.nix {};
