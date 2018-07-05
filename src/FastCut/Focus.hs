@@ -190,6 +190,26 @@ withParentOfM t@FocusedTraversal{..} f s =
           pure (Composition ann videoParts as)
     _ -> mzero
 
+data FocusedAt a
+  = FocusedSequence (Sequence a)
+  | FocusedVideoPart (SequencePart a Video)
+  | FocusedAudioPart (SequencePart a Audio)
+
+atFocus :: Focus -> Sequence a -> Maybe (FocusedAt a)
+atFocus f s =
+  case (f, s) of
+    (SequenceFocus, Sequence{}) ->
+      pure (FocusedSequence s)
+    (SubFocus idx SequenceFocus, Sequence _ sub) ->
+      pure (FocusedSequence (sub !! idx))
+    (SubFocus idx subFocus, Sequence _ sub) ->
+      atFocus subFocus (sub !! idx)
+    (ClipFocus clipType idx, Composition _ videoParts audioParts) ->
+      case clipType of
+        Video -> pure (FocusedVideoPart (videoParts !! idx))
+        Audio -> pure (FocusedAudioPart (audioParts !! idx))
+    _ -> mzero
+
 insertAt :: Int -> a -> [a] -> [a]
 insertAt i x xs =
   let (before, after) = splitAt i xs

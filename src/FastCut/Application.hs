@@ -104,22 +104,29 @@ selectClipFromList gui clips n = do
       beep gui
       selectClipFromList gui clips n
 
-selectClip ::
-     ( UserInterface m
+-- | Convenient type for actions that transition from timeline mode
+-- into library mode, doing some user interactions, and returning back
+-- to timeline mode with a value.
+type ThroughLibraryMode n a
+   = forall m i o lm tm.
+   ( UserInterface m
      , IxMonadIO m
-     , lm ~ State m 'LibraryMode
-     , tm ~ State m 'TimelineMode
      , HasType n tm i
      , HasType n tm o
      , (Modify n lm i .! n) ~ lm
      , Modify n tm (Modify n lm i) ~ o
      , Modify n lm (Modify n lm i) ~ Modify n lm i
+     , lm ~ State m 'LibraryMode
+     , tm ~ State m 'TimelineMode
      )
-  => Name n
+   => m i o a
+
+selectClip ::
+  Name n
   -> Project
   -> Focus
   -> SMediaType mt
-  -> m i o (Maybe (Clip () mt))
+  -> ThroughLibraryMode n (Maybe (Clip () mt))
 selectClip gui project focus' mediaType = do
   enterLibrary gui
   case mediaType of
@@ -131,6 +138,20 @@ selectClip gui project focus' mediaType = do
       clip <- selectClipFromList gui (project ^. library . audioClips) 0
       exitLibrary gui project focus'
       ireturn clip
+
+selectClipAndAppend ::
+  Name n
+  -> Project
+  -> Focus
+  -> SMediaType mt
+  -> ThroughLibraryMode n Project
+selectClipAndAppend gui project focus' mediaType =
+  selectClip gui project focus' mediaType >>= \case
+    Just clip ->
+      project
+      & topSequence %~ appendAt' focus' (Right (Clip clip))
+      & ireturn
+    Nothing -> ireturn project
 
 nextTimelineEvent ::
      (UserInterface m, IxMonadIO m, HasType n (State m 'TimelineMode) r)
@@ -157,22 +178,25 @@ timelineMode gui project focus' = do
   nextTimelineEvent gui >>>= \case
     Just (FocusEvent e) ->
       case modifyFocus (project ^. topSequence) e focus' of
-        Left _err      -> do
+        Left _err -> do
           beep gui
           timelineMode gui project focus'
         Right newFocus -> timelineMode gui project newFocus
     Just AppendClip ->
-      selectClip gui project focus' SVideo >>= \case
-        Just clip ->
-          project
-            & topSequence %~ appendAt' focus' (Right (Clip clip))
-            & \p -> timelineMode gui p focus'
-        Nothing ->
-          timelineMode gui project focus'
+      case atFocus focus' (project ^. topSequence) of
+        Just (FocusedSequence _) -> timelineMode gui project focus'
+        Just (FocusedVideoPart _) -> do
+          project' <- selectClipAndAppend gui project focus' SVideo
+          timelineMode gui project' focus'
+        Just (FocusedAudioPart _) -> do
+          project' <- selectClipAndAppend gui project focus' SAudio
+          timelineMode gui project' focus'
+        Nothing -> timelineMode gui project focus'
     Just Exit -> exit gui
     Nothing -> do
       beep gui
       timelineMode gui project focus'
+  where
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
 fastcut project = do
