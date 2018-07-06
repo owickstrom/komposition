@@ -23,7 +23,7 @@
 -- | A declarative GTK implementation of the 'UserInterface' protocol.
 module FastCut.UserInterface.GtkInterface (run) where
 
-import           Prelude                                         hiding (log)
+import           FastCut.Prelude
 
 import           Control.Concurrent
 import           Control.Monad                                   (void)
@@ -44,6 +44,7 @@ import           Motor.FSM                                       as FSM
 
 import           Control.Monad.Indexed.IO
 import           FastCut.Focus
+import           FastCut.KeyMap
 import           FastCut.Project
 import           FastCut.Sequence
 import           FastCut.UserInterface

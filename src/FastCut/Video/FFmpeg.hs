@@ -1,26 +1,27 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TupleSections     #-}
 module FastCut.Video.FFmpeg where
+
+import           FastCut.Prelude
 
 import           Codec.FFmpeg
 import           Codec.FFmpeg.Encode
 import           Codec.Picture           as CP
 import           Codec.Picture.Types     as CP
-import           Control.Monad.IO.Class
 import           Control.Monad.Primitive
 import           Data.Massiv.Array       as A
 import           Data.Massiv.Array.IO    as A hiding (Image)
 import           Data.Maybe              (fromMaybe)
 import qualified Data.Vector             as V
 import qualified Data.Vector.Generic     as VG
-import           Data.Word
 import           Graphics.ColorSpace     as A
-import           Pipes                   (Consumer', Pipe, Producer)
-import           Pipes                   as Pipes
-import           Pipes.Parse
-import qualified Pipes.Prelude           as Pipes
+import           Pipes                   (Consumer', Pipe, Producer, (>->))
+import qualified Pipes
+import qualified Pipes.Parse             as Pipes
+import qualified Pipes.Prelude           as Pipes hiding (show)
 import           System.Directory
 import           System.FilePath
 import           System.IO
@@ -56,7 +57,7 @@ toMassiv :: MonadIO m => Pipe Frame RGB8Frame m ()
 toMassiv =
   Pipes.map
     (A.setComp A.Seq .
-     fromMaybe (error "Could not convert image") .
+     fromMaybe (panic "Could not convert image") .
      A.fromDynamicImage . CP.ImageRGB8)
 
 fromMassiv :: MonadIO m => Pipe RGB8Frame Frame m ()
@@ -122,32 +123,20 @@ unMovementFrame = \case
   Moving f -> f
   Still f -> f
 
-instance Show MovementFrame where
-  show mf =
-    case mf of
-      Moving _ -> "Moving <frame>"
-      Still _  -> "Still <frame>"
-
 data ClassifierState
   = InMoving { equalFrames       :: !(V.Vector RGB8Frame)
              }
   | InStill { stillFrame :: !RGB8Frame }
 
-instance Show ClassifierState where
-  show s =
-    case s of
-      InMoving {..} -> "InMoving " <> show (VG.length equalFrames)
-      InStill {}    -> "InStill"
+yield' :: Monad m => b -> Pipes.StateT (Producer a m x) (Producer b m) ()
+yield' = lift . Pipes.yield
 
-yield' :: Monad m => b -> StateT (Producer a m x) (Producer b m) ()
-yield' = lift . yield
-
-draw' :: Monad m => StateT (Producer a m x) (Producer b m) (Maybe a)
-draw' = hoist lift draw
+draw' :: Monad m => Pipes.StateT (Producer a m x) (Producer b m) (Maybe a)
+draw' = Pipes.hoist lift Pipes.draw
 
 classifyMovement :: Monad m => Producer RGB8Frame m () -> Producer MovementFrame m ()
 classifyMovement =
-  evalStateT $
+  Pipes.evalStateT $
   draw' >>= \case
     Just frame -> go (InMoving (VG.singleton frame))
     Nothing -> pure ()
@@ -155,9 +144,9 @@ classifyMovement =
     go ::
          Monad m
       => ClassifierState
-      -> StateT (Producer RGB8Frame m ()) (Producer MovementFrame m) ()
-    go state =
-       (state,) <$> draw' >>= \case
+      -> Pipes.StateT (Producer RGB8Frame m ()) (Producer MovementFrame m) ()
+    go state' =
+       (state',) <$> draw' >>= \case
         (InMoving {..}, Just frame)
           | equalFrame3 1 0.995 frame (VG.head equalFrames) ->
             if VG.length equalFrames >= equalFrameCountThreshold

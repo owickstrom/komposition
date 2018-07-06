@@ -8,8 +8,9 @@
 {-# LANGUAGE TypeOperators   #-}
 module FastCut.Focus where
 
+import           FastCut.Prelude
+
 import           Control.Lens         hiding (below)
-import           Control.Monad
 import           Control.Monad.Except (throwError)
 import           Data.Function        ((&))
 import           Data.Maybe           (fromMaybe)
@@ -65,13 +66,15 @@ applyFocus = go
       | clipIdx == idx = setPartAnnotation Focused clip
       | otherwise = blurPart clip
 
-data FocusEvent = FocusUp | FocusDown | FocusLeft | FocusRight
+data FocusCommand = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show)
 
 data FocusError a
-  = OutOfBounds (Sequence a) FocusEvent Focus
+  = OutOfBounds (Sequence a) FocusCommand Focus
+  | IndexError
   | CannotMoveUp
-  | UnhandledFocusModification (Sequence a) FocusEvent Focus
+  | CannotMoveDown
+  | UnhandledFocusModification (Sequence a) FocusCommand Focus
   deriving (Eq, Show)
 
 indicesWithStartPoints :: [SequencePart a t] -> [(Int, Duration)]
@@ -83,16 +86,17 @@ nearestPartIndexLeftOf
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
   = let cutoffPoint = durationOf (take i focusedParts)
-    in case
-          takeWhile ((<= cutoffPoint) . snd)
+        below = takeWhile ((<= cutoffPoint) . snd)
                     (indicesWithStartPoints blurredParts)
-        of
-          []    -> Just 0
-          below -> Just (fst (last below))
+    in (fst <$> lastMay below) <|> Just 0
   | otherwise
   = Nothing
 
-modifyFocus :: Sequence a -> FocusEvent -> Focus -> Either (FocusError a) Focus
+sequenceAt :: [Sequence a] -> Int -> Either (FocusError a) (Sequence a)
+sequenceAt ss i =
+  maybe (throwError IndexError) pure (ss `atMay` i)
+
+modifyFocus :: Sequence a -> FocusCommand -> Focus -> Either (FocusError a) Focus
 modifyFocus s e f = case (s, e, f) of
 
   -- Up
@@ -106,20 +110,26 @@ modifyFocus s e f = case (s, e, f) of
   (Sequence{}   , FocusUp, SubFocus _ SequenceFocus) -> throwError CannotMoveUp
   -- In case we have a parent, we try to move up within the child, or
   -- fall back to focus this parent.
-  (Sequence _ sub, FocusUp, SubFocus i subFocus) ->
-    case modifyFocus (sub !! i) FocusUp subFocus of
+  (Sequence _ sub, FocusUp, SubFocus i subFocus) -> do
+    sub' <- sub `sequenceAt` i
+    case modifyFocus sub' FocusUp subFocus of
       Left  CannotMoveUp -> pure (SubFocus i SequenceFocus)
       Left  err          -> throwError err
       Right f'           -> pure (SubFocus i f')
 
   -- Down
-  (Sequence _ sub, FocusDown, SubFocus i SequenceFocus) -> case sub !! i of
-    Sequence{} -> SubFocus i <$> modifyFocus
-      s
-      FocusDown
-      (SubFocus 0 SequenceFocus)
-    Composition{} ->
-      pure (SubFocus i (ClipFocus Video 0))
+  -- We cannot move down into an empty sequence.
+  (Sequence _ [], FocusDown, SequenceFocus) -> throwError CannotMoveDown
+  -- Move down further within a sequence.
+  (Sequence _ sub, FocusDown, SubFocus i SequenceFocus) ->
+    sub `sequenceAt` i >>= \case
+      Sequence{} -> SubFocus i <$> modifyFocus
+        s
+        FocusDown
+        (SubFocus 0 SequenceFocus)
+      Composition{} ->
+        pure (SubFocus i (ClipFocus Video 0))
+
   -- We can move down from video to audio within a composition.
   (Composition _ videoParts audioParts, FocusDown, ClipFocus Video i)
     -> case nearestPartIndexLeftOf videoParts i audioParts of
@@ -151,8 +161,9 @@ modifyFocus s e f = case (s, e, f) of
     -> throwError (OutOfBounds s e f)
 
   -- Left or Right further down.
-  (Sequence _ sub, _, SubFocus idx subFocus) ->
-    SubFocus idx <$> modifyFocus (sub !! idx) e subFocus
+  (Sequence _ sub, _, SubFocus idx subFocus) -> do
+    sub' <- sub `sequenceAt` idx
+    SubFocus idx <$> modifyFocus sub' e subFocus
   _ -> throwError (UnhandledFocusModification s e f)
 
 data FocusedTraversal m a = FocusedTraversal
@@ -194,6 +205,7 @@ data FocusedAt a
   = FocusedSequence (Sequence a)
   | FocusedVideoPart (SequencePart a Video)
   | FocusedAudioPart (SequencePart a Audio)
+  deriving (Show, Eq)
 
 atFocus :: Focus -> Sequence a -> Maybe (FocusedAt a)
 atFocus f s =
@@ -201,13 +213,13 @@ atFocus f s =
     (SequenceFocus, Sequence{}) ->
       pure (FocusedSequence s)
     (SubFocus idx SequenceFocus, Sequence _ sub) ->
-      pure (FocusedSequence (sub !! idx))
+      FocusedSequence <$> sub `atMay` idx
     (SubFocus idx subFocus, Sequence _ sub) ->
-      atFocus subFocus (sub !! idx)
+      atFocus subFocus =<< sub `atMay` idx
     (ClipFocus clipType idx, Composition _ videoParts audioParts) ->
       case clipType of
-        Video -> pure (FocusedVideoPart (videoParts !! idx))
-        Audio -> pure (FocusedAudioPart (audioParts !! idx))
+        Video -> FocusedVideoPart <$> videoParts `atMay` idx
+        Audio -> FocusedAudioPart <$> audioParts `atMay` idx
     _ -> mzero
 
 insertAt :: Int -> a -> [a] -> [a]

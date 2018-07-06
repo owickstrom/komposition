@@ -2,9 +2,10 @@
 , ffmpeg-light, filepath, gi-gdk, gi-glib, gi-gobject, gi-gtk
 , gi-gtk-declarative, gi-pango, hashable, haskell-gi
 , haskell-gi-base, indexed, JuicyPixels, lens, massiv, massiv-io
-, motor, mtl, parallel, pipes, pipes-parse, primitive, row-types
-, stdenv, tasty, tasty-discover, tasty-hspec, tasty-hunit, text
-, time, transformers, unordered-containers, vector
+, motor, mtl, parallel, pipes, pipes-parse, primitive, protolude
+, row-types, stdenv, tasty, tasty-discover, tasty-hspec
+, tasty-hunit, text, time, transformers, unordered-containers
+, vector
 }:
 mkDerivation {
   pname = "fastcut";
@@ -17,7 +18,7 @@ mkDerivation {
     base deepseq directory ffmpeg-light filepath gi-gdk gi-glib
     gi-gobject gi-gtk gi-gtk-declarative gi-pango hashable haskell-gi
     haskell-gi-base indexed JuicyPixels lens massiv massiv-io motor mtl
-    parallel pipes pipes-parse primitive row-types text time
+    parallel pipes pipes-parse primitive protolude row-types text time
     transformers unordered-containers vector
   ];
   executableHaskellDepends = [

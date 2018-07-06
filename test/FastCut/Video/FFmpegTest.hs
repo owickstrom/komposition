@@ -22,7 +22,9 @@ f1 = colorImage red
 f2 = colorImage green
 
 shouldClassifyAs inFrames outFrames =
-  Pipes.toList (classifyMovement (Pipes.each inFrames)) `shouldBe` outFrames
+  if Pipes.toList (classifyMovement (Pipes.each inFrames)) == outFrames
+     then return ()
+     else expectationFailure "Classfied frames are not equal to expected frames"
 
 spec_classifyMovement = do
   it "discards too short still section" $

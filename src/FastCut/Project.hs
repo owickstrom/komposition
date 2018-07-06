@@ -9,6 +9,8 @@
 {-# LANGUAGE TemplateHaskell       #-}
 module FastCut.Project where
 
+import           FastCut.Prelude
+
 import           Control.Lens
 import           Data.Text        (Text)
 

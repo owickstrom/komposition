@@ -11,6 +11,8 @@
 {-# LANGUAGE TypeFamilies          #-}
 module FastCut.Sequence where
 
+import           FastCut.Prelude
+
 import           Data.Foldable   (foldl')
 import           Data.Text       (Text)
 import           Data.Time.Clock (NominalDiffTime)

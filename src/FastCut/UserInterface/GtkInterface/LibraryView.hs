@@ -8,6 +8,8 @@ module FastCut.UserInterface.GtkInterface.LibraryView
   ( libraryView
   ) where
 
+import           FastCut.Prelude    hiding (State)
+
 import           Data.Text          (Text)
 
 import           FastCut.Focus      (Focused (..))

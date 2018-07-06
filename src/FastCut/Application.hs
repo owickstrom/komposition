@@ -13,10 +13,9 @@
 -- |
 module FastCut.Application where
 
-import Prelude hiding ((>>), (>>=))
+import           FastCut.Prelude hiding ((>>), (>>=), State)
 
 import           Control.Lens
-import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as HashMap
 import           Data.Row.Records hiding  (map)
 import           GHC.Exts                 (fromListN)
@@ -25,20 +24,29 @@ import           Motor.FSM
 
 import           Control.Monad.Indexed.IO
 import           FastCut.Focus
+import           FastCut.KeyMap
 import           FastCut.Project
 import           FastCut.Sequence
 import           FastCut.UserInterface
 
-data TimelineEvent
-  = FocusEvent FocusEvent
-  | AppendClip
-  | Exit
+data AppendCommand
+  = AppendClip
+  | AppendGap
+  | AppendSequence
+  deriving (Show, Eq)
 
-data LibraryEvent
+data TimelineCommand
+  = FocusCommand FocusCommand
+  | AppendCommand AppendCommand
+  | Exit
+  deriving (Show, Eq)
+
+data LibraryCommand
   = LibraryEscape
   | LibraryUp
   | LibraryDown
   | LibrarySelect
+  deriving (Show, Eq)
 
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
 (>>) = (>>>)
@@ -46,28 +54,30 @@ data LibraryEvent
 (>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
 (>>=) = (>>>=)
 
-nextEventOrBeep ::
+nextCommandOrBeep ::
      (UserInterface m, IxMonadIO m, HasType n (State m s) r)
-  => HashMap KeyCombo e
+  => KeyMap e
   -> Name n
   -> m r r (Maybe e)
-nextEventOrBeep keymap gui = do
-  KeyPress combo <- nextEvent gui
-  maybe
-    (beep gui >>> ireturn Nothing)
-    (ireturn . Just)
-    (HashMap.lookup combo keymap)
+nextCommandOrBeep (KeyMap keymap) gui =
+  nextEvent gui >>>= \case
+    KeyPress combo ->
+      case HashMap.lookup combo keymap of
+        Just (SequencedMappings keymap') -> nextCommandOrBeep keymap' gui
+        Just (Mapping e) -> ireturn (Just e)
+        Nothing -> beep gui >>> ireturn Nothing
 
-nextLibraryEvent ::
+nextLibraryCommand ::
      (UserInterface m, IxMonadIO m, HasType n (State m 'LibraryMode) r)
   => Name n
-  -> m r r (Maybe LibraryEvent)
-nextLibraryEvent =
-  nextEventOrBeep
-    [ ([KeyChar 'j'], LibraryDown)
-    , ([KeyChar 'k'], LibraryUp)
-    , ([KeyChar 'q'], LibraryEscape)
-    , ([KeyEnter], LibrarySelect)
+  -> m r r (Maybe LibraryCommand)
+nextLibraryCommand =
+  nextCommandOrBeep $
+    KeyMap
+    [ ([KeyChar 'j'], Mapping LibraryDown)
+    , ([KeyChar 'k'], Mapping LibraryUp)
+    , ([KeyChar 'q'], Mapping LibraryEscape)
+    , ([KeyEnter], Mapping LibrarySelect)
     ]
 
 focusClip :: Int -> [Clip a mt] -> [Clip Focused mt]
@@ -89,7 +99,7 @@ selectClipFromList ::
   -> m r r (Maybe (Clip () mt))
 selectClipFromList gui clips n = do
   updateLibrary gui (focusClip n clips)
-  nextLibraryEvent gui >>>= \case
+  nextLibraryCommand gui >>>= \case
     Just LibraryEscape -> ireturn Nothing
     Just LibrarySelect -> ireturn (clips ^? element n)
     Just LibraryUp
@@ -153,54 +163,75 @@ selectClipAndAppend gui project focus' mediaType =
       & ireturn
     Nothing -> ireturn project
 
-nextTimelineEvent ::
+nextTimelineCommand ::
      (UserInterface m, IxMonadIO m, HasType n (State m 'TimelineMode) r)
   => Name n
-  -> m r r (Maybe TimelineEvent)
-nextTimelineEvent =
-  nextEventOrBeep
-    [ ([KeyChar 'h'], FocusEvent FocusLeft)
-    , ([KeyChar 'j'], FocusEvent FocusDown)
-    , ([KeyChar 'k'], FocusEvent FocusUp)
-    , ([KeyChar 'l'], FocusEvent FocusRight)
-    , ([KeyChar 'a'], AppendClip)
-    , ([KeyChar 'q'], Exit)
-    ]
+  -> m r r (Maybe TimelineCommand)
+nextTimelineCommand =
+  nextCommandOrBeep $
+  [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
+  , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
+  , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
+  , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
+  , ( [KeyChar 'a']
+    , SequencedMappings
+        [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
+        , ([KeyChar 's'], Mapping (AppendCommand AppendSequence))
+        , ([KeyChar 'g'], Mapping (AppendCommand AppendGap))
+        ])
+  , ([KeyChar 'q'], Mapping Exit)
+  ]
 
 timelineMode ::
      (UserInterface m, IxMonadIO m)
   => Name n
-  -> Project
   -> Focus
+  -> Project
   -> m (n .== State m 'TimelineMode) Empty ()
-timelineMode gui project focus' = do
+timelineMode gui focus' project = do
   updateTimeline gui project focus'
-  nextTimelineEvent gui >>>= \case
-    Just (FocusEvent e) ->
+  nextTimelineCommand gui >>>= \case
+    Just (FocusCommand e) ->
       case modifyFocus (project ^. topSequence) e focus' of
         Left _err -> do
           beep gui
-          timelineMode gui project focus'
-        Right newFocus -> timelineMode gui project newFocus
-    Just AppendClip ->
-      case atFocus focus' (project ^. topSequence) of
-        Just (FocusedSequence _) -> timelineMode gui project focus'
-        Just (FocusedVideoPart _) -> do
-          project' <- selectClipAndAppend gui project focus' SVideo
-          timelineMode gui project' focus'
-        Just (FocusedAudioPart _) -> do
-          project' <- selectClipAndAppend gui project focus' SAudio
-          timelineMode gui project' focus'
-        Nothing -> timelineMode gui project focus'
+          timelineMode gui focus' project
+        Right newFocus -> timelineMode gui newFocus project
+    Just (AppendCommand cmd) ->
+      case (cmd, atFocus focus' (project ^. topSequence)) of
+        (AppendSequence, Just (FocusedSequence _)) ->
+          project
+            & topSequence %~ appendAt' focus' (Left (Sequence () []))
+            & timelineMode gui focus'
+        (AppendClip, Just (FocusedVideoPart _)) ->
+           selectClipAndAppend gui project focus' SVideo
+          >>>= timelineMode gui focus'
+        (AppendClip, Just (FocusedAudioPart _)) ->
+          selectClipAndAppend gui project focus' SAudio
+          >>>= timelineMode gui focus'
+        (AppendGap, Just _) ->
+          project
+            & topSequence %~ appendAt' focus' (Right (Gap () 10))
+            & timelineMode gui focus'
+        (c, Just f) -> do
+          let ct = case f of
+                FocusedSequence{} -> "sequence"
+                FocusedVideoPart{} -> "video track"
+                FocusedAudioPart{} -> "audio track"
+          iliftIO (putStrLn ("Cannot perform " <> show c <> " when focused at " <> ct))
+          timelineMode gui focus' project
+        (_, Nothing) -> do
+          iliftIO (putStrLn "Warning: focus is invalid.")
+          timelineMode gui focus' project
     Just Exit -> exit gui
     Nothing -> do
       beep gui
-      timelineMode gui project focus'
+      timelineMode gui focus' project
   where
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
 fastcut project = do
   start #gui project initialFocus
-  timelineMode #gui project initialFocus
+  timelineMode #gui initialFocus project
   where
     initialFocus = SubFocus 0 SequenceFocus

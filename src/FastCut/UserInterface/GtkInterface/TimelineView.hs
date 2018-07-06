@@ -8,6 +8,8 @@ module FastCut.UserInterface.GtkInterface.TimelineView
   ( timelineView
   ) where
 
+import           FastCut.Prelude
+
 import           Control.Lens
 import           Data.Int           (Int32)
 import           Data.Text          (Text)
@@ -59,7 +61,9 @@ renderSequence =
     Sequence focused sub ->
       container
         Box
-        [classes ["sequence", focusedClass focused]]
+        [ classes ["sequence", focusedClass focused]
+        , #widthRequest := if null sub then 10 else 0
+        ]
         (map renderSequence sub)
     Composition focused vs as ->
       container

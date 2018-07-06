@@ -2,8 +2,6 @@
 
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE DeriveAnyClass   #-}
-{-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE KindSignatures   #-}
 {-# LANGUAGE RankNTypes       #-}
@@ -14,32 +12,19 @@
 
 module FastCut.UserInterface where
 
-import           Data.Hashable
-import           Data.HashSet     (HashSet)
+import           FastCut.Prelude hiding (State)
+
 import           Data.Kind
-import           GHC.Generics
 import           Motor.FSM
 
 import           FastCut.Focus
+import           FastCut.KeyMap
 import           FastCut.Project
 import           FastCut.Sequence
 
 data UserInterfaceState
   = TimelineMode
   | LibraryMode
-
-data Modifier
-  = Ctrl
-  | Shift
-  | Meta
-
-data Key
-  = KeyChar Char
-  | KeyModifier
-  | KeyEnter
-  deriving (Show, Eq, Generic, Hashable)
-
-type KeyCombo = HashSet Key
 
 newtype Event = KeyPress KeyCombo
 
