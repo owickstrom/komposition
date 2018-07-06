@@ -19,7 +19,6 @@ import           Control.Lens
 import qualified Data.HashMap.Strict      as HashMap
 import           Data.Row.Records hiding  (map)
 import           GHC.Exts                 (fromListN)
-import           GHC.OverloadedLabels
 import           Motor.FSM
 
 import           Control.Monad.Indexed.IO

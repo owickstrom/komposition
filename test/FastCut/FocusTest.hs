@@ -107,6 +107,14 @@ spec_modifyFocus = do
         after'  = SubFocus 0 (ClipFocus Video 0)
     modifyFocus singleLevelSequence FocusDown before' `shouldBe` pure after'
 
+  it "cannot move the focus down into an empty sequence" $ do
+    modifyFocus (Sequence () []) FocusDown SequenceFocus
+      `shouldBe` Left CannotMoveDown
+
+  it "cannot move the focus down into an nested empty sequence" $ do
+    modifyFocus (Sequence () [Sequence () []]) FocusDown (SubFocus 0 SequenceFocus)
+      `shouldBe` Left CannotMoveDown
+
   it "moves the focus down from video into audio in composition" $ do
     let before' = SubFocus 0 (ClipFocus Video 0)
         after'  = SubFocus 0 (ClipFocus Audio 0)

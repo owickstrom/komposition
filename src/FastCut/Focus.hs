@@ -118,17 +118,31 @@ modifyFocus s e f = case (s, e, f) of
       Right f'           -> pure (SubFocus i f')
 
   -- Down
-  -- We cannot move down into an empty sequence.
-  (Sequence _ [], FocusDown, SequenceFocus) -> throwError CannotMoveDown
+
+  -- Down into focused sequence.
+  (Sequence _ sub, FocusDown, SequenceFocus)
+    | null sub -> throwError CannotMoveDown
+    | otherwise ->
+      sub `sequenceAt` 0 >>= \case
+        Sequence{} -> pure (SubFocus 0 SequenceFocus)
+        Composition{} -> pure (SubFocus 0 (ClipFocus Video 0))
+
+  -- Down into video track of focused composition.
+  (Composition _ videoParts _, FocusDown, SequenceFocus)
+    | null videoParts -> throwError CannotMoveDown
+    | otherwise ->
+      pure (ClipFocus Video 0)
+
   -- Move down further within a sequence.
-  (Sequence _ sub, FocusDown, SubFocus i SequenceFocus) ->
-    sub `sequenceAt` i >>= \case
-      Sequence{} -> SubFocus i <$> modifyFocus
-        s
+  (Sequence _ sub, FocusDown, SubFocus i subFocus)
+      -- We cannot move down into an empty sequence.
+    | null sub -> throwError CannotMoveDown
+    | otherwise -> do
+      sub' <- sub `sequenceAt` i
+      SubFocus i <$> modifyFocus
+        sub'
         FocusDown
-        (SubFocus 0 SequenceFocus)
-      Composition{} ->
-        pure (SubFocus i (ClipFocus Video 0))
+        subFocus
 
   -- We can move down from video to audio within a composition.
   (Composition _ videoParts audioParts, FocusDown, ClipFocus Video i)
