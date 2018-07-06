@@ -31,7 +31,7 @@ import           FastCut.UserInterface
 data AppendCommand
   = AppendClip
   | AppendGap
-  | AppendSequence
+  | AppendComposition
   deriving (Show, Eq)
 
 data TimelineCommand
@@ -175,8 +175,8 @@ nextTimelineCommand =
   , ( [KeyChar 'a']
     , SequencedMappings
         [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
-        , ([KeyChar 's'], Mapping (AppendCommand AppendSequence))
         , ([KeyChar 'g'], Mapping (AppendCommand AppendGap))
+        , ([KeyChar 'p'], Mapping (AppendCommand AppendComposition))
         ])
   , ([KeyChar 'q'], Mapping Exit)
   ]
@@ -198,10 +198,13 @@ timelineMode gui focus' project = do
         Right newFocus -> timelineMode gui newFocus project
     Just (AppendCommand cmd) ->
       case (cmd, atFocus focus' (project ^. topSequence)) of
-        (AppendSequence, Just (FocusedSequence _)) ->
-          project
-            & topSequence %~ appendAt' focus' (Left (Sequence () []))
-            & timelineMode gui focus'
+        (AppendComposition, Just (FocusedSequence _)) ->
+          selectClip gui project focus' SVideo >>= \case
+            Just clip ->
+              project
+                & topSequence %~ appendAt' focus' (Left (Composition () [Clip clip] [Gap () (durationOf clip)]))
+                & timelineMode gui focus'
+            Nothing -> timelineMode gui focus' project
         (AppendClip, Just (FocusedVideoPart _)) ->
            selectClipAndAppend gui project focus' SVideo
           >>>= timelineMode gui focus'
