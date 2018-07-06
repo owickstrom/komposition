@@ -9,11 +9,9 @@ module FastCut.KeyMap where
 
 import           FastCut.Prelude     hiding (toList)
 
-import           Data.Hashable
 import           Data.HashMap.Strict (HashMap)
 import           Data.HashSet        (HashSet)
 import           GHC.Exts            (IsList, Item, fromList, toList)
-import           GHC.Generics
 
 data Modifier
   = Ctrl

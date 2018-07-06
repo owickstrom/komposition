@@ -12,9 +12,8 @@
 
 module FastCut.UserInterface where
 
-import           FastCut.Prelude hiding (State)
+import           FastCut.Prelude  hiding (State)
 
-import           Data.Kind
 import           Motor.FSM
 
 import           FastCut.Focus

@@ -25,11 +25,9 @@ module FastCut.UserInterface.GtkInterface (run) where
 
 import           FastCut.Prelude
 
-import           Control.Concurrent
 import           Control.Monad                                   (void)
 import           Control.Monad.Indexed                           ()
 import           Control.Monad.Indexed.Trans
-import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Data.Functor                                    (($>))
 import qualified Data.GI.Base.Signals                            as GI
