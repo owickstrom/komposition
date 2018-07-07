@@ -3,28 +3,31 @@
 
 module FastCut.Video.FFmpegTest where
 
-import           Data.Massiv.Array    as A
+import           Data.Massiv.Array    (Ix2 (..))
+import qualified Data.Massiv.Array    as A
 import           Graphics.ColorSpace
-import           Pipes
+import qualified Pipes
 import qualified Pipes.Prelude        as Pipes
 import           Test.Tasty.Hspec
 
 import           FastCut.Video.FFmpeg
 
-colorImage :: Pixel RGB Word8 -> RGB8Frame
-colorImage c = makeArray A.Par (640 :. 480) (const c)
+colorImage :: Pixel RGB Word8 -> Timed RGB8Frame
+colorImage c = Timed (A.makeArray A.Par (640 :. 480) (const c)) 0
 
 red = PixelRGB 255 0 0
 green = PixelRGB 0 255 0
 
-f1, f2 :: RGB8Frame
+f1, f2 :: Timed RGB8Frame
 f1 = colorImage red
 f2 = colorImage green
 
 shouldClassifyAs inFrames outFrames =
-  if Pipes.toList (classifyMovement (Pipes.each inFrames)) == outFrames
+  if and (zipWith eqFrame (Pipes.toList (classifyMovement (Pipes.each inFrames))) outFrames)
      then return ()
      else expectationFailure "Classfied frames are not equal to expected frames"
+  where
+    eqFrame f1 f2 = untimed (unClassified f1) == untimed (unClassified f2)
 
 spec_classifyMovement = do
   it "discards too short still section" $
