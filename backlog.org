@@ -1,0 +1,23 @@
+#+TITLE: FastCut Backlog
+
+* 0.1.0 [2/8]
+  - [X] Timeline UI
+  - [X] Basic library view
+  - [ ] Timeline auto-scroll
+  - [ ] Consistent single theme
+  - [ ] Import and auto-split video
+  - [ ] Import and auto-split audio
+  - [ ] Sequence and parallel structure of limited depth
+  - Commands [1/4]
+    - [X] Append
+    - [ ] Prepend
+    - [ ] Split sequence
+    - [ ] Delete
+  - [ ] Offline video rendering, including hold-frame
+* 0.2.0 [0/6]
+  - [ ] Save/open project
+  - [ ] Script/subtitle split
+  - [ ] Subtitle editing
+  - [ ] Command fuzzy completition
+  - [ ] Undo
+  - [ ] Yank/paste
