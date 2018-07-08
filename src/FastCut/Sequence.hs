@@ -88,6 +88,12 @@ data Composition a t where
     -> [SequencePart a Audio]
     -> Composition a ParallelType
 
+setCompositionAnnotation :: a -> Composition a t -> Composition a t
+setCompositionAnnotation a = \case
+  Timeline _ ss -> Timeline a ss
+  Sequence _ ps -> Sequence a ps
+  Parallel _ vs as -> Parallel a vs as
+
 deriving instance Eq a => Eq (Composition a t)
 deriving instance Show a => Show (Composition a t)
 

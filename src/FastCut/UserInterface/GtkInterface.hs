@@ -161,11 +161,11 @@ render newMarkup s@SharedState {..} = do
           Gtk.widgetShowAll w
         Keep -> return ()
 
-firstTimelineView ::  Project -> Focus -> Env -> IO (GtkInterfaceState TimelineMode)
+firstTimelineView ::  Project -> Focus ft -> Env -> IO (GtkInterfaceState TimelineMode)
 firstTimelineView project focus env =
   GtkTimelineMode <$> initializeWindow env (timelineView project focus)
 
-newTimelineView :: Project -> Focus -> GtkInterfaceState s -> IO (GtkInterfaceState TimelineMode)
+newTimelineView :: Project -> Focus ft -> GtkInterfaceState s -> IO (GtkInterfaceState TimelineMode)
 newTimelineView project focus is =
   GtkTimelineMode <$> render (timelineView project focus) (sharedState is)
 

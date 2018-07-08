@@ -33,12 +33,12 @@ class MonadFSM m =>
   start ::
        Name n
     -> Project
-    -> Focus
+    -> Focus ft
     -> Actions m '[ n !+ State m TimelineMode] r ()
   updateTimeline
     :: Name n
     -> Project
-    -> Focus
+    -> Focus ft
     -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n
@@ -50,7 +50,7 @@ class MonadFSM m =>
   exitLibrary ::
        Name n
     -> Project
-    -> Focus
+    -> Focus ft
     -> Actions m '[ n := State m LibraryMode !--> State m TimelineMode] r ()
   nextEvent ::
        Name n

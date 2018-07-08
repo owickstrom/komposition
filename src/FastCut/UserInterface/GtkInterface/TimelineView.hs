@@ -88,7 +88,7 @@ renderComposition =
             (map renderPart as)
         ]
 
-timelineView :: Project -> Focus -> Markup
+timelineView :: Project -> Focus ft -> Markup
 timelineView project focus =
   container
     Box

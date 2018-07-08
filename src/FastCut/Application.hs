@@ -20,6 +20,7 @@ import qualified Data.HashMap.Strict      as HashMap
 import           Data.Row.Records hiding  (map)
 import           GHC.Exts                 (fromListN)
 import           Motor.FSM
+import           Text.Printf
 
 import           Control.Monad.Indexed.IO
 import           FastCut.Focus
@@ -133,7 +134,7 @@ type ThroughLibraryMode n a
 selectClip ::
   Name n
   -> Project
-  -> Focus
+  -> Focus ft
   -> SMediaType mt
   -> ThroughLibraryMode n (Maybe (Clip () mt))
 selectClip gui project focus' mediaType = do
@@ -151,7 +152,7 @@ selectClip gui project focus' mediaType = do
 selectClipAndAppend ::
   Name n
   -> Project
-  -> Focus
+  -> Focus ft
   -> SMediaType mt
   -> ThroughLibraryMode n Project
 selectClipAndAppend gui project focus' mediaType =
@@ -188,15 +189,16 @@ nextTimelineCommand =
 timelineMode ::
      (UserInterface m, IxMonadIO m)
   => Name n
-  -> Focus
+  -> Focus ft
   -> Project
   -> m (n .== State m 'TimelineMode) Empty ()
 timelineMode gui focus' project = do
   updateTimeline gui project focus'
   nextTimelineCommand gui >>>= \case
-    Just (FocusCommand e) ->
-      case modifyFocus (project ^. timeline) e focus' of
-        Left _err -> do
+    Just (FocusCommand cmd) ->
+      case modifyFocus (project ^. timeline) cmd focus' of
+        Left err -> do
+          printUnexpectedFocusError err cmd
           beep gui
           timelineMode gui focus' project
         Right newFocus -> timelineMode gui newFocus project
@@ -234,11 +236,17 @@ timelineMode gui focus' project = do
     Nothing -> do
       beep gui
       timelineMode gui focus' project
+
   where
+    printUnexpectedFocusError err cmd =
+      case err of
+        UnhandledFocusModification{} ->
+          iliftIO (printf "Error: could not handle focus modification %s\n" (show cmd :: Text))
+        _ -> ireturn ()
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
 fastcut project = do
   start #gui project initialFocus
   timelineMode #gui initialFocus project
   where
-    initialFocus = SubFocus 0 SequenceFocus
+    initialFocus = SequenceFocus 0 Nothing
