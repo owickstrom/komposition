@@ -158,9 +158,13 @@ selectClipAndAppend gui project focus' mediaType =
   selectClip gui project focus' mediaType >>= \case
     Just clip ->
       project
-      & topSequence %~ appendAt' focus' (Right (Clip clip))
+      & timeline %~ insert_ focus' (insertionOf clip) RightOf
       & ireturn
     Nothing -> ireturn project
+  where
+    insertionOf clip = case mediaType of
+      SVideo -> InsertVideoPart (Clip clip)
+      SAudio -> InsertAudioPart (Clip clip)
 
 nextTimelineCommand ::
      (UserInterface m, IxMonadIO m, HasType n (State m 'TimelineMode) r)
@@ -191,18 +195,18 @@ timelineMode gui focus' project = do
   updateTimeline gui project focus'
   nextTimelineCommand gui >>>= \case
     Just (FocusCommand e) ->
-      case modifyFocus (project ^. topSequence) e focus' of
+      case modifyFocus (project ^. timeline) e focus' of
         Left _err -> do
           beep gui
           timelineMode gui focus' project
         Right newFocus -> timelineMode gui newFocus project
     Just (AppendCommand cmd) ->
-      case (cmd, atFocus focus' (project ^. topSequence)) of
+      case (cmd, atFocus focus' (project ^. timeline)) of
         (AppendComposition, Just (FocusedSequence _)) ->
           selectClip gui project focus' SVideo >>= \case
             Just clip ->
               project
-                & topSequence %~ appendAt' focus' (Left (Composition () [Clip clip] [Gap () (durationOf clip)]))
+                & timeline %~ insert_ focus' (InsertParallel (Parallel () [Clip clip] [Gap () (durationOf clip)])) RightOf
                 & timelineMode gui focus'
             Nothing -> timelineMode gui focus' project
         (AppendClip, Just (FocusedVideoPart _)) ->
@@ -213,11 +217,12 @@ timelineMode gui focus' project = do
           >>>= timelineMode gui focus'
         (AppendGap, Just _) ->
           project
-            & topSequence %~ appendAt' focus' (Right (Gap () 10))
+            & timeline %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf
             & timelineMode gui focus'
         (c, Just f) -> do
           let ct = case f of
                 FocusedSequence{} -> "sequence"
+                FocusedParallel{} -> "parallel"
                 FocusedVideoPart{} -> "video track"
                 FocusedAudioPart{} -> "audio track"
           iliftIO (putStrLn ("Cannot perform " <> show c <> " when focused at " <> ct))

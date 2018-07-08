@@ -77,22 +77,21 @@ instance HasDuration (SequencePart a t) where
 instance HasDuration t => HasDuration [t] where
   durationOf = foldl' (\acc c -> acc + durationOf c) 0
 
-data Sequence a
-  = Sequence a [Sequence a]
-  | Composition a [SequencePart a Video] [SequencePart a Audio]
-  deriving (Eq, Show)
+data CompositionType = TimelineType | SequenceType | ParallelType
 
-single :: Clip () t -> Sequence ()
+data Composition a t where
+  Timeline :: a -> [Composition a SequenceType] -> Composition a TimelineType
+  Sequence :: a -> [Composition a ParallelType] -> Composition a SequenceType
+  Parallel
+    :: a
+    -> [SequencePart a Video]
+    -> [SequencePart a Audio]
+    -> Composition a ParallelType
+
+deriving instance Eq a => Eq (Composition a t)
+deriving instance Show a => Show (Composition a t)
+
+single :: Clip () t -> Composition () ParallelType
 single c = case c of
-  VideoClip{} -> Composition () [Clip c] []
-  AudioClip{} -> Composition () [] [Clip c]
-
-instance Semigroup (Sequence ()) where
-  Sequence _ s1 <> Sequence _ s2 = Sequence () (s1 <> s2)
-  Sequence _ s1 <> s2 = Sequence () (s1 <> [s2])
-  s1 <> Sequence _ s2 = Sequence () (s1 : s2)
-  s1 <> s2 = Sequence () [s1, s2]
-
-instance Monoid (Sequence ()) where
-  mempty = Sequence mempty []
-  mappend = (<>)
+  VideoClip{} -> Parallel () [Clip c] []
+  AudioClip{} -> Parallel () [] [Clip c]

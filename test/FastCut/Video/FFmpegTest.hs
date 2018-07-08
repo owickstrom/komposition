@@ -3,6 +3,8 @@
 
 module FastCut.Video.FFmpegTest where
 
+import           FastCut.Prelude
+
 import           Data.Massiv.Array    (Ix2 (..))
 import qualified Data.Massiv.Array    as A
 import           Graphics.ColorSpace

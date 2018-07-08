@@ -1,4 +1,4 @@
-.timeline {
+.timeline-container {
   background: #111;
   color: #fff;
 }
@@ -6,7 +6,7 @@
   border-top: 2px solid #000;
   background-color: #222;
 }
-.timeline .composition {
+.timeline .parallel {
   padding-top: 2px;
 }
 .timeline .sequence .video {
@@ -25,6 +25,7 @@
 .timeline .composition.transitively-focused {
   background: #444;
 }
+
 .timeline .composition.focused {
   padding-top: 0;
   border-top: 2px solid #fff;

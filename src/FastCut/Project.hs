@@ -35,7 +35,7 @@ instance Monoid Library where
 
 data Project = Project
   { _projectName :: Text
-  , _topSequence :: Sequence ()
+  , _timeline    :: Composition () TimelineType
   , _library     :: Library
   } deriving (Eq, Show)
 

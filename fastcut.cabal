@@ -110,7 +110,6 @@ test-suite fastcut-tests
   hs-source-dirs:  test
   main-is:         Main.hs
   other-modules:   FastCut.FocusTest
-                 , FastCut.SequenceTest
   build-depends:   base                 >= 4        && < 5
                  , unordered-containers >= 0.2      && < 0.3
                  , fastcut
@@ -124,6 +123,7 @@ test-suite fastcut-tests
                  , tasty-hspec
                  , tasty-discover
   default-language:     Haskell2010
+  default-extensions:   NoImplicitPrelude
   ghc-options:     -Wall
 
 benchmark fastcut-benchmark

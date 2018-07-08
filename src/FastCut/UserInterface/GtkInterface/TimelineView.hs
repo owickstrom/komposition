@@ -55,21 +55,26 @@ renderPart =
         ]
         [node Label []]
 
-renderSequence :: Sequence Focused -> Markup
-renderSequence =
+renderComposition :: Composition Focused t -> Markup
+renderComposition =
   \case
+    Timeline _ sub ->
+      container
+        Box
+        [ classes ["composition", "timeline"]]
+        (map renderComposition sub)
     Sequence focused sub ->
       container
         Box
-        [ classes ["sequence", focusedClass focused]
+        [ classes ["composition", "sequence", focusedClass focused]
         , #widthRequest := if null sub then 10 else 0
         ]
-        (map renderSequence sub)
-    Composition focused vs as ->
+        (map renderComposition sub)
+    Parallel focused vs as ->
       container
         Box
         [ #orientation := OrientationVertical
-        , classes ["composition", focusedClass focused]
+        , classes ["composition", "parallel", focusedClass focused]
         ]
         [ BoxChild False False 0 $
           container
@@ -87,7 +92,7 @@ timelineView :: Project -> Focus -> Markup
 timelineView project focus =
   container
     Box
-    [#orientation := OrientationVertical, classes ["timeline"]]
+    [#orientation := OrientationVertical, classes ["timeline-container"]]
     [ BoxChild True True 0 $ node Label [#label := (project ^. projectName)]
     , BoxChild False False 0 $
       container
@@ -95,8 +100,8 @@ timelineView project focus =
         [ #hscrollbarPolicy := PolicyTypeAutomatic
         , #vscrollbarPolicy := PolicyTypeNever
         ]
-        (renderSequence
+        (renderComposition
            (applyFocus
-              (project ^. topSequence)
+              (project ^. timeline)
               focus))
     ]
