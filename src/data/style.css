@@ -62,6 +62,8 @@
 }
 
 .library {
+  background: #111;
+  color: #fff;
 }
 .library .clip {
   padding: 10px;
@@ -69,6 +71,6 @@
 .library .clip.focused {
   padding: 8px;
   border-width: 2px;
-  border-color: #eee;
+  border-color: #222;
   border-style: solid;
 }
