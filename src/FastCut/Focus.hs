@@ -292,8 +292,10 @@ atFocus f s =
       FocusedSequence <$> sub `atMay` idx
     (SequenceFocus idx (Just subFocus), Timeline _ sub) ->
       atFocus subFocus =<< sub `atMay` idx
-    (SequenceFocus idx Nothing, Sequence _ sub) ->
+    (ParallelFocus idx Nothing, Sequence _ sub) ->
       FocusedParallel <$> sub `atMay` idx
+    (ParallelFocus idx (Just subFocus), Sequence _ sub) ->
+      atFocus subFocus =<< sub `atMay` idx
     (ClipFocus clipType idx, Parallel _ videoParts audioParts) ->
       case clipType of
         Video -> FocusedVideoPart <$> videoParts `atMay` idx

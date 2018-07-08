@@ -22,14 +22,29 @@ gap3s = Gap () 3
 parallel1 = Parallel () [gap1s, video4s] [audio1s]
 parallel2 = Parallel () [gap3s, video10s] [audio4s, audio10s]
 
-seqWithTwoParallels = Sequence
-  ()
-  [ Parallel () [gap1s, video4s] [audio1s]
-  , Parallel () [gap3s, video10s] [audio4s, audio10s]
-  ]
+seqWithTwoParallels = Sequence () [parallel1, parallel2]
 
-timelineTwoParallels =
-  Timeline () [Sequence () [], Sequence () [parallel1, parallel2]]
+timelineTwoParallels = Timeline () [Sequence () [], seqWithTwoParallels]
+
+spec_atFocus = do
+  it "returns focused sequence" $
+    atFocus (SequenceFocus 0 Nothing) timelineTwoParallels `shouldBe`
+    Just (FocusedSequence (Sequence () []))
+  it "returns focused parallel" $
+    atFocus
+      (SequenceFocus 1 (Just (ParallelFocus 1 Nothing)))
+      timelineTwoParallels `shouldBe`
+    Just (FocusedParallel parallel2)
+  it "returns focused video clip" $
+    atFocus
+      (SequenceFocus 1 (Just (ParallelFocus 1 (Just (ClipFocus Video 0)))))
+      timelineTwoParallels `shouldBe`
+    Just (FocusedVideoPart gap3s)
+  it "returns focused audio clip" $
+    atFocus
+      (SequenceFocus 1 (Just (ParallelFocus 1 (Just (ClipFocus Audio 1)))))
+      timelineTwoParallels `shouldBe`
+    Just (FocusedAudioPart audio10s)
 
 spec_applyFocus = do
 
