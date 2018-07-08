@@ -9,7 +9,7 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeFamilies          #-}
-module FastCut.Sequence where
+module FastCut.Composition where
 
 import           FastCut.Prelude
 
@@ -48,14 +48,14 @@ setClipAnnotation a = \case
   VideoClip _ m -> VideoClip a m
   AudioClip _ m -> AudioClip a m
 
-data SequencePart a (mt :: MediaType) where
-  Clip :: Clip a mt -> SequencePart a mt
-  Gap :: a -> Duration -> SequencePart a mt
+data CompositionPart a (mt :: MediaType) where
+  Clip :: Clip a mt -> CompositionPart a mt
+  Gap :: a -> Duration -> CompositionPart a mt
 
-deriving instance Eq a => Eq (SequencePart a t)
-deriving instance Show a => Show (SequencePart a t)
+deriving instance Eq a => Eq (CompositionPart a t)
+deriving instance Show a => Show (CompositionPart a t)
 
-setPartAnnotation :: a -> SequencePart b t -> SequencePart a t
+setPartAnnotation :: a -> CompositionPart b t -> CompositionPart a t
 setPartAnnotation a = \case
   Clip (VideoClip _ m) -> Clip (VideoClip a m)
   Clip (AudioClip _ m) -> Clip (AudioClip a m)
@@ -69,7 +69,7 @@ instance HasDuration (Clip a t) where
     VideoClip _ m -> duration m
     AudioClip _ m -> duration m
 
-instance HasDuration (SequencePart a t) where
+instance HasDuration (CompositionPart a t) where
   durationOf = \case
     Clip c -> durationOf c
     Gap _ d -> d
@@ -84,8 +84,8 @@ data Composition a t where
   Sequence :: a -> [Composition a ParallelType] -> Composition a SequenceType
   Parallel
     :: a
-    -> [SequencePart a Video]
-    -> [SequencePart a Audio]
+    -> [CompositionPart a Video]
+    -> [CompositionPart a Audio]
     -> Composition a ParallelType
 
 setCompositionAnnotation :: a -> Composition a t -> Composition a t

@@ -12,9 +12,9 @@ module FastCut.Project where
 import           FastCut.Prelude
 
 import           Control.Lens
-import           Data.Text        (Text)
+import           Data.Text           (Text)
 
-import           FastCut.Sequence
+import           FastCut.Composition
 
 data Library = Library
   { _videoClips :: [Clip () Video]

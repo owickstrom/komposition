@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import           FastCut.Application
+import           FastCut.Composition
 import           FastCut.Project                    (Library (..), Project (..))
-import           FastCut.Sequence
 import qualified FastCut.UserInterface.GtkInterface as GtkInterface
 import           Paths_fastcut
 

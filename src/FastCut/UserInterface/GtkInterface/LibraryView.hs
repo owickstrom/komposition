@@ -8,13 +8,13 @@ module FastCut.UserInterface.GtkInterface.LibraryView
   ( libraryView
   ) where
 
-import           FastCut.Prelude    hiding (State)
+import           FastCut.Prelude             hiding (State)
 
-import           Data.Text          (Text)
+import           Data.Text                   (Text)
 
-import           FastCut.Focus      (Focused (..))
-import           FastCut.Sequence
-import           GI.Gtk.Declarative as Gtk
+import           FastCut.Composition
+import           FastCut.Composition.Focused (Focused (..))
+import           GI.Gtk.Declarative          as Gtk
 
 renderClip :: Clip Focused mt -> BoxChild
 renderClip clip =

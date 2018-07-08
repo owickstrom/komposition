@@ -41,10 +41,11 @@ import qualified GI.GObject.Functions                            as GObject
 import           Motor.FSM                                       as FSM
 
 import           Control.Monad.Indexed.IO
+import           FastCut.Composition
+import           FastCut.Composition.Focused
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Project
-import           FastCut.Sequence
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView

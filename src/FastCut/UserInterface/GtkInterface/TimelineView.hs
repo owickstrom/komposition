@@ -11,14 +11,15 @@ module FastCut.UserInterface.GtkInterface.TimelineView
 import           FastCut.Prelude
 
 import           Control.Lens
-import           Data.Int           (Int32)
-import           Data.Text          (Text)
+import           Data.Int                    (Int32)
+import           Data.Text                   (Text)
 
+import           FastCut.Composition
+import           FastCut.Composition.Focused
 import           FastCut.Focus
 import           FastCut.Project
-import           FastCut.Sequence
 
-import           GI.Gtk.Declarative as Gtk
+import           GI.Gtk.Declarative          as Gtk
 
 widthFromDuration :: (RealFrac d) => d -> Int32
 widthFromDuration duration' = fromIntegral (ceiling duration' :: Int) * 50
@@ -41,7 +42,7 @@ renderClip' focused metadata =
       node Label [#label := clipName metadata]
     ]
 
-renderPart :: SequencePart Focused t -> Markup
+renderPart :: CompositionPart Focused t -> Markup
 renderPart =
   \case
     Clip (VideoClip focused metadata) -> renderClip' focused metadata

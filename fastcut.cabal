@@ -21,10 +21,13 @@ library
   exposed-modules:      Control.Monad.Indexed.IO
                       , FastCut.Application
                       , FastCut.Focus
+                      , FastCut.Focus.Parent
                       , FastCut.KeyMap
                       , FastCut.Prelude
                       , FastCut.Project
-                      , FastCut.Sequence
+                      , FastCut.Composition
+                      , FastCut.Composition.Focused
+                      , FastCut.Composition.Insert
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
                       , FastCut.UserInterface.GtkInterface.TimelineView
@@ -110,6 +113,7 @@ test-suite fastcut-tests
   hs-source-dirs:  test
   main-is:         Main.hs
   other-modules:   FastCut.FocusTest
+                 , FastCut.Composition.FocusedTest
   build-depends:   base                 >= 4        && < 5
                  , unordered-containers >= 0.2      && < 0.3
                  , fastcut

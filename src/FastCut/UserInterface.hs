@@ -12,14 +12,15 @@
 
 module FastCut.UserInterface where
 
-import           FastCut.Prelude  hiding (State)
+import           FastCut.Prelude             hiding (State)
 
 import           Motor.FSM
 
+import           FastCut.Composition
+import           FastCut.Composition.Focused
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Project
-import           FastCut.Sequence
 
 data UserInterfaceState
   = TimelineMode

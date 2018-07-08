@@ -26,7 +26,9 @@ import           Control.Monad.Indexed.IO
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Project
-import           FastCut.Sequence
+import           FastCut.Composition
+import           FastCut.Composition.Focused
+import           FastCut.Composition.Insert
 import           FastCut.UserInterface
 
 data AppendCommand
