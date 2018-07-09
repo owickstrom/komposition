@@ -65,7 +65,7 @@ toMassiv =
           f
           & A.fromDynamicImage . CP.ImageRGB8
           & fromMaybe (panic "Could not convert image")
-          & A.setComp A.Seq
+          & A.setComp A.Par
           & flip Timed t
 
 fromMassiv :: MonadIO m => Pipe (Timed RGB8Frame) (Timed Frame) m ()
