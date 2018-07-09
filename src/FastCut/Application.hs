@@ -174,7 +174,7 @@ nextTimelineCommand ::
   => Name n
   -> m r r (Maybe TimelineCommand)
 nextTimelineCommand =
-  nextCommandOrBeep $
+  nextCommandOrBeep
   [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
   , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
   , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
