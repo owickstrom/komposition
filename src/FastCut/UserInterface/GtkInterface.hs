@@ -155,20 +155,17 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   updateTimeline n project focus =
     switchView' n (timelineView project focus)
 
+  returnToTimeline n project focus =
+    switchView' n (timelineView project focus)
+
   enterLibrary n =
     switchView' n (libraryView [])
 
   updateLibrary n clips =
     switchView' n (libraryView clips)
 
-  exitLibrary n project focus =
-    switchView' n (timelineView project focus)
-
   enterImport n =
     switchView' n importView
-
-  exitImport n project focus =
-    switchView' n (timelineView project focus)
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 

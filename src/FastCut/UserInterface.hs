@@ -28,6 +28,11 @@ data UserInterfaceState
   | LibraryMode
   | ImportMode
 
+class ReturnsToTimeline (mode :: UserInterfaceState)
+
+instance ReturnsToTimeline LibraryMode
+instance ReturnsToTimeline ImportMode
+
 data Event (s :: UserInterfaceState) where
   KeyPress :: KeyCombo -> Event s
   ImportFileSelected :: FilePath -> Event ImportMode
@@ -46,6 +51,12 @@ class MonadFSM m =>
     -> Project
     -> Focus ft
     -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
+  returnToTimeline
+    :: ReturnsToTimeline mode
+    => Name n
+    -> Project
+    -> Focus ft
+    -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
@@ -53,19 +64,9 @@ class MonadFSM m =>
     :: Name n
     -> [Clip Focused mt]
     -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
-  exitLibrary ::
-       Name n
-    -> Project
-    -> Focus ft
-    -> Actions m '[ n := State m LibraryMode !--> State m TimelineMode] r ()
   enterImport
     :: Name n
     -> Actions m '[ n := State m TimelineMode !--> State m ImportMode] r ()
-  exitImport
-    :: Name n
-    -> Project
-    -> Focus ft
-    -> Actions m '[ n := State m ImportMode !--> State m TimelineMode] r ()
   nextEvent ::
        Name n
     -> Actions m '[ n := Remain (State m t)] r (Event t)

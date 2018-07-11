@@ -145,11 +145,11 @@ selectClip gui project focus' mediaType = do
   case mediaType of
     SVideo -> do
       clip <- selectClipFromList gui (project ^. library . videoClips) 0
-      exitLibrary gui project focus'
+      returnToTimeline gui project focus'
       ireturn clip
     SAudio -> do
       clip <- selectClipFromList gui (project ^. library . audioClips) 0
-      exitLibrary gui project focus'
+      returnToTimeline gui project focus'
       ireturn clip
 
 selectClipAndAppend ::
@@ -179,7 +179,7 @@ importFile gui project focus' = do
   enterImport gui
   iliftIO (putStrLn "In import!")
   f <- awaitImportClick Nothing
-  exitImport gui project focus'
+  returnToTimeline gui project focus'
   ireturn (Just f)
   where
     awaitImportClick mf = do

@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import           FastCut.Prelude
+
 import           FastCut.Application
 import           FastCut.Composition
 import           FastCut.Project                    (Library (..), Project (..))

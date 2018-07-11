@@ -92,6 +92,7 @@ executable fastcut
   hs-source-dirs:       exe
   default-language:     Haskell2010
   ghc-options:        -Wall -threaded
+  default-extensions: NoImplicitPrelude
 
 executable fastcut-split
   main-is:              Split.hs
@@ -111,6 +112,7 @@ executable fastcut-split
   hs-source-dirs:       exe
   default-language:     Haskell2010
   ghc-options:        -Wall -threaded -O2 -rtsopts -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude
 
 test-suite fastcut-tests
   type:            exitcode-stdio-1.0
@@ -148,3 +150,4 @@ benchmark fastcut-benchmark
                  , massiv-io
                  , vector
   ghc-options:     -Wall -O2
+  default-extensions:   NoImplicitPrelude
