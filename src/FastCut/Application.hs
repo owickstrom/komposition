@@ -40,6 +40,7 @@ data AppendCommand
 data TimelineCommand
   = FocusCommand FocusCommand
   | AppendCommand AppendCommand
+  | Import
   | Exit
   deriving (Show, Eq)
 
@@ -119,7 +120,7 @@ selectClipFromList gui clips n = do
 -- | Convenient type for actions that transition from timeline mode
 -- into library mode, doing some user interactions, and returning back
 -- to timeline mode with a value.
-type ThroughLibraryMode n a
+type ThroughMode base through n a
    = forall m i o lm tm.
    ( UserInterface m
      , IxMonadIO m
@@ -128,8 +129,8 @@ type ThroughLibraryMode n a
      , (Modify n lm i .! n) ~ lm
      , Modify n tm (Modify n lm i) ~ o
      , Modify n lm (Modify n lm i) ~ Modify n lm i
-     , lm ~ State m 'LibraryMode
-     , tm ~ State m 'TimelineMode
+     , lm ~ State m through
+     , tm ~ State m base
      )
    => m i o a
 
@@ -138,7 +139,7 @@ selectClip ::
   -> Project
   -> Focus ft
   -> SMediaType mt
-  -> ThroughLibraryMode n (Maybe (Clip () mt))
+  -> ThroughMode TimelineMode LibraryMode n (Maybe (Clip () mt))
 selectClip gui project focus' mediaType = do
   enterLibrary gui
   case mediaType of
@@ -156,7 +157,7 @@ selectClipAndAppend ::
   -> Project
   -> Focus ft
   -> SMediaType mt
-  -> ThroughLibraryMode n Project
+  -> ThroughMode TimelineMode LibraryMode n Project
 selectClipAndAppend gui project focus' mediaType =
   selectClip gui project focus' mediaType >>= \case
     Just clip ->
@@ -169,6 +170,26 @@ selectClipAndAppend gui project focus' mediaType =
       SVideo -> InsertVideoPart (Clip clip)
       SAudio -> InsertAudioPart (Clip clip)
 
+importFile ::
+  Name n
+  -> Project
+  -> Focus ft
+  -> ThroughMode TimelineMode ImportMode n (Maybe FilePath)
+importFile gui project focus' = do
+  enterImport gui
+  iliftIO (putStrLn "In import!")
+  f <- awaitImportClick Nothing
+  exitImport gui project focus'
+  ireturn (Just f)
+  where
+    awaitImportClick mf = do
+      ev <- nextEvent gui
+      case (ev, mf) of
+        (ImportClicked, Just file) -> ireturn file
+        (ImportClicked, Nothing) -> awaitImportClick Nothing
+        (ImportFileSelected file, _) -> awaitImportClick (Just file)
+        (KeyPress{}, _) -> awaitImportClick mf
+
 nextTimelineCommand ::
      (UserInterface m, IxMonadIO m, HasType n (State m 'TimelineMode) r)
   => Name n
@@ -179,6 +200,7 @@ nextTimelineCommand =
   , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
   , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
   , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
+  , ([KeyChar 'i'], Mapping Import)
   , ( [KeyChar 'a']
     , SequencedMappings
         [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
@@ -233,6 +255,13 @@ timelineMode gui focus' project = do
           timelineMode gui focus' project
         (_, Nothing) -> do
           iliftIO (putStrLn "Warning: focus is invalid.")
+          timelineMode gui focus' project
+    Just Import ->
+      importFile gui project focus' >>>= \case
+        Just file -> do
+          iliftIO (putStrLn ("Importing file: " <> file))
+          timelineMode gui focus' project
+        Nothing ->
           timelineMode gui focus' project
     Just Exit -> exit gui
     Nothing -> do

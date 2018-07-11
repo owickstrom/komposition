@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
@@ -8,13 +10,15 @@ module FastCut.UserInterface.GtkInterface.LibraryView
   ( libraryView
   ) where
 
-import           FastCut.Prelude             hiding (State)
+import           FastCut.Prelude                         hiding (State, on)
 
-import           Data.Text                   (Text)
+import           Data.Text                               (Text)
+import           GI.Gtk.Declarative                      as Gtk
 
 import           FastCut.Composition
-import           FastCut.Composition.Focused (Focused (..))
-import           GI.Gtk.Declarative          as Gtk
+import           FastCut.Composition.Focused             (Focused (..))
+import           FastCut.UserInterface
+import           FastCut.UserInterface.GtkInterface.View
 
 renderClip :: Clip Focused mt -> BoxChild
 renderClip clip =
@@ -32,8 +36,9 @@ renderClip clip =
         TransitivelyFocused -> "transitively-focused"
         Blurred -> "blurred"
 
-libraryView :: [Clip Focused mt] -> Markup
+libraryView :: [Clip Focused mt] -> IO (View LibraryMode)
 libraryView clips =
+  viewWithEvents $ \_ ->
   container
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeNever

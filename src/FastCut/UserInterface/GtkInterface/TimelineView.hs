@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
@@ -11,15 +13,16 @@ module FastCut.UserInterface.GtkInterface.TimelineView
 import           FastCut.Prelude
 
 import           Control.Lens
-import           Data.Int                    (Int32)
-import           Data.Text                   (Text)
+import           Data.Int                                (Int32)
+import           Data.Text                               (Text)
+import           GI.Gtk.Declarative                      as Gtk
 
 import           FastCut.Composition
 import           FastCut.Composition.Focused
 import           FastCut.Focus
 import           FastCut.Project
-
-import           GI.Gtk.Declarative          as Gtk
+import           FastCut.UserInterface
+import           FastCut.UserInterface.GtkInterface.View
 
 widthFromDuration :: (RealFrac d) => d -> Int32
 widthFromDuration duration' = fromIntegral (ceiling duration' :: Int) * 50
@@ -89,20 +92,18 @@ renderComposition =
             (map renderPart as)
         ]
 
-timelineView :: Project -> Focus ft -> Markup
+timelineView :: Project -> Focus ft -> IO (View TimelineMode)
 timelineView project focus =
-  container
-    Box
-    [#orientation := OrientationVertical, classes ["timeline-container"]]
-    [ BoxChild True True 0 $ node Label [#label := (project ^. projectName)]
-    , BoxChild False False 0 $
-      container
-        ScrolledWindow
-        [ #hscrollbarPolicy := PolicyTypeAutomatic
-        , #vscrollbarPolicy := PolicyTypeNever
-        ]
-        (renderComposition
-           (applyFocus
-              (project ^. timeline)
-              focus))
-    ]
+  viewWithEvents $ \_ ->
+    container
+      Box
+      [#orientation := OrientationVertical, classes ["timeline-container"]]
+      [ BoxChild True True 0 $ node Label [#label := (project ^. projectName)]
+      , BoxChild False False 0 $
+        container
+          ScrolledWindow
+          [ #hscrollbarPolicy := PolicyTypeAutomatic
+          , #vscrollbarPolicy := PolicyTypeNever
+          ]
+          (renderComposition (applyFocus (project ^. timeline) focus))
+      ]

@@ -3,6 +3,7 @@
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs            #-}
 {-# LANGUAGE KindSignatures   #-}
 {-# LANGUAGE RankNTypes       #-}
 {-# LANGUAGE TypeFamilies     #-}
@@ -25,8 +26,12 @@ import           FastCut.Project
 data UserInterfaceState
   = TimelineMode
   | LibraryMode
+  | ImportMode
 
-newtype Event = KeyPress KeyCombo
+data Event (s :: UserInterfaceState) where
+  KeyPress :: KeyCombo -> Event s
+  ImportFileSelected :: FilePath -> Event ImportMode
+  ImportClicked :: Event ImportMode
 
 class MonadFSM m =>
       UserInterface m where
@@ -53,8 +58,16 @@ class MonadFSM m =>
     -> Project
     -> Focus ft
     -> Actions m '[ n := State m LibraryMode !--> State m TimelineMode] r ()
+  enterImport
+    :: Name n
+    -> Actions m '[ n := State m TimelineMode !--> State m ImportMode] r ()
+  exitImport
+    :: Name n
+    -> Project
+    -> Focus ft
+    -> Actions m '[ n := State m ImportMode !--> State m TimelineMode] r ()
   nextEvent ::
        Name n
-    -> Actions m '[ n := Remain (State m t)] r Event
+    -> Actions m '[ n := Remain (State m t)] r (Event t)
   beep :: Name n -> Actions m '[] r ()
   exit :: Name n -> Actions m '[ n !- State m s] r ()

@@ -30,10 +30,14 @@ library
                       , FastCut.Composition.Insert
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
-                      , FastCut.UserInterface.GtkInterface.TimelineView
+                      , FastCut.UserInterface.GtkInterface.View
+                      , FastCut.UserInterface.GtkInterface.EventListener
+                      , FastCut.UserInterface.GtkInterface.ImportView
                       , FastCut.UserInterface.GtkInterface.LibraryView
+                      , FastCut.UserInterface.GtkInterface.TimelineView
                       , FastCut.Video.FFmpeg
   build-depends:        base >=4.10 && <4.12
+                      , async
                       , deepseq
                       , directory
                       , ffmpeg-light >= 0.12.1 && <0.13

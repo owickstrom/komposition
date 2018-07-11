@@ -1,6 +1,5 @@
-{-# LANGUAGE ViewPatterns               #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-
+{-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -23,43 +22,31 @@
 -- | A declarative GTK implementation of the 'UserInterface' protocol.
 module FastCut.UserInterface.GtkInterface (run) where
 
-import           FastCut.Prelude
+import           FastCut.Prelude                                  hiding (state)
 
-import           Control.Monad                                   (void)
-import           Control.Monad.Indexed                           ()
+import           Control.Monad                                    (void)
+import           Control.Monad.Indexed                            ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
-import           Data.Functor                                    (($>))
-import qualified Data.GI.Base.Signals                            as GI
-import qualified Data.HashSet                                    as HashSet
-import           Data.Row.Records                                (Empty)
+import           Data.Row.Records                                 (Empty)
 import           Data.String
-import qualified Data.Text                                       as Text
-import qualified GI.Gdk                                          as Gdk
-import qualified GI.GLib.Constants                               as GLib
-import qualified GI.GObject.Functions                            as GObject
-import           Motor.FSM                                       as FSM
+import qualified Data.Text                                        as Text
+import qualified GI.Gdk                                           as Gdk
+import qualified GI.GLib.Constants                                as GLib
+import qualified GI.Gtk.Declarative                               as Gtk
+import           Motor.FSM                                        as FSM
 
 import           Control.Monad.Indexed.IO
-import           FastCut.Composition
-import           FastCut.Composition.Focused
-import           FastCut.Focus
-import           FastCut.KeyMap
-import           FastCut.Project
 import           FastCut.UserInterface
+import           FastCut.UserInterface.GtkInterface.EventListener
+import           FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
-import           GI.Gtk.Declarative                              as Gtk
+import           FastCut.UserInterface.GtkInterface.View
 
 data Env = Env
   { cssPath :: FilePath
   , screen  :: Gdk.Screen
-  }
-
-data SharedState = SharedState
-  { window        :: Gtk.Window
-  , eventListener :: EventListener
-  , currentMarkup :: Markup
   }
 
 instance MonadIO m => IxMonadIO (GtkInterface m) where
@@ -73,54 +60,21 @@ deriving instance Monad m => Functor (GtkInterface m i i)
 deriving instance Monad m => Applicative (GtkInterface m i i)
 deriving instance Monad m => Monad (GtkInterface m i i)
 
-data GtkInterfaceState s where
-  GtkTimelineMode
-    :: SharedState
-    -> GtkInterfaceState TimelineMode
-  GtkLibraryMode
-    :: SharedState
-    -> GtkInterfaceState LibraryMode
-
-sharedState :: GtkInterfaceState s -> SharedState
-sharedState = \case
-  GtkTimelineMode s -> s
-  GtkLibraryMode s -> s
+data GtkInterfaceState mode = GtkInterfaceState
+  { window      :: Gtk.Window
+  , allEvents   :: EventListener (Event mode)
+  , currentView :: View mode
+  }
 
 runUI :: IO () -> IO ()
 runUI f = void (Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT (f *> return False))
 
-data EventListener = EventListener
-  { events          :: Chan Event
-  , signalHandlerId :: GI.SignalHandlerId
-  }
+unsubscribeView :: GtkInterfaceState a -> IO ()
+unsubscribeView state = do
+  unsubscribe (allEvents state)
+  unsubscribe (viewEvents (currentView state))
 
-subscribeEvents :: Gtk.Window -> IO EventListener
-subscribeEvents w = do
-  events <- newChan
-  signalHandlerId <-
-    w `Gtk.onWidgetKeyPressEvent` \eventKey -> do
-      keyVal <- Gdk.getEventKeyKeyval eventKey
-      keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
-      case toKeyCombo (keyChar :: Char, keyVal) of
-        Just keyCombo ->
-          writeChan events (KeyPress (HashSet.fromList keyCombo)) $> False
-        _ -> return False
-  return EventListener {..}
-  where
-    toKeyCombo =
-      \case
-        (_, Gdk.KEY_Return) -> Just [KeyEnter]
-        (c, _) -> Just [KeyChar c]
-
-unsubscribeEvents :: GtkInterfaceState s -> IO ()
-unsubscribeEvents (sharedState -> s) = do
-  let EventListener{..} = eventListener s
-  GObject.signalHandlerDisconnect (window s) signalHandlerId
-
-awaitNext :: GtkInterfaceState s -> IO Event
-awaitNext = readChan . events . eventListener . sharedState
-
-initializeWindow :: Env -> Markup -> IO SharedState
+initializeWindow :: Env -> Gtk.Markup -> IO Gtk.Window
 initializeWindow Env{cssPath, screen} obj = do
   w <- newEmptyMVar
   runUI $ do
@@ -132,83 +86,96 @@ initializeWindow Env{cssPath, screen} obj = do
     Gtk.cssProviderLoadFromPath cssProvider (Text.pack cssPath)
     Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
     Gtk.widgetShowAll window
-    Gtk.containerAdd window =<< Gtk.toWidget =<< create obj
+    Gtk.containerAdd window =<< Gtk.toWidget =<< Gtk.create obj
     Gtk.widgetShowAll window
     putMVar w window
-  window <- takeMVar w
-  listener <- subscribeEvents window
-  return (SharedState window listener obj)
+  takeMVar w
   where
     cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
 
-render :: Markup -> SharedState -> IO SharedState
-render newMarkup s@SharedState {..} = do
-  runUI (patchBox window currentMarkup newMarkup)
-  return s {currentMarkup = newMarkup}
+render :: View m' -> GtkInterfaceState m -> IO ()
+render newView state =
+  runUI (patchBox (window state) (markup (currentView state)) (markup newView))
   where
-    patchBox :: Gtk.Window -> Markup -> Markup -> IO ()
+    patchBox :: Gtk.Window -> Gtk.Markup -> Gtk.Markup -> IO ()
     patchBox w o1 o2 =
-      case patch o1 o2 of
-        Modify f ->
+      case Gtk.patch o1 o2 of
+        Gtk.Modify f ->
           Gtk.containerGetChildren w >>= \case
             [] -> return ()
             (c:_) -> do
               f =<< Gtk.toWidget c
               Gtk.widgetShowAll w
-        Replace createNew -> do
+        Gtk.Replace createNew -> do
           Gtk.containerForall w (Gtk.containerRemove w)
           newWidget <- createNew
           Gtk.containerAdd w newWidget
           Gtk.widgetShowAll w
-        Keep -> return ()
+        Gtk.Keep -> return ()
 
-firstTimelineView ::  Project -> Focus ft -> Env -> IO (GtkInterfaceState TimelineMode)
-firstTimelineView project focus env =
-  GtkTimelineMode <$> initializeWindow env (timelineView project focus)
+renderFirst :: IO (View a) -> Env -> IO (GtkInterfaceState a)
+renderFirst createView env = do
+  view <- createView
+  w <- initializeWindow env (markup view)
+  allEvents <- subscribeKeyEvents w KeyPress >>= mergeEvents (viewEvents view)
+  pure
+    GtkInterfaceState
+    { window = w
+    , currentView = view {viewEvents = allEvents }
+    , ..
+    }
 
-newTimelineView :: Project -> Focus ft -> GtkInterfaceState s -> IO (GtkInterfaceState TimelineMode)
-newTimelineView project focus is =
-  GtkTimelineMode <$> render (timelineView project focus) (sharedState is)
+switchView :: View b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
+switchView newView state = do
+  unsubscribeView state
+  render newView state
+  allEvents <-
+    subscribeKeyEvents (window state) KeyPress >>=
+    mergeEvents (viewEvents newView)
+  pure GtkInterfaceState {window = window state, currentView = newView, ..}
 
-newLibraryView :: [Clip Focused t] -> GtkInterfaceState s -> IO (GtkInterfaceState LibraryMode)
-newLibraryView clips is =
-  GtkLibraryMode <$> render (libraryView clips) (sharedState is)
+switchView' ::
+  (MonadFSM m, IxMonadIO m)
+  => Name n
+  -> IO (View b)
+  -> Actions m '[ n := GtkInterfaceState a !--> GtkInterfaceState b] r ()
+switchView' n view =
+  FSM.get n
+    >>>= \s -> iliftIO (view >>= \v -> switchView v s)
+    >>>= FSM.enter n
 
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
   start n project focus =
     ilift ask
-    >>>= iliftIO . firstTimelineView project focus
+    >>>= iliftIO . renderFirst (timelineView project focus)
     >>>= FSM.new n
 
-  -- NOTE: This re-renders (with diff) and re-attaches event listener:
   updateTimeline n project focus =
-    FSM.get n
-    >>>= iliftIO . newTimelineView project focus
-    >>>= FSM.enter n
+    switchView' n (timelineView project focus)
 
   enterLibrary n =
-    FSM.get n
-    >>>= iliftIO . newLibraryView []
-    >>>= FSM.enter n
+    switchView' n (libraryView [])
 
   updateLibrary n clips =
-    FSM.get n
-    >>>= iliftIO . newLibraryView clips
-    >>>= FSM.enter n
-
-  nextEvent n = FSM.get n >>>= iliftIO . awaitNext
+    switchView' n (libraryView clips)
 
   exitLibrary n project focus =
-    FSM.get n
-    >>>= iliftIO . newTimelineView project focus
-    >>>= FSM.enter n
+    switchView' n (timelineView project focus)
+
+  enterImport n =
+    switchView' n importView
+
+  exitImport n project focus =
+    switchView' n (timelineView project focus)
+
+  nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 
   beep _ = iliftIO (runUI Gdk.beep)
 
   exit n =
-    (FSM.get n >>>= iliftIO . unsubscribeEvents)
+    (FSM.get n >>>= iliftIO . unsubscribeView)
     >>> iliftIO Gtk.mainQuit
     >>> delete n
 
