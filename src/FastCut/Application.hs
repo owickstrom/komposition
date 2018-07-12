@@ -103,9 +103,9 @@ selectClipFromList gui clips n = do
   where
     continue = selectClipFromList gui clips n
 
--- | Convenient type for actions that transition from timeline mode
--- into library mode, doing some user interactions, and returning back
--- to timeline mode with a value.
+-- | Convenient type for actions that transition from one mode
+-- into another mode, doing some user interactions, and returning back
+-- to the first mode with a value.
 type ThroughMode base through n a
    = forall m i o lm tm.
    ( UserInterface m
@@ -183,6 +183,45 @@ prettyFocusedAt =
     FocusedVideoPart {} -> "video track"
     FocusedAudioPart {} -> "audio track"
 
+append ::
+     (UserInterface m, IxMonadIO m)
+  => Name n
+  -> Project
+  -> Focus ft
+  -> AppendCommand
+  -> m (n .== State m 'TimelineMode) Empty ()
+append gui project focus' cmd =
+  case (cmd, atFocus focus' (project ^. timeline)) of
+    (AppendComposition, Just (FocusedSequence _)) ->
+      selectClip gui project focus' SVideo >>= \case
+        Just clip ->
+          project &
+          timeline %~
+          insert_
+            focus'
+            (InsertParallel (Parallel () [Clip clip] [Gap () (durationOf clip)]))
+            RightOf &
+          timelineMode gui focus'
+        Nothing -> continue
+    (AppendClip, Just (FocusedVideoPart _)) ->
+      selectClipAndAppend gui project focus' SVideo >>>= timelineMode gui focus'
+    (AppendClip, Just (FocusedAudioPart _)) ->
+      selectClipAndAppend gui project focus' SAudio >>>= timelineMode gui focus'
+    (AppendGap, Just _) ->
+      project & timeline %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf &
+      timelineMode gui focus'
+    (c, Just f) -> do
+      iliftIO
+        (putStrLn
+           ("Cannot perform " <> show c <> " when focused at " <>
+            prettyFocusedAt f))
+      continue
+    (_, Nothing) -> do
+      iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
+      continue
+  where
+    continue = timelineMode gui focus' project
+
 timelineMode ::
      (UserInterface m, IxMonadIO m)
   => Name n
@@ -198,39 +237,7 @@ timelineMode gui focus' project = do
           printUnexpectedFocusError err cmd
           continue
         Right newFocus -> timelineMode gui newFocus project
-    CommandKeyMappedEvent (AppendCommand cmd) ->
-      case (cmd, atFocus focus' (project ^. timeline)) of
-        (AppendComposition, Just (FocusedSequence _)) ->
-          selectClip gui project focus' SVideo >>= \case
-            Just clip ->
-              project &
-              timeline %~
-              insert_
-                focus'
-                (InsertParallel
-                   (Parallel () [Clip clip] [Gap () (durationOf clip)]))
-                RightOf &
-              timelineMode gui focus'
-            Nothing -> continue
-        (AppendClip, Just (FocusedVideoPart _)) ->
-          selectClipAndAppend gui project focus' SVideo >>>=
-          timelineMode gui focus'
-        (AppendClip, Just (FocusedAudioPart _)) ->
-          selectClipAndAppend gui project focus' SAudio >>>=
-          timelineMode gui focus'
-        (AppendGap, Just _) ->
-          project &
-          timeline %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf &
-          timelineMode gui focus'
-        (c, Just f) -> do
-          iliftIO
-            (putStrLn
-               ("Cannot perform " <> show c <> " when focused at " <>
-                prettyFocusedAt f))
-          continue
-        (_, Nothing) -> do
-          iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
-          continue
+    CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
         Just file -> do
