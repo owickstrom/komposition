@@ -79,16 +79,11 @@ focusClip i clips =
   & ix i %~ setClipAnnotation Focused
 
 selectClipFromList ::
-     ( UserInterface m
-     , IxMonadIO m
-     , lm ~ State m 'LibraryMode
-     , HasType n lm r
-     , Modify n lm r ~ r
-     )
+     (UserInterface m, IxMonadIO m, Modify n (State m LibraryMode) r ~ r)
   => Name n
   -> [Clip () mt]
   -> Int
-  -> m r r (Maybe (Clip () mt))
+  -> Actions m '[ n := Remain (State m LibraryMode)] r (Maybe (Clip () mt))
 selectClipFromList gui clips n = do
   updateLibrary gui (focusClip n clips)
   nextEvent gui >>>= \case
