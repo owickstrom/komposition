@@ -114,7 +114,7 @@ render newView state =
           Gtk.widgetShowAll w
         Gtk.Keep -> return ()
 
-renderFirst :: IO (View a) -> SUserInterfaceState a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
+renderFirst :: IO (View a) -> SMode a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
 renderFirst createView mode keyMaps env = do
   view <- createView
   w <- initializeWindow env (markup view)
@@ -126,7 +126,7 @@ renderFirst createView mode keyMaps env = do
     GtkInterfaceState
       {window = w, currentView = view {viewEvents = allEvents}, ..}
 
-switchView :: View b -> SUserInterfaceState b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
+switchView :: View b -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
 switchView newView newMode state = do
   unsubscribeView state
   render newView state
@@ -140,7 +140,7 @@ switchView' ::
   (MonadFSM m, IxMonadIO m)
   => Name n
   -> IO (View b)
-  -> SUserInterfaceState b
+  -> SMode b
   -> Actions m '[ n := GtkInterfaceState a !--> GtkInterfaceState b] r ()
 switchView' n view newMode =
   FSM.get n

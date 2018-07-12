@@ -23,17 +23,17 @@ import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Project
 
-data UserInterfaceState
+data Mode
   = TimelineMode
   | LibraryMode
   | ImportMode
 
-data SUserInterfaceState m where
-  STimelineMode :: SUserInterfaceState TimelineMode
-  SLibraryMode :: SUserInterfaceState LibraryMode
-  SImportMode :: SUserInterfaceState ImportMode
+data SMode m where
+  STimelineMode :: SMode TimelineMode
+  SLibraryMode :: SMode LibraryMode
+  SImportMode :: SMode ImportMode
 
-class ReturnsToTimeline (mode :: UserInterfaceState)
+class ReturnsToTimeline (mode :: Mode)
 
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
@@ -61,11 +61,11 @@ data Event mode where
   ImportFileSelected :: FilePath -> Event ImportMode
   ImportClicked :: Event ImportMode
 
-type KeyMaps = forall mode. SUserInterfaceState mode -> KeyMap (Event mode)
+type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 
 class MonadFSM m =>
       UserInterface m where
-  type State m :: UserInterfaceState -> Type
+  type State m :: Mode -> Type
   start ::
        Name n
     -> KeyMaps

@@ -1,22 +1,25 @@
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE ExplicitForAll   #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedLists  #-}
-{-# LANGUAGE PolyKinds        #-}
-{-# LANGUAGE RebindableSyntax #-}
-{-# LANGUAGE TypeFamilies     #-}
-{-# LANGUAGE TypeOperators    #-}
--- |
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ExplicitForAll    #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedLabels  #-}
+{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE RebindableSyntax  #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeOperators     #-}
 module FastCut.Application where
 
 import           FastCut.Prelude hiding ((>>), (>>=), State)
 
 import           Control.Lens
+import           Data.String (fromString)
 import           Data.Row.Records hiding  (map)
 import           GHC.Exts                 (fromListN)
 import           Motor.FSM
@@ -37,7 +40,7 @@ import           FastCut.UserInterface
 (>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
 (>>=) = (>>>=)
 
-keymaps :: SUserInterfaceState m -> KeyMap (Event m)
+keymaps :: SMode m -> KeyMap (Event m)
 keymaps =
   fmap CommandKeyMappedEvent .
   \case
@@ -156,7 +159,6 @@ importFile ::
   -> ThroughMode TimelineMode ImportMode n (Maybe FilePath)
 importFile gui project focus' = do
   enterImport gui
-  iliftIO (putStrLn "In import!")
   f <- awaitImportClick Nothing
   returnToTimeline gui project focus'
   ireturn f
@@ -168,6 +170,14 @@ importFile gui project focus' = do
         (ImportClicked, Just file) -> ireturn (Just file)
         (ImportClicked, Nothing) -> awaitImportClick Nothing
         (ImportFileSelected file, _) -> awaitImportClick (Just file)
+
+prettyFocusedAt :: FocusedAt a -> Text
+prettyFocusedAt =
+  \case
+    FocusedSequence {} -> "sequence"
+    FocusedParallel {} -> "parallel"
+    FocusedVideoPart {} -> "video track"
+    FocusedAudioPart {} -> "audio track"
 
 timelineMode ::
      (UserInterface m, IxMonadIO m)
@@ -190,45 +200,49 @@ timelineMode gui focus' project = do
         (AppendComposition, Just (FocusedSequence _)) ->
           selectClip gui project focus' SVideo >>= \case
             Just clip ->
-              project
-                & timeline %~ insert_ focus' (InsertParallel (Parallel () [Clip clip] [Gap () (durationOf clip)])) RightOf
-                & timelineMode gui focus'
+              project &
+              timeline %~
+              insert_
+                focus'
+                (InsertParallel
+                   (Parallel () [Clip clip] [Gap () (durationOf clip)]))
+                RightOf &
+              timelineMode gui focus'
             Nothing -> timelineMode gui focus' project
         (AppendClip, Just (FocusedVideoPart _)) ->
-           selectClipAndAppend gui project focus' SVideo
-          >>>= timelineMode gui focus'
+          selectClipAndAppend gui project focus' SVideo >>>=
+          timelineMode gui focus'
         (AppendClip, Just (FocusedAudioPart _)) ->
-          selectClipAndAppend gui project focus' SAudio
-          >>>= timelineMode gui focus'
+          selectClipAndAppend gui project focus' SAudio >>>=
+          timelineMode gui focus'
         (AppendGap, Just _) ->
-          project
-            & timeline %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf
-            & timelineMode gui focus'
+          project &
+          timeline %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf &
+          timelineMode gui focus'
         (c, Just f) -> do
-          let ct = case f of
-                FocusedSequence{} -> "sequence"
-                FocusedParallel{} -> "parallel"
-                FocusedVideoPart{} -> "video track"
-                FocusedAudioPart{} -> "audio track"
-          iliftIO (putStrLn ("Cannot perform " <> show c <> " when focused at " <> ct))
+          iliftIO
+            (putStrLn
+               ("Cannot perform " <> show c <> " when focused at " <>
+                prettyFocusedAt f))
           timelineMode gui focus' project
         (_, Nothing) -> do
-          iliftIO (putStrLn "Warning: focus is invalid.")
+          iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
           timelineMode gui focus' project
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
         Just file -> do
           iliftIO (putStrLn ("Importing file: " <> file))
           timelineMode gui focus' project
-        Nothing ->
-          timelineMode gui focus' project
+        Nothing -> timelineMode gui focus' project
     CommandKeyMappedEvent Exit -> exit gui
-
   where
     printUnexpectedFocusError err cmd =
       case err of
-        UnhandledFocusModification{} ->
-          iliftIO (printf "Error: could not handle focus modification %s\n" (show cmd :: Text))
+        UnhandledFocusModification {} ->
+          iliftIO
+            (printf
+               "Error: could not handle focus modification %s\n"
+               (show cmd :: Text))
         _ -> ireturn ()
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
