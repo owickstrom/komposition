@@ -63,6 +63,7 @@ deriving instance Monad m => Monad (GtkInterface m i i)
 data GtkInterfaceState mode = GtkInterfaceState
   { window      :: Gtk.Window
   , allEvents   :: EventListener (Event mode)
+  , keyMaps     :: KeyMaps
   , currentView :: View mode
   }
 
@@ -113,59 +114,61 @@ render newView state =
           Gtk.widgetShowAll w
         Gtk.Keep -> return ()
 
-renderFirst :: IO (View a) -> Env -> IO (GtkInterfaceState a)
-renderFirst createView env = do
+renderFirst :: IO (View a) -> SUserInterfaceState a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
+renderFirst createView mode keyMaps env = do
   view <- createView
   w <- initializeWindow env (markup view)
-  allEvents <- subscribeKeyEvents w KeyPress >>= mergeEvents (viewEvents view)
+  allEvents <-
+    subscribeKeyEvents w
+    >>= applyKeyMap (keyMaps mode)
+    >>= mergeEvents (viewEvents view)
   pure
     GtkInterfaceState
-    { window = w
-    , currentView = view {viewEvents = allEvents }
-    , ..
-    }
+      {window = w, currentView = view {viewEvents = allEvents}, ..}
 
-switchView :: View b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
-switchView newView state = do
+switchView :: View b -> SUserInterfaceState b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
+switchView newView newMode state = do
   unsubscribeView state
   render newView state
   allEvents <-
-    subscribeKeyEvents (window state) KeyPress >>=
-    mergeEvents (viewEvents newView)
-  pure GtkInterfaceState {window = window state, currentView = newView, ..}
+    subscribeKeyEvents (window state)
+    >>= applyKeyMap (keyMaps state newMode)
+    >>= mergeEvents (viewEvents newView)
+  pure GtkInterfaceState {window = window state, currentView = newView, keyMaps = keyMaps state, ..}
 
 switchView' ::
   (MonadFSM m, IxMonadIO m)
   => Name n
   -> IO (View b)
+  -> SUserInterfaceState b
   -> Actions m '[ n := GtkInterfaceState a !--> GtkInterfaceState b] r ()
-switchView' n view =
+switchView' n view newMode =
   FSM.get n
-    >>>= \s -> iliftIO (view >>= \v -> switchView v s)
+    >>>= \s -> iliftIO (view >>= \v -> switchView v newMode s)
     >>>= FSM.enter n
 
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
-  start n project focus =
+  start n keyMaps project focus =
     ilift ask
-    >>>= iliftIO . renderFirst (timelineView project focus)
+    >>>= iliftIO . renderFirst (timelineView project focus) STimelineMode keyMaps
     >>>= FSM.new n
 
   updateTimeline n project focus =
-    switchView' n (timelineView project focus)
+    switchView' n (timelineView project focus) STimelineMode
 
   returnToTimeline n project focus =
-    switchView' n (timelineView project focus)
+    switchView' n (timelineView project focus) STimelineMode
 
   enterLibrary n =
-    switchView' n (libraryView [])
+    switchView' n (libraryView []) SLibraryMode
 
   updateLibrary n clips =
-    switchView' n (libraryView clips)
+    switchView' n (libraryView clips) SLibraryMode
 
   enterImport n =
-    switchView' n importView
+    switchView' n importView SImportMode
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 

@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE GADTs            #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE DataKinds        #-}
@@ -16,7 +17,6 @@ module FastCut.Application where
 import           FastCut.Prelude hiding ((>>), (>>=), State)
 
 import           Control.Lens
-import qualified Data.HashMap.Strict      as HashMap
 import           Data.Row.Records hiding  (map)
 import           GHC.Exts                 (fromListN)
 import           Motor.FSM
@@ -31,57 +31,39 @@ import           FastCut.Composition.Focused
 import           FastCut.Composition.Insert
 import           FastCut.UserInterface
 
-data AppendCommand
-  = AppendClip
-  | AppendGap
-  | AppendComposition
-  deriving (Show, Eq)
-
-data TimelineCommand
-  = FocusCommand FocusCommand
-  | AppendCommand AppendCommand
-  | Import
-  | Exit
-  deriving (Show, Eq)
-
-data LibraryCommand
-  = LibraryEscape
-  | LibraryUp
-  | LibraryDown
-  | LibrarySelect
-  deriving (Show, Eq)
-
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
 (>>) = (>>>)
 
 (>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
 (>>=) = (>>>=)
 
-nextCommandOrBeep ::
-     (UserInterface m, IxMonadIO m, HasType n (State m s) r)
-  => KeyMap e
-  -> Name n
-  -> m r r (Maybe e)
-nextCommandOrBeep (KeyMap keymap) gui =
-  nextEvent gui >>>= \case
-    KeyPress combo ->
-      case HashMap.lookup combo keymap of
-        Just (SequencedMappings keymap') -> nextCommandOrBeep keymap' gui
-        Just (Mapping e) -> ireturn (Just e)
-        Nothing -> beep gui >>> ireturn Nothing
-
-nextLibraryCommand ::
-     (UserInterface m, IxMonadIO m, HasType n (State m 'LibraryMode) r)
-  => Name n
-  -> m r r (Maybe LibraryCommand)
-nextLibraryCommand =
-  nextCommandOrBeep $
-    KeyMap
-    [ ([KeyChar 'j'], Mapping LibraryDown)
-    , ([KeyChar 'k'], Mapping LibraryUp)
-    , ([KeyChar 'q'], Mapping LibraryEscape)
-    , ([KeyEnter], Mapping LibrarySelect)
-    ]
+keymaps :: SUserInterfaceState m -> KeyMap (Event m)
+keymaps =
+  fmap CommandKeyMappedEvent .
+  \case
+    STimelineMode ->
+      [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
+      , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
+      , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
+      , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
+      , ([KeyChar 'i'], Mapping Import)
+      , ( [KeyChar 'a']
+        , SequencedMappings
+            [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
+            , ([KeyChar 'g'], Mapping (AppendCommand AppendGap))
+            , ([KeyChar 'p'], Mapping (AppendCommand AppendComposition))
+            ])
+      , ([KeyChar 'q'], Mapping Exit)
+      ]
+    SLibraryMode ->
+      [ ([KeyChar 'j'], Mapping LibraryDown)
+      , ([KeyChar 'k'], Mapping LibraryUp)
+      , ([KeyChar 'q'], Mapping Exit)
+      , ([KeyEnter], Mapping LibrarySelect)
+      ]
+    SImportMode ->
+      [ ([KeyChar 'q'], Mapping Exit)
+      ]
 
 focusClip :: Int -> [Clip a mt] -> [Clip Focused mt]
 focusClip i clips =
@@ -102,20 +84,17 @@ selectClipFromList ::
   -> m r r (Maybe (Clip () mt))
 selectClipFromList gui clips n = do
   updateLibrary gui (focusClip n clips)
-  nextLibraryCommand gui >>>= \case
-    Just LibraryEscape -> ireturn Nothing
-    Just LibrarySelect -> ireturn (clips ^? element n)
-    Just LibraryUp
+  nextEvent gui >>>= \case
+    CommandKeyMappedEvent Exit -> ireturn Nothing
+    CommandKeyMappedEvent LibrarySelect -> ireturn (clips ^? element n)
+    CommandKeyMappedEvent LibraryUp
       | n > 0 -> selectClipFromList gui clips (pred n)
       | otherwise -> continue
-    Just LibraryDown
+    CommandKeyMappedEvent LibraryDown
       | n < length clips - 1 -> selectClipFromList gui clips (succ n)
       | otherwise -> continue
-    Nothing -> continue
   where
-    continue = do
-      beep gui
-      selectClipFromList gui clips n
+    continue = selectClipFromList gui clips n
 
 -- | Convenient type for actions that transition from timeline mode
 -- into library mode, doing some user interactions, and returning back
@@ -180,35 +159,15 @@ importFile gui project focus' = do
   iliftIO (putStrLn "In import!")
   f <- awaitImportClick Nothing
   returnToTimeline gui project focus'
-  ireturn (Just f)
+  ireturn f
   where
     awaitImportClick mf = do
-      ev <- nextEvent gui
-      case (ev, mf) of
-        (ImportClicked, Just file) -> ireturn file
+      cmd <- nextEvent gui
+      case (cmd, mf) of
+        (CommandKeyMappedEvent Exit, _) -> ireturn Nothing
+        (ImportClicked, Just file) -> ireturn (Just file)
         (ImportClicked, Nothing) -> awaitImportClick Nothing
         (ImportFileSelected file, _) -> awaitImportClick (Just file)
-        (KeyPress{}, _) -> awaitImportClick mf
-
-nextTimelineCommand ::
-     (UserInterface m, IxMonadIO m, HasType n (State m 'TimelineMode) r)
-  => Name n
-  -> m r r (Maybe TimelineCommand)
-nextTimelineCommand =
-  nextCommandOrBeep
-  [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
-  , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
-  , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
-  , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
-  , ([KeyChar 'i'], Mapping Import)
-  , ( [KeyChar 'a']
-    , SequencedMappings
-        [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
-        , ([KeyChar 'g'], Mapping (AppendCommand AppendGap))
-        , ([KeyChar 'p'], Mapping (AppendCommand AppendComposition))
-        ])
-  , ([KeyChar 'q'], Mapping Exit)
-  ]
 
 timelineMode ::
      (UserInterface m, IxMonadIO m)
@@ -218,15 +177,15 @@ timelineMode ::
   -> m (n .== State m 'TimelineMode) Empty ()
 timelineMode gui focus' project = do
   updateTimeline gui project focus'
-  nextTimelineCommand gui >>>= \case
-    Just (FocusCommand cmd) ->
+  nextEvent gui >>>= \case
+    CommandKeyMappedEvent (FocusCommand cmd) ->
       case modifyFocus (project ^. timeline) cmd focus' of
         Left err -> do
           printUnexpectedFocusError err cmd
           beep gui
           timelineMode gui focus' project
         Right newFocus -> timelineMode gui newFocus project
-    Just (AppendCommand cmd) ->
+    CommandKeyMappedEvent (AppendCommand cmd) ->
       case (cmd, atFocus focus' (project ^. timeline)) of
         (AppendComposition, Just (FocusedSequence _)) ->
           selectClip gui project focus' SVideo >>= \case
@@ -256,17 +215,14 @@ timelineMode gui focus' project = do
         (_, Nothing) -> do
           iliftIO (putStrLn "Warning: focus is invalid.")
           timelineMode gui focus' project
-    Just Import ->
+    CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
         Just file -> do
           iliftIO (putStrLn ("Importing file: " <> file))
           timelineMode gui focus' project
         Nothing ->
           timelineMode gui focus' project
-    Just Exit -> exit gui
-    Nothing -> do
-      beep gui
-      timelineMode gui focus' project
+    CommandKeyMappedEvent Exit -> exit gui
 
   where
     printUnexpectedFocusError err cmd =
@@ -277,7 +233,7 @@ timelineMode gui focus' project = do
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
 fastcut project = do
-  start #gui project initialFocus
+  start #gui keymaps project initialFocus
   timelineMode #gui initialFocus project
   where
     initialFocus = SequenceFocus 0 Nothing

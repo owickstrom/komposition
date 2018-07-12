@@ -6,6 +6,7 @@ module FastCut.UserInterface.GtkInterface.EventListener where
 
 import           FastCut.Prelude
 
+import qualified Data.HashMap.Strict  as HashMap
 import qualified Data.HashSet         as HashSet
 import qualified GI.Gdk               as Gdk
 import qualified GI.GObject.Functions as GObject
@@ -38,8 +39,8 @@ mergeEvents a b = do
   where
     readInto c el = forkIO (forever (readEvent el >>= writeChan c))
 
-subscribeKeyEvents :: Gtk.Window -> (KeyCombo -> e) -> IO (EventListener e)
-subscribeKeyEvents w event = do
+subscribeKeyEvents :: Gtk.Window -> IO (EventListener KeyCombo)
+subscribeKeyEvents w = do
   events <- newChan
   sid <-
     w `Gtk.onWidgetKeyPressEvent` \eventKey -> do
@@ -47,7 +48,7 @@ subscribeKeyEvents w event = do
       keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
       case toKeyCombo (keyChar :: Char, keyVal) of
         Just keyCombo ->
-          writeChan events (event (HashSet.fromList keyCombo)) $> False
+          writeChan events (HashSet.fromList keyCombo) $> False
         _ -> return False
   return
     EventListener {unsubscribe = GObject.signalHandlerDisconnect w sid, ..}
@@ -56,3 +57,15 @@ subscribeKeyEvents w event = do
       \case
         (_, Gdk.KEY_Return) -> Just [KeyEnter]
         (c, _) -> Just [KeyChar c]
+
+applyKeyMap :: KeyMap a -> EventListener KeyCombo -> IO (EventListener a)
+applyKeyMap topKeyMap keyPresses = do
+  xs <- newChan
+  let go (KeyMap km) = do
+        combo <- readChan (events keyPresses)
+        case HashMap.lookup combo km of
+          Just (SequencedMappings km') -> go km'
+          Just (Mapping x)             -> writeChan xs x
+          Nothing                      -> go (KeyMap km)
+  tid <- forkIO (go topKeyMap)
+  pure EventListener {events = xs, unsubscribe = killThread tid}

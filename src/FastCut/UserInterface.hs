@@ -28,21 +28,47 @@ data UserInterfaceState
   | LibraryMode
   | ImportMode
 
+data SUserInterfaceState m where
+  STimelineMode :: SUserInterfaceState TimelineMode
+  SLibraryMode :: SUserInterfaceState LibraryMode
+  SImportMode :: SUserInterfaceState ImportMode
+
 class ReturnsToTimeline (mode :: UserInterfaceState)
 
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
 
-data Event (s :: UserInterfaceState) where
-  KeyPress :: KeyCombo -> Event s
+data AppendCommand
+  = AppendClip
+  | AppendGap
+  | AppendComposition
+  deriving (Show, Eq)
+
+data Command mode where
+  Exit :: Command mode
+
+  FocusCommand :: FocusCommand -> Command TimelineMode
+  AppendCommand :: AppendCommand -> Command TimelineMode
+  Import :: Command TimelineMode
+
+  LibraryUp :: Command LibraryMode
+  LibraryDown :: Command LibraryMode
+  LibrarySelect :: Command LibraryMode
+
+data Event mode where
+  CommandKeyMappedEvent :: Command mode -> Event mode
+
   ImportFileSelected :: FilePath -> Event ImportMode
   ImportClicked :: Event ImportMode
+
+type KeyMaps = forall mode. SUserInterfaceState mode -> KeyMap (Event mode)
 
 class MonadFSM m =>
       UserInterface m where
   type State m :: UserInterfaceState -> Type
   start ::
        Name n
+    -> KeyMaps
     -> Project
     -> Focus ft
     -> Actions m '[ n !+ State m TimelineMode] r ()
@@ -67,8 +93,8 @@ class MonadFSM m =>
   enterImport
     :: Name n
     -> Actions m '[ n := State m TimelineMode !--> State m ImportMode] r ()
-  nextEvent ::
-       Name n
+  nextEvent
+    :: Name n
     -> Actions m '[ n := Remain (State m t)] r (Event t)
   beep :: Name n -> Actions m '[] r ()
   exit :: Name n -> Actions m '[ n !- State m s] r ()
