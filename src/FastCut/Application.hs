@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeOperators     #-}
 module FastCut.Application where
 
-import           FastCut.Prelude hiding ((>>), (>>=), State)
+import           FastCut.Prelude hiding ((>>), (>>=), State, cancel)
 
 import           Control.Lens
 import           Data.String (fromString)
@@ -61,11 +61,15 @@ keymaps =
     SLibraryMode ->
       [ ([KeyChar 'j'], Mapping LibraryDown)
       , ([KeyChar 'k'], Mapping LibraryUp)
-      , ([KeyChar 'q'], Mapping Exit)
+      , ([KeyChar 'q'], Mapping Cancel)
       , ([KeyEnter], Mapping LibrarySelect)
       ]
     SImportMode ->
-      [ ([KeyChar 'q'], Mapping Exit)
+      [ ([KeyChar 'q'], Mapping Cancel)
+      ]
+    SExitingMode ->
+      [ ([KeyChar 'y'], Mapping ConfirmExit)
+      , ([KeyChar 'n'], Mapping Cancel)
       ]
 
 focusClip :: Int -> [Clip a mt] -> [Clip Focused mt]
@@ -88,7 +92,7 @@ selectClipFromList ::
 selectClipFromList gui clips n = do
   updateLibrary gui (focusClip n clips)
   nextEvent gui >>>= \case
-    CommandKeyMappedEvent Exit -> ireturn Nothing
+    CommandKeyMappedEvent Cancel -> ireturn Nothing
     CommandKeyMappedEvent LibrarySelect -> ireturn (clips ^? element n)
     CommandKeyMappedEvent LibraryUp
       | n > 0 -> selectClipFromList gui clips (pred n)
@@ -166,7 +170,7 @@ importFile gui project focus' = do
     awaitImportClick mf = do
       cmd <- nextEvent gui
       case (cmd, mf) of
-        (CommandKeyMappedEvent Exit, _) -> ireturn Nothing
+        (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
         (ImportClicked, Just file) -> ireturn (Just file)
         (ImportClicked, Nothing) -> awaitImportClick Nothing
         (ImportFileSelected file, _) -> awaitImportClick (Just file)
@@ -192,8 +196,7 @@ timelineMode gui focus' project = do
       case modifyFocus (project ^. timeline) cmd focus' of
         Left err -> do
           printUnexpectedFocusError err cmd
-          beep gui
-          timelineMode gui focus' project
+          continue
         Right newFocus -> timelineMode gui newFocus project
     CommandKeyMappedEvent (AppendCommand cmd) ->
       case (cmd, atFocus focus' (project ^. timeline)) of
@@ -208,7 +211,7 @@ timelineMode gui focus' project = do
                    (Parallel () [Clip clip] [Gap () (durationOf clip)]))
                 RightOf &
               timelineMode gui focus'
-            Nothing -> timelineMode gui focus' project
+            Nothing -> continue
         (AppendClip, Just (FocusedVideoPart _)) ->
           selectClipAndAppend gui project focus' SVideo >>>=
           timelineMode gui focus'
@@ -224,18 +227,21 @@ timelineMode gui focus' project = do
             (putStrLn
                ("Cannot perform " <> show c <> " when focused at " <>
                 prettyFocusedAt f))
-          timelineMode gui focus' project
+          continue
         (_, Nothing) -> do
           iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
-          timelineMode gui focus' project
+          continue
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
         Just file -> do
           iliftIO (putStrLn ("Importing file: " <> file))
-          timelineMode gui focus' project
-        Nothing -> timelineMode gui focus' project
-    CommandKeyMappedEvent Exit -> exit gui
+          continue
+        Nothing -> continue
+    CommandKeyMappedEvent Cancel -> continue
+    CommandKeyMappedEvent Exit ->
+      gui `confirmExitOr` (returnToTimeline gui project focus' >>> continue)
   where
+    continue = timelineMode gui focus' project
     printUnexpectedFocusError err cmd =
       case err of
         UnhandledFocusModification {} ->
@@ -244,6 +250,18 @@ timelineMode gui focus' project = do
                "Error: could not handle focus modification %s\n"
                (show cmd :: Text))
         _ -> ireturn ()
+
+confirmExitOr
+  :: (UserInterface m, IxMonadIO m)
+  => Name n
+  -> m (n .== State m ExitingMode) Empty ()
+  -> m (n .== State m TimelineMode) Empty ()
+confirmExitOr gui cancel = do
+  enterConfirmExit gui
+  nextEvent gui >>>= \(CommandKeyMappedEvent cmd) ->
+    case cmd of
+      ConfirmExit -> exit gui
+      Cancel -> cancel
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
 fastcut project = do

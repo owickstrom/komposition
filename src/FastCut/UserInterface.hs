@@ -27,16 +27,19 @@ data Mode
   = TimelineMode
   | LibraryMode
   | ImportMode
+  | ExitingMode
 
 data SMode m where
   STimelineMode :: SMode TimelineMode
   SLibraryMode :: SMode LibraryMode
   SImportMode :: SMode ImportMode
+  SExitingMode :: SMode ExitingMode
 
 class ReturnsToTimeline (mode :: Mode)
 
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
+instance ReturnsToTimeline ExitingMode
 
 data AppendCommand
   = AppendClip
@@ -45,11 +48,14 @@ data AppendCommand
   deriving (Show, Eq)
 
 data Command mode where
-  Exit :: Command mode
+  Cancel :: Command mode
+
+  ConfirmExit :: Command ExitingMode
 
   FocusCommand :: FocusCommand -> Command TimelineMode
   AppendCommand :: AppendCommand -> Command TimelineMode
   Import :: Command TimelineMode
+  Exit :: Command TimelineMode
 
   LibraryUp :: Command LibraryMode
   LibraryDown :: Command LibraryMode
@@ -97,4 +103,5 @@ class MonadFSM m =>
     :: Name n
     -> Actions m '[ n := Remain (State m t)] r (Event t)
   beep :: Name n -> Actions m '[] r ()
+  enterConfirmExit :: Name n -> Actions m '[ n := State m s !--> State m ExitingMode ] r ()
   exit :: Name n -> Actions m '[ n !- State m s] r ()

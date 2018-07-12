@@ -39,6 +39,7 @@ import           Motor.FSM                                        as FSM
 import           Control.Monad.Indexed.IO
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.EventListener
+import           FastCut.UserInterface.GtkInterface.ExitingView
 import           FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
@@ -86,6 +87,8 @@ initializeWindow Env{cssPath, screen} obj = do
     cssProvider <- Gtk.cssProviderNew
     Gtk.cssProviderLoadFromPath cssProvider (Text.pack cssPath)
     Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
+    windowStyle <- Gtk.widgetGetStyleContext window
+    Gtk.styleContextAddClass windowStyle "fastcut"
     Gtk.widgetShowAll window
     Gtk.containerAdd window =<< Gtk.toWidget =<< Gtk.create obj
     Gtk.widgetShowAll window
@@ -169,6 +172,9 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
 
   enterImport n =
     switchView' n importView SImportMode
+
+  enterConfirmExit n =
+    switchView' n exitingView SExitingMode
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 
