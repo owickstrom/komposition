@@ -260,7 +260,7 @@ timelineMode gui focus' project = do
         Nothing -> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->
-      dialog gui "Are you sure you want to exit?" [No, Yes] >>>= \case
+      dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
         Yes -> exit gui
         No -> continue
   where

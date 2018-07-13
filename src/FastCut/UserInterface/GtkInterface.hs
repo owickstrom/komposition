@@ -176,11 +176,12 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
 
   beep _ = iliftIO (runUI Gdk.beep)
 
-  dialog n message choices =
+  dialog n title message choices =
     FSM.get n >>>= \s -> iliftIO $ do
     response <- newEmptyMVar
     runUI $ do
       d <- Gtk.new Gtk.Dialog []
+      Gtk.windowSetTitle d title
       Gtk.windowSetTransientFor d (Just (window s))
       Gtk.windowSetModal d True
       forM_ choices $ \choice ->
