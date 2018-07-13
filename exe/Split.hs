@@ -1,7 +1,8 @@
 module Main where
 
+import           FastCut.Prelude
+
 import           FastCut.Video.FFmpeg
-import           System.Environment
 
 main :: IO ()
 main = do
@@ -9,4 +10,4 @@ main = do
   args <- getArgs
   case args of
     [input, output] -> split input output
-    _               -> fail "Usage: fastcut-split INPUT OUTPUT"
+    _               -> putStrLn "Usage: fastcut-split INPUT OUTPUT"

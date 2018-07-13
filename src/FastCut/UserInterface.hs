@@ -27,19 +27,16 @@ data Mode
   = TimelineMode
   | LibraryMode
   | ImportMode
-  | ExitingMode
 
 data SMode m where
   STimelineMode :: SMode TimelineMode
   SLibraryMode :: SMode LibraryMode
   SImportMode :: SMode ImportMode
-  SExitingMode :: SMode ExitingMode
 
 class ReturnsToTimeline (mode :: Mode)
 
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
-instance ReturnsToTimeline ExitingMode
 
 data AppendCommand
   = AppendClip
@@ -49,8 +46,6 @@ data AppendCommand
 
 data Command mode where
   Cancel :: Command mode
-
-  ConfirmExit :: Command ExitingMode
 
   FocusCommand :: FocusCommand -> Command TimelineMode
   AppendCommand :: AppendCommand -> Command TimelineMode
@@ -68,6 +63,9 @@ data Event mode where
   ImportClicked :: Event ImportMode
 
 type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
+
+class Enum c => DialogChoice c where
+  toButtonLabel :: c -> Text
 
 class MonadFSM m =>
       UserInterface m where
@@ -103,5 +101,10 @@ class MonadFSM m =>
     :: Name n
     -> Actions m '[ n := Remain (State m t)] r (Event t)
   beep :: Name n -> Actions m '[] r ()
-  enterConfirmExit :: Name n -> Actions m '[ n := State m s !--> State m ExitingMode ] r ()
+  dialog
+    :: DialogChoice c
+    => Name n
+    -> Text
+    -> [c]
+    -> Actions m '[ n := Remain (State m t)] r c
   exit :: Name n -> Actions m '[ n !- State m s] r ()

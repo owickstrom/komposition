@@ -1,13 +1,14 @@
 #+TITLE: FastCut Backlog
 
-* 0.1.0 [2/8]
+* 0.1.0 [4/8]
   - [X] Timeline UI
   - [X] Basic library view
   - [ ] Timeline auto-scroll
-  - [ ] Consistent single theme
+  - [X] Consistent single theme
   - [ ] Import and auto-split video
   - [ ] Import and auto-split audio
-  - [ ] Sequence and parallel structure of limited depth
+  - [X] Sequence and parallel structure of limited depth
+  - [X] Support for key and widget events
   - Commands [1/4]
     - [X] Append
     - [ ] Prepend

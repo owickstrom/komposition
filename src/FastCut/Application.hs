@@ -1,37 +1,39 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE ExplicitForAll    #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds         #-}
-{-# LANGUAGE RebindableSyntax  #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLabels      #-}
+{-# LANGUAGE OverloadedLists       #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RebindableSyntax      #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 module FastCut.Application where
 
-import           FastCut.Prelude hiding ((>>), (>>=), State, cancel)
+import           FastCut.Prelude             hiding (State, cancel, (>>), (>>=))
 
 import           Control.Lens
-import           Data.String (fromString)
-import           Data.Row.Records hiding  (map)
-import           GHC.Exts                 (fromListN)
+import           Data.Row.Records            hiding (map)
+import           Data.String                 (fromString)
+import           GHC.Exts                    (fromListN)
 import           Motor.FSM
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
-import           FastCut.Focus
-import           FastCut.KeyMap
-import           FastCut.Project
 import           FastCut.Composition
 import           FastCut.Composition.Focused
 import           FastCut.Composition.Insert
+import           FastCut.Focus
+import           FastCut.KeyMap
+import           FastCut.Project
 import           FastCut.UserInterface
 
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
@@ -66,10 +68,6 @@ keymaps =
       ]
     SImportMode ->
       [ ([KeyChar 'q'], Mapping Cancel)
-      ]
-    SExitingMode ->
-      [ ([KeyChar 'y'], Mapping ConfirmExit)
-      , ([KeyChar 'n'], Mapping Cancel)
       ]
 
 focusClip :: Int -> [Clip a mt] -> [Clip Focused mt]
@@ -151,24 +149,35 @@ selectClipAndAppend gui project focus' mediaType =
       SVideo -> InsertVideoPart (Clip clip)
       SAudio -> InsertAudioPart (Clip clip)
 
+type SplitScenes = Bool
+
+data ImportFileForm = ImportFileForm
+  { selectedFile :: Maybe FilePath
+  , splitScenes  :: SplitScenes
+  }
+
 importFile ::
   Name n
   -> Project
   -> Focus ft
-  -> ThroughMode TimelineMode ImportMode n (Maybe FilePath)
+  -> ThroughMode TimelineMode ImportMode n (Maybe (FilePath, SplitScenes))
 importFile gui project focus' = do
   enterImport gui
-  f <- awaitImportClick Nothing
+  f <-
+    awaitFileToImport
+      ImportFileForm {selectedFile = Nothing, splitScenes = False}
   returnToTimeline gui project focus'
   ireturn f
   where
-    awaitImportClick mf = do
+    awaitFileToImport mf = do
       cmd <- nextEvent gui
       case (cmd, mf) of
         (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
-        (ImportClicked, Just file) -> ireturn (Just file)
-        (ImportClicked, Nothing) -> awaitImportClick Nothing
-        (ImportFileSelected file, _) -> awaitImportClick (Just file)
+        (ImportClicked, ImportFileForm {selectedFile = Just file, ..}) ->
+          ireturn (Just (file, splitScenes))
+        (ImportClicked, form) -> awaitFileToImport form
+        (ImportFileSelected file, form) ->
+          awaitFileToImport (form {selectedFile = Just file})
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt =
@@ -217,6 +226,16 @@ append gui project focus' cmd =
   where
     continue = timelineMode gui focus' project
 
+data Confirmation
+  = Yes
+  | No
+  deriving (Show, Eq, Enum)
+
+instance DialogChoice Confirmation where
+  toButtonLabel = \case
+    Yes -> "Yes"
+    No -> "No"
+
 timelineMode ::
      (UserInterface m, IxMonadIO m)
   => Name n
@@ -235,13 +254,15 @@ timelineMode gui focus' project = do
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
-        Just file -> do
-          iliftIO (putStrLn ("Importing file: " <> file))
+        Just (file, splitScenes) -> do
+          iliftIO (putStrLn ("Importing file '" <> file <> "' with split scenes: " <>  show splitScenes))
           continue
         Nothing -> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->
-      gui `confirmExitOr` (returnToTimeline gui project focus' >>> continue)
+      dialog gui "Are you sure you want to exit?" [No, Yes] >>>= \case
+        Yes -> exit gui
+        No -> continue
   where
     continue = timelineMode gui focus' project
     printUnexpectedFocusError err cmd =
@@ -252,18 +273,6 @@ timelineMode gui focus' project = do
                "Error: could not handle focus modification %s\n"
                (show cmd :: Text))
         _ -> ireturn ()
-
-confirmExitOr
-  :: (UserInterface m, IxMonadIO m)
-  => Name n
-  -> m (n .== State m ExitingMode) Empty ()
-  -> m (n .== State m TimelineMode) Empty ()
-confirmExitOr gui cancel = do
-  enterConfirmExit gui
-  nextEvent gui >>>= \(CommandKeyMappedEvent cmd) ->
-    case cmd of
-      ConfirmExit -> exit gui
-      Cancel -> cancel
 
 fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
 fastcut project = do

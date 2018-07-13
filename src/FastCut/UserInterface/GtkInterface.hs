@@ -39,7 +39,6 @@ import           Motor.FSM                                        as FSM
 import           Control.Monad.Indexed.IO
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.EventListener
-import           FastCut.UserInterface.GtkInterface.ExitingView
 import           FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
@@ -173,12 +172,28 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   enterImport n =
     switchView' n importView SImportMode
 
-  enterConfirmExit n =
-    switchView' n exitingView SExitingMode
-
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 
   beep _ = iliftIO (runUI Gdk.beep)
+
+  dialog n message choices =
+    FSM.get n >>>= \s -> iliftIO $ do
+    response <- newEmptyMVar
+    runUI $ do
+      d <- Gtk.new Gtk.Dialog []
+      Gtk.windowSetTransientFor d (Just (window s))
+      Gtk.windowSetModal d True
+      forM_ choices $ \choice ->
+        void (Gtk.dialogAddButton d (toButtonLabel choice) (fromIntegral (fromEnum choice)))
+      content <- Gtk.dialogGetContentArea d
+      label <- Gtk.new Gtk.Label []
+      Gtk.labelSetLabel label message
+      Gtk.boxPackStart content label True True 10
+      Gtk.widgetShowAll content
+      r <- Gtk.dialogRun d
+      Gtk.widgetDestroy d
+      putMVar response (toEnum (fromIntegral r))
+    takeMVar response
 
   exit n =
     (FSM.get n >>>= iliftIO . unsubscribeView)
