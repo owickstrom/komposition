@@ -10,8 +10,10 @@ module FastCut.Focus.Parent where
 import           FastCut.Prelude
 
 import           Control.Lens        hiding (below)
+
 import           FastCut.Composition
 import           FastCut.Focus
+import           FastCut.MediaType
 
 data ParentTraversal m a = ParentTraversal
   { onTimeline :: Int -> Composition a TimelineType  -> m (Composition a TimelineType)

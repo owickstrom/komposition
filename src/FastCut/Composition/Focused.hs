@@ -8,6 +8,7 @@ import           FastCut.Prelude
 
 import           FastCut.Composition
 import           FastCut.Focus
+import           FastCut.MediaType
 
 data Focused
   = Focused

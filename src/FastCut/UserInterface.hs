@@ -13,14 +13,13 @@
 
 module FastCut.UserInterface where
 
-import           FastCut.Prelude             hiding (State)
+import           FastCut.Prelude hiding (State)
 
 import           Motor.FSM
 
-import           FastCut.Composition
-import           FastCut.Composition.Focused
 import           FastCut.Focus
 import           FastCut.KeyMap
+import           FastCut.Library
 import           FastCut.Project
 
 data Mode
@@ -89,10 +88,13 @@ class MonadFSM m =>
     -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n
+    -> [Asset mt]
+    -> Int
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
   updateLibrary
     :: Name n
-    -> [Clip Focused mt]
+    -> [Asset mt]
+    -> Int
     -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
   enterImport
     :: Name n

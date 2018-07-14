@@ -18,21 +18,22 @@
 {-# LANGUAGE TypeOperators         #-}
 module FastCut.Application where
 
-import           FastCut.Prelude             hiding (State, cancel, (>>), (>>=))
+import           FastCut.Prelude            hiding (State, cancel, (>>), (>>=))
 
 import           Control.Lens
-import           Data.Row.Records            hiding (map)
-import           Data.String                 (fromString)
-import           GHC.Exts                    (fromListN)
+import           Data.Row.Records           hiding (map)
+import           Data.String                (fromString)
+import           GHC.Exts                   (fromListN)
 import           Motor.FSM
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
 import           FastCut.Composition
-import           FastCut.Composition.Focused
 import           FastCut.Composition.Insert
 import           FastCut.Focus
 import           FastCut.KeyMap
+import           FastCut.Library
+import           FastCut.MediaType
 import           FastCut.Project
 import           FastCut.UserInterface
 
@@ -70,31 +71,25 @@ keymaps =
       [ ([KeyChar 'q'], Mapping Cancel)
       ]
 
-focusClip :: Int -> [Clip a mt] -> [Clip Focused mt]
-focusClip i clips =
-  clips
-  & map (setClipAnnotation Blurred)
-  & ix i %~ setClipAnnotation Focused
-
-selectClipFromList ::
+selectAssetFromList ::
      (UserInterface m, IxMonadIO m, Modify n (State m LibraryMode) r ~ r)
   => Name n
-  -> [Clip () mt]
+  -> [Asset mt]
   -> Int
-  -> Actions m '[ n := Remain (State m LibraryMode)] r (Maybe (Clip () mt))
-selectClipFromList gui clips n = do
-  updateLibrary gui (focusClip n clips)
+  -> Actions m '[ n := Remain (State m LibraryMode)] r (Maybe (Asset mt))
+selectAssetFromList gui assets n = do
+  updateLibrary gui assets n
   nextEvent gui >>>= \case
     CommandKeyMappedEvent Cancel -> ireturn Nothing
-    CommandKeyMappedEvent LibrarySelect -> ireturn (clips ^? element n)
+    CommandKeyMappedEvent LibrarySelect -> ireturn (assets ^? element n)
     CommandKeyMappedEvent LibraryUp
-      | n > 0 -> selectClipFromList gui clips (pred n)
+      | n > 0 -> selectAssetFromList gui assets (pred n)
       | otherwise -> continue
     CommandKeyMappedEvent LibraryDown
-      | n < length clips - 1 -> selectClipFromList gui clips (succ n)
+      | n < length assets - 1 -> selectAssetFromList gui assets (succ n)
       | otherwise -> continue
   where
-    continue = selectClipFromList gui clips n
+    continue = selectAssetFromList gui assets n
 
 -- | Convenient type for actions that transition from one mode
 -- into another mode, doing some user interactions, and returning back
@@ -113,41 +108,42 @@ type ThroughMode base through n a
      )
    => m i o a
 
-selectClip ::
+selectAsset ::
   Name n
   -> Project
   -> Focus ft
   -> SMediaType mt
-  -> ThroughMode TimelineMode LibraryMode n (Maybe (Clip () mt))
-selectClip gui project focus' mediaType = do
-  enterLibrary gui
+  -> ThroughMode TimelineMode LibraryMode n (Maybe (Asset mt))
+selectAsset gui project focus' mediaType =
   case mediaType of
     SVideo -> do
-      clip <- selectClipFromList gui (project ^. library . videoClips) 0
+      enterLibrary gui (project ^. library . videoAssets) 0
+      asset' <- selectAssetFromList gui (project ^. library . videoAssets) 0
       returnToTimeline gui project focus'
-      ireturn clip
+      ireturn asset'
     SAudio -> do
-      clip <- selectClipFromList gui (project ^. library . audioClips) 0
+      enterLibrary gui (project ^. library . audioAssets) 0
+      asset' <- selectAssetFromList gui (project ^. library . audioAssets) 0
       returnToTimeline gui project focus'
-      ireturn clip
+      ireturn asset'
 
-selectClipAndAppend ::
+selectAssetAndAppend ::
   Name n
   -> Project
   -> Focus ft
   -> SMediaType mt
   -> ThroughMode TimelineMode LibraryMode n Project
-selectClipAndAppend gui project focus' mediaType =
-  selectClip gui project focus' mediaType >>= \case
-    Just clip ->
+selectAssetAndAppend gui project focus' mediaType =
+  selectAsset gui project focus' mediaType >>= \case
+    Just asset' ->
       project
-      & timeline %~ insert_ focus' (insertionOf clip) RightOf
+      & timeline %~ insert_ focus' (insertionOf asset') RightOf
       & ireturn
     Nothing -> ireturn project
   where
-    insertionOf clip = case mediaType of
-      SVideo -> InsertVideoPart (Clip clip)
-      SAudio -> InsertAudioPart (Clip clip)
+    insertionOf a = case mediaType of
+      SVideo -> InsertVideoPart (Clip () a)
+      SAudio -> InsertAudioPart (Clip () a)
 
 type SplitScenes = Bool
 
@@ -197,20 +193,21 @@ append ::
 append gui project focus' cmd =
   case (cmd, atFocus focus' (project ^. timeline)) of
     (AppendComposition, Just (FocusedSequence _)) ->
-      selectClip gui project focus' SVideo >>= \case
-        Just clip ->
-          project &
-          timeline %~
+      selectAsset gui project focus' SVideo >>= \case
+        Just asset' ->
+          project & timeline %~
           insert_
             focus'
-            (InsertParallel (Parallel () [Clip clip] [Gap () (durationOf clip)]))
+            (InsertParallel (Parallel () [Clip () asset'] []))
             RightOf &
           timelineMode gui focus'
         Nothing -> continue
     (AppendClip, Just (FocusedVideoPart _)) ->
-      selectClipAndAppend gui project focus' SVideo >>>= timelineMode gui focus'
+      selectAssetAndAppend gui project focus' SVideo >>>=
+      timelineMode gui focus'
     (AppendClip, Just (FocusedAudioPart _)) ->
-      selectClipAndAppend gui project focus' SAudio >>>= timelineMode gui focus'
+      selectAssetAndAppend gui project focus' SAudio >>>=
+      timelineMode gui focus'
     (AppendGap, Just _) ->
       project & timeline %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf &
       timelineMode gui focus'

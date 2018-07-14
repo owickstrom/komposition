@@ -15,23 +15,7 @@ import           Control.Lens
 import           Data.Text           (Text)
 
 import           FastCut.Composition
-
-data Library = Library
-  { _videoClips :: [Clip () Video]
-  , _audioClips :: [Clip () Audio]
-  } deriving (Eq, Show)
-
-makeLenses ''Library
-
-instance Semigroup Library where
-  l1 <> l2 =
-    Library
-    { _videoClips = _videoClips l1 <> _videoClips l2
-    , _audioClips = _audioClips l1 <> _audioClips l2
-    }
-
-instance Monoid Library where
-  mempty = Library mempty mempty
+import           FastCut.Library
 
 data Project = Project
   { _projectName :: Text

@@ -10,6 +10,7 @@ import           FastCut.Prelude
 import           FastCut.Composition
 import           FastCut.Focus
 import           FastCut.Focus.Parent
+import           FastCut.MediaType
 
 insertAt :: Int -> a -> [a] -> [a]
 insertAt i x xs =

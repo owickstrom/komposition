@@ -8,48 +8,22 @@
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 module FastCut.Composition where
 
 import           FastCut.Prelude
 
-import           Data.Foldable   (foldl')
-import           Data.Text       (Text)
-import           Data.Time.Clock (NominalDiffTime)
-
-type Duration = NominalDiffTime
-
-data ClipMetadata = ClipMetadata
-  { clipName :: Text
-  , path     :: FilePath
-  , duration :: Duration
-  } deriving (Eq, Show)
-
-data MediaType = Video | Audio
-  deriving (Eq, Show)
-
-data SMediaType (mt :: MediaType) where
-  SVideo :: SMediaType Video
-  SAudio :: SMediaType Audio
+import           FastCut.Duration
+import           FastCut.Library
+import           FastCut.MediaType
 
 type family InverseMediaType (t :: MediaType) :: MediaType where
   InverseMediaType Video = Audio
   InverseMediaType Audio = Video
 
-data Clip a (mt :: MediaType)  where
-  VideoClip :: a -> ClipMetadata -> Clip a Video
-  AudioClip :: a -> ClipMetadata -> Clip a Audio
-
-deriving instance Eq a => Eq (Clip a t)
-deriving instance Show a => Show (Clip a t)
-
-setClipAnnotation :: a -> Clip b t -> Clip a t
-setClipAnnotation a = \case
-  VideoClip _ m -> VideoClip a m
-  AudioClip _ m -> AudioClip a m
-
 data CompositionPart a (mt :: MediaType) where
-  Clip :: Clip a mt -> CompositionPart a mt
+  Clip :: a -> Asset mt -> CompositionPart a mt
   Gap :: a -> Duration -> CompositionPart a mt
 
 deriving instance Eq a => Eq (CompositionPart a t)
@@ -57,25 +31,13 @@ deriving instance Show a => Show (CompositionPart a t)
 
 setPartAnnotation :: a -> CompositionPart b t -> CompositionPart a t
 setPartAnnotation a = \case
-  Clip (VideoClip _ m) -> Clip (VideoClip a m)
-  Clip (AudioClip _ m) -> Clip (AudioClip a m)
+  Clip _ x -> Clip a x
   Gap _ d -> Gap a d
-
-class HasDuration t where
-  durationOf :: t -> Duration
-
-instance HasDuration (Clip a t) where
-  durationOf = \case
-    VideoClip _ m -> duration m
-    AudioClip _ m -> duration m
 
 instance HasDuration (CompositionPart a t) where
   durationOf = \case
-    Clip c -> durationOf c
+    Clip _ a -> durationOf a
     Gap _ d -> d
-
-instance HasDuration t => HasDuration [t] where
-  durationOf = foldl' (\acc c -> acc + durationOf c) 0
 
 data CompositionType = TimelineType | SequenceType | ParallelType
 
@@ -97,7 +59,7 @@ setCompositionAnnotation a = \case
 deriving instance Eq a => Eq (Composition a t)
 deriving instance Show a => Show (Composition a t)
 
-single :: Clip () t -> Composition () ParallelType
-single c = case c of
-  VideoClip{} -> Parallel () [Clip c] []
-  AudioClip{} -> Parallel () [] [Clip c]
+single :: Asset t -> Composition () ParallelType
+single = \case
+  v@VideoAsset{} -> Parallel () [Clip () v] []
+  a@AudioAsset{} -> Parallel () [] [Clip () a]

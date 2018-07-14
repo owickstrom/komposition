@@ -15,29 +15,24 @@ import           FastCut.Prelude                         hiding (State, on)
 import           Data.Text                               (Text)
 import           GI.Gtk.Declarative                      as Gtk
 
-import           FastCut.Composition
-import           FastCut.Composition.Focused             (Focused (..))
+import           FastCut.Library
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.View
 
-renderClip :: Clip Focused mt -> BoxChild
-renderClip clip =
+renderAsset :: Int -> Asset mt -> Int -> BoxChild
+renderAsset focusedIdx clip idx =
   BoxChild False False 0 $
   case clip of
-    VideoClip focused m ->
-      node Label [#label := clipName m, classes ["clip", focusedClass focused]]
-    AudioClip focused m ->
-      node Label [#label := clipName m, classes ["clip", focusedClass focused]]
+    VideoAsset m ->
+      node Label [#label := clipName m, classes ["clip", focusedClass]]
+    AudioAsset m ->
+      node Label [#label := clipName m, classes ["clip", focusedClass]]
   where
-    focusedClass :: Focused -> Text
-    focusedClass =
-      \case
-        Focused -> "focused"
-        TransitivelyFocused -> "transitively-focused"
-        Blurred -> "blurred"
+    focusedClass ::  Text
+    focusedClass = if focusedIdx == idx then "focused" else "blurred"
 
-libraryView :: [Clip Focused mt] -> IO (View LibraryMode)
-libraryView clips =
+libraryView :: [Asset mt] -> Int -> IO (View LibraryMode)
+libraryView assets focusedIdx =
   viewWithEvents $ \_ ->
   container
     ScrolledWindow
@@ -52,9 +47,14 @@ libraryView clips =
            False
            0
            (node Label [#label := "Library", classes ["heading"]])
-       , BoxChild True True 0 $
+       , BoxChild True True 0 assetList
+       ])
+  where
+    assetList
+      | null assets =
+        node Label [#label := "You have no assets imported."]
+      | otherwise =
          container
            Box
            [#orientation := OrientationVertical, classes ["clips"]]
-           (map renderClip clips)
-       ])
+           (zipWith (renderAsset focusedIdx) assets [0..])

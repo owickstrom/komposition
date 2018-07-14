@@ -19,6 +19,7 @@ import           GI.Gtk.Declarative                      as Gtk
 
 import           FastCut.Composition
 import           FastCut.Composition.Focused
+import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.Project
 import           FastCut.UserInterface
@@ -33,23 +34,22 @@ focusedClass = \case
   TransitivelyFocused -> "transitively-focused"
   Blurred             -> "blurred"
 
-renderClip' :: Focused -> ClipMetadata -> Markup
-renderClip' focused metadata =
+renderClip' :: Focused -> Duration -> Markup
+renderClip' focused duration =
   container
     Box
     [ classes ["clip", focusedClass focused]
     , #orientation := OrientationHorizontal
-    , #widthRequest := widthFromDuration (duration metadata)
+    , #widthRequest := widthFromDuration duration
     ]
     [ BoxChild False False 0 $
-      node Label [#label := clipName metadata]
+      node Label []
     ]
 
 renderPart :: CompositionPart Focused t -> Markup
 renderPart =
   \case
-    Clip (VideoClip focused metadata) -> renderClip' focused metadata
-    Clip (AudioClip focused metadata) -> renderClip' focused metadata
+    Clip focused asset' -> renderClip' focused (durationOf asset')
     Gap focused duration' ->
       container
         Box

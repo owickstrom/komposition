@@ -13,6 +13,8 @@ import           FastCut.Prelude
 import           Control.Monad.Except (throwError)
 
 import           FastCut.Composition
+import           FastCut.Duration
+import           FastCut.MediaType
 
 data FocusType
   = SequenceFocusType
