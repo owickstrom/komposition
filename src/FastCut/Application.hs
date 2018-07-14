@@ -251,9 +251,12 @@ timelineMode gui focus' project = do
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
-        Just (file, splitScenes) -> do
-          iliftIO (putStrLn ("Importing file '" <> file <> "' with split scenes: " <>  show splitScenes))
-          continue
+        Just (filepath, _splitScenes) ->
+          timelineMode
+            gui
+            focus'
+            (project & library . videoAssets %~
+             (<> [VideoAsset (AssetMetadata filepath 10)]))
         Nothing -> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->

@@ -38,11 +38,11 @@ initialProject =
   , _library = Library [video1s, video1s] [audio1s, audio5s, audio8s]
   }
   where
-    video1s = VideoAsset (AssetMetadata "video-1s" "/tmp/1.mp4" 1)
-    video10s = VideoAsset (AssetMetadata "video-10s" "/tmp/10.mp4" 10)
-    audio1s = AudioAsset (AssetMetadata "audio-1s" "/tmp/1.m4a" 1)
-    audio5s = AudioAsset (AssetMetadata "audio-5s" "/tmp/5.m4a" 5)
-    audio8s = AudioAsset (AssetMetadata "audio-8s" "/tmp/8.m4a" 8)
+    video1s = VideoAsset (AssetMetadata "1.mp4" 1)
+    video10s = VideoAsset (AssetMetadata "10.mp4" 10)
+    audio1s = AudioAsset (AssetMetadata "1.m4a" 1)
+    audio5s = AudioAsset (AssetMetadata "5.m4a" 5)
+    audio8s = AudioAsset (AssetMetadata "8.m4a" 8)
     gap1s = Gap () 1
     gap3s = Gap () 3
 

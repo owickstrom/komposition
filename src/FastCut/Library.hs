@@ -14,8 +14,7 @@ import           FastCut.Duration
 import           FastCut.MediaType
 
 data AssetMetadata = AssetMetadata
-  { _clipName :: Text
-  , _path     :: FilePath
+  { _path     :: FilePath
   , _duration :: Duration
   } deriving (Eq, Show)
 
