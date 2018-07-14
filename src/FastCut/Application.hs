@@ -258,8 +258,9 @@ timelineMode gui focus' project = do
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->
       dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
-        Yes -> exit gui
-        No -> continue
+        Just Yes -> exit gui
+        Just No -> continue
+        Nothing -> continue
   where
     continue = timelineMode gui focus' project
     printUnexpectedFocusError err cmd =

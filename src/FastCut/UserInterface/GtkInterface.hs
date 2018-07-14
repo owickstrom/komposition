@@ -191,9 +191,10 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
       Gtk.labelSetLabel label message
       Gtk.boxPackStart content label True True 10
       Gtk.widgetShowAll content
-      r <- Gtk.dialogRun d
+      r <- Gtk.dialogRun d >>= \case
+        r | r < 0 -> putMVar response Nothing
+        r -> putMVar response (Just (toEnum (fromIntegral r)))
       Gtk.widgetDestroy d
-      putMVar response (toEnum (fromIntegral r))
     takeMVar response
 
   exit n =

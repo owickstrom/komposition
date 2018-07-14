@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -12,6 +11,7 @@ module FastCut.UserInterface.GtkInterface.LibraryView
 
 import           FastCut.Prelude                         hiding (State, on)
 
+import           Control.Lens
 import           Data.Text                               (Text)
 import           GI.Gtk.Declarative                      as Gtk
 
@@ -20,16 +20,19 @@ import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.View
 
 renderAsset :: Int -> Asset mt -> Int -> BoxChild
-renderAsset focusedIdx clip idx =
+renderAsset focusedIdx asset' idx =
   BoxChild False False 0 $
-  case clip of
-    VideoAsset m ->
-      node Label [#label := clipName m, classes ["clip", focusedClass]]
-    AudioAsset m ->
-      node Label [#label := clipName m, classes ["clip", focusedClass]]
+  node
+    Label
+    [ #label := toS (asset' ^. assetMetadata . path)
+    , classes ["clip", focusedClass]
+    ]
   where
-    focusedClass ::  Text
-    focusedClass = if focusedIdx == idx then "focused" else "blurred"
+    focusedClass :: Text
+    focusedClass =
+      if focusedIdx == idx
+        then "focused"
+        else "blurred"
 
 libraryView :: [Asset mt] -> Int -> IO (View LibraryMode)
 libraryView assets focusedIdx =

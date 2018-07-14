@@ -10,7 +10,7 @@ module FastCut.UserInterface.GtkInterface.TimelineView
   ( timelineView
   ) where
 
-import           FastCut.Prelude
+import           FastCut.Prelude                         hiding (on)
 
 import           Control.Lens
 import           Data.Int                                (Int32)
@@ -21,6 +21,7 @@ import           FastCut.Composition
 import           FastCut.Composition.Focused
 import           FastCut.Duration
 import           FastCut.Focus
+import           FastCut.Library
 import           FastCut.Project
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.View
@@ -34,13 +35,14 @@ focusedClass = \case
   TransitivelyFocused -> "transitively-focused"
   Blurred             -> "blurred"
 
-renderClip' :: Focused -> Duration -> Markup
-renderClip' focused duration =
+renderClipAsset :: Focused -> Asset mt -> Markup
+renderClipAsset focused asset' =
   container
     Box
     [ classes ["clip", focusedClass focused]
     , #orientation := OrientationHorizontal
-    , #widthRequest := widthFromDuration duration
+    , #widthRequest := widthFromDuration (durationOf asset')
+    , #tooltipText := toS (asset' ^. assetMetadata . path)
     ]
     [ BoxChild False False 0 $
       node Label []
@@ -49,7 +51,7 @@ renderClip' focused duration =
 renderPart :: CompositionPart Focused t -> Markup
 renderPart =
   \case
-    Clip focused asset' -> renderClip' focused (durationOf asset')
+    Clip focused asset' -> renderClipAsset focused asset'
     Gap focused duration' ->
       container
         Box

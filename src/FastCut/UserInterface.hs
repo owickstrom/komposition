@@ -109,5 +109,5 @@ class MonadFSM m =>
     -> Text -- ^ Dialog window title.
     -> Text -- ^ Dialog message.
     -> [c] -- ^ Choices of the dialog, rendered as buttons.
-    -> Actions m '[ n := Remain (State m t)] r c
+    -> Actions m '[ n := Remain (State m t)] r (Maybe c)
   exit :: Name n -> Actions m '[ n !- State m s] r ()
