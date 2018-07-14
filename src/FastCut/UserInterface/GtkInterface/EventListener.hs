@@ -65,7 +65,7 @@ applyKeyMap topKeyMap keyPresses = do
         combo <- readChan (events keyPresses)
         case HashMap.lookup combo km of
           Just (SequencedMappings km') -> go km'
-          Just (Mapping x)             -> writeChan xs x
-          Nothing                      -> go (KeyMap km)
+          Just (Mapping x)             -> writeChan xs x >> go topKeyMap
+          Nothing                      -> go topKeyMap
   tid <- forkIO (go topKeyMap)
   pure EventListener {events = xs, unsubscribe = killThread tid}
