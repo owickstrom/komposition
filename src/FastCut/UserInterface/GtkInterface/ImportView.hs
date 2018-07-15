@@ -23,7 +23,7 @@ importView =
       Box
       []
       [ BoxChild True True 0 $ node Label [#label := "Import Asset"]
-      , BoxChild True True 0 $
+      , BoxChild False False 0 $
         node
           FileChooserButton
           [ on
@@ -31,7 +31,16 @@ importView =
               (maybe (pure ()) (writeChan events . ImportFileSelected) <=<
                Gtk.fileChooserGetFilename)
           ]
-      , BoxChild True True 0 $
+      , BoxChild False False 10 $
+        node
+          CheckButton
+          [ #label := "Automatically split video"
+          , on
+              #toggled
+              (Gtk.toggleButtonGetActive >=>
+               writeChan events . ImportAutoSplitSet)
+          ]
+      , BoxChild False False 10 $
         node
           Button
           [ #label := "Import"

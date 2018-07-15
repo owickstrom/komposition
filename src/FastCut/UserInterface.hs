@@ -59,6 +59,7 @@ data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
 
   ImportFileSelected :: FilePath -> Event ImportMode
+  ImportAutoSplitSet :: Bool -> Event ImportMode
   ImportClicked :: Event ImportMode
 
 type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)

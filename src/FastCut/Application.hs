@@ -145,23 +145,21 @@ selectAssetAndAppend gui project focus' mediaType =
       SVideo -> InsertVideoPart (Clip () a)
       SAudio -> InsertAudioPart (Clip () a)
 
-type SplitScenes = Bool
-
 data ImportFileForm = ImportFileForm
   { selectedFile :: Maybe FilePath
-  , splitScenes  :: SplitScenes
+  , autoSplit    :: Bool
   }
 
 importFile ::
   Name n
   -> Project
   -> Focus ft
-  -> ThroughMode TimelineMode ImportMode n (Maybe (FilePath, SplitScenes))
+  -> ThroughMode TimelineMode ImportMode n (Maybe (FilePath, Bool))
 importFile gui project focus' = do
   enterImport gui
   f <-
     awaitFileToImport
-      ImportFileForm {selectedFile = Nothing, splitScenes = False}
+      ImportFileForm {selectedFile = Nothing, autoSplit = False}
   returnToTimeline gui project focus'
   ireturn f
   where
@@ -170,10 +168,12 @@ importFile gui project focus' = do
       case (cmd, mf) of
         (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
         (ImportClicked, ImportFileForm {selectedFile = Just file, ..}) ->
-          ireturn (Just (file, splitScenes))
+          ireturn (Just (file, autoSplit))
         (ImportClicked, form) -> awaitFileToImport form
         (ImportFileSelected file, form) ->
           awaitFileToImport (form {selectedFile = Just file})
+        (ImportAutoSplitSet s, form) ->
+          awaitFileToImport (form { autoSplit = s })
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt =
@@ -251,7 +251,7 @@ timelineMode gui focus' project = do
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= \case
-        Just (filepath, _splitScenes) ->
+        Just (filepath, _autoSplit) ->
           timelineMode
             gui
             focus'
