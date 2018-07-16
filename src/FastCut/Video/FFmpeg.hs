@@ -116,8 +116,9 @@ equalFrame eps minEqPct f1 f2 =
     total = A.totalElem (A.size f1)
     pct = fromIntegral sumEq / fromIntegral total
 
-equalFrameCountThreshold :: Int
-equalFrameCountThreshold = 25
+-- | Time (in seconds) of equal frames before going into 'Still'.
+equalFrameTimeThreshold :: Time
+equalFrameTimeThreshold = 0.5
 
 data Classified f
   = Moving f
@@ -130,9 +131,9 @@ unClassified = \case
   Still f -> f
 
 data ClassifierState
-  = InMoving { equalFrames       :: !(V.Vector (Timed RGB8Frame))
-             }
-  | InStill { stillFrame :: !(Timed RGB8Frame) }
+  = InMoving { equalFrames :: !(V.Vector (Timed RGB8Frame)) }
+  | InStill { stillFrame     :: !(Timed RGB8Frame)
+            , nonEqualFrames :: !(V.Vector (Timed RGB8Frame)) }
 
 yield' :: Monad m => b -> Pipes.StateT (Producer a m x) (Producer b m) ()
 yield' = lift . Pipes.yield
@@ -155,11 +156,11 @@ classifyMovement =
        (state',) <$> draw' >>= \case
         (InMoving {..}, Just frame)
           | equalFrame 1 0.999 (untimed frame) (untimed (VG.head equalFrames)) ->
-            if VG.length equalFrames >= equalFrameCountThreshold
+            if time frame - time (VG.head equalFrames) >= equalFrameTimeThreshold
               then do
                 VG.mapM_ (yield' . Still) equalFrames
                 yield' (Still frame)
-                go (InStill frame)
+                go (InStill frame VG.empty)
               else go (InMoving (VG.snoc equalFrames frame))
           | otherwise -> do
             VG.mapM_ (yield' . Moving) equalFrames
@@ -168,7 +169,7 @@ classifyMovement =
         (InStill {..}, Just frame)
           | equalFrame 1 0.999 (untimed stillFrame) (untimed frame) -> do
             yield' (Still frame)
-            go (InStill stillFrame)
+            go (InStill stillFrame VG.empty)
           | otherwise -> go (InMoving (VG.singleton frame))
         (InStill {..}, Nothing) -> pure ()
 
