@@ -1,9 +1,9 @@
 { mkDerivation, async, base, bytestring, criterion, deepseq
 , directory, ffmpeg-light, filepath, gi-gdk, gi-glib, gi-gobject
 , gi-gtk, gi-gtk-declarative, gi-pango, hashable, haskell-gi
-, haskell-gi-base, indexed, JuicyPixels, lens, massiv, massiv-io
-, motor, mtl, parallel, pipes, pipes-parse, primitive, protolude
-, row-types, stdenv, tasty, tasty-discover, tasty-hspec
+, haskell-gi-base, indexed, JuicyPixels, lens, lifted-base, massiv
+, massiv-io, motor, mtl, parallel, pipes, pipes-parse, primitive
+, protolude, row-types, stdenv, tasty, tasty-discover, tasty-hspec
 , tasty-hunit, text, time, transformers, unordered-containers
 , vector
 }:
@@ -17,9 +17,9 @@ mkDerivation {
   libraryHaskellDepends = [
     async base deepseq directory ffmpeg-light filepath gi-gdk gi-glib
     gi-gobject gi-gtk gi-gtk-declarative gi-pango hashable haskell-gi
-    haskell-gi-base indexed JuicyPixels lens massiv massiv-io motor mtl
-    parallel pipes pipes-parse primitive protolude row-types text time
-    transformers unordered-containers vector
+    haskell-gi-base indexed JuicyPixels lens lifted-base massiv
+    massiv-io motor mtl parallel pipes pipes-parse primitive protolude
+    row-types text time transformers unordered-containers vector
   ];
   executableHaskellDepends = [
     base gi-gdk gi-glib gi-gobject gi-gtk gi-pango haskell-gi

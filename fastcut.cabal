@@ -39,6 +39,7 @@ library
                       , FastCut.UserInterface.GtkInterface.LibraryView
                       , FastCut.UserInterface.GtkInterface.TimelineView
                       , FastCut.Video.FFmpeg
+                      , FastCut.Video.Import
   build-depends:        base >=4.10 && <4.12
                       , async
                       , deepseq

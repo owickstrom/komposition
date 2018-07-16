@@ -1,19 +1,24 @@
-{-# LANGUAGE DeriveFunctor     #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 module FastCut.Video.FFmpeg where
 
-import           FastCut.Prelude
+import           FastCut.Prelude         hiding (catch)
 
 import           Codec.FFmpeg
 import           Codec.FFmpeg.Encode
 import           Codec.Picture           as CP
 import           Codec.Picture.Types     as CP
 import           Control.Monad.Primitive
-import           Data.Massiv.Array       as A
+import qualified Data.Massiv.Array       as A
 import           Data.Massiv.Array.IO    as A hiding (Image)
 import           Data.Maybe              (fromMaybe)
 import qualified Data.Vector             as V
@@ -28,20 +33,32 @@ import           System.FilePath
 import           System.IO               hiding (putStrLn)
 import           Text.Printf
 
+import           FastCut.Library
+import           FastCut.Video.Import
+
 initialize :: IO ()
 initialize = initFFmpeg
 
+-- | The type of frames returned by "Codec.FFmpeg", i.e. JuicyPixel
+-- images.
 type Frame = Image PixelRGB8
+
+-- | Video time is returned as a 'Double' by "Codec.FFmpeg".
 type Time = Double
+
+-- | We convert JuicyPixel images to Massiv arrays, as defined in the
+-- @massiv-io@ package, to do parallel comparison over arrays.
+type RGB8Frame = A.Array A.S A.Ix2 (A.Pixel RGB Word8)
 
 data Timed a = Timed
   { untimed :: a
   , time    :: Time
   } deriving (Functor)
 
-readVideoFile :: MonadIO m => FilePath -> Producer (Timed Frame) m ()
-readVideoFile path = do
-  (getFrame, cleanup) <- liftIO (imageReaderTime (File path))
+readVideoFile :: MonadIO m => FilePath -> Producer (Timed Frame) (ExceptT VideoImportError m) ()
+readVideoFile filePath = do
+  (getFrame, cleanup) <-
+    lift ((UnexpectedError filePath . toS) `withExceptT` imageReaderTimeT (File filePath))
   yieldNext getFrame cleanup
   where
     yieldNext ::
@@ -57,8 +74,6 @@ readVideoFile path = do
           yieldNext getFrame cleanup
         Nothing -> liftIO cleanup
 
-type RGB8Frame = A.Array A.S A.Ix2 (A.Pixel RGB Word8)
-
 toMassiv :: MonadIO m => Pipe (Timed Frame) (Timed RGB8Frame) m ()
 toMassiv =
   Pipes.map $ \(Timed f t) ->
@@ -68,14 +83,14 @@ toMassiv =
           & A.setComp A.Par
           & flip Timed t
 
-fromMassiv :: MonadIO m => Pipe (Timed RGB8Frame) (Timed Frame) m ()
+fromMassiv :: (MonadIO m) => Pipe (Timed RGB8Frame) (Timed Frame) m ()
 fromMassiv = Pipes.map (fmap A.toJPImageRGB8)
 
 
 writeVideoFile :: MonadIO m => FilePath -> Producer Frame m () -> m ()
-writeVideoFile path source = do
+writeVideoFile filePath source = do
   let ep = (defaultH264 800 450) { epFps = 25 }
-  writeFrame <- liftIO (imageWriter ep path)
+  writeFrame <- liftIO (imageWriter ep filePath)
   Pipes.runEffect $ Pipes.for source (liftIO . writeFrame . Just)
   liftIO (writeFrame Nothing)
 
@@ -107,7 +122,7 @@ equalFrameCountThreshold = 25
 data Classified f
   = Moving f
   | Still f
-  deriving (Eq)
+  deriving (Eq, Functor)
 
 unClassified :: Classified f -> f
 unClassified = \case
@@ -200,10 +215,53 @@ printProcessingInfo =
 split :: FilePath -> FilePath -> IO ()
 split src outDir = do
   createDirectoryIfMissing True outDir
-  classifyMovement (readVideoFile src >-> toMassiv)
+  res <- classifyMovement (readVideoFile src >-> toMassiv)
       >-> Pipes.tee (Pipes.map unClassified >-> printProcessingInfo)
       >-> colorClassifiedMovement
       >-> fromMassiv
       >-> dropTime
     & writeVideoFile (outDir </> "debug.mp4")
+    & runExceptT
   putStrLn ("" :: Text)
+  case res of
+    Left err -> putStrLn ("Failed to split video file: " <> show err :: Text)
+    Right () -> return ()
+
+newtype FFmpegImporterT m a = FFmpegImporterT
+  { runFFmpegImporterT :: m a
+  } deriving (Functor, Applicative, Monad, MonadIO)
+
+writeSplitVideoFiles :: MonadIO m => FilePath -> Producer (Classified Frame) m () -> m [FilePath]
+writeSplitVideoFiles outDir =
+  Pipes.foldM
+    go
+    (return (Left (), 1 :: Int, []))
+    (\(_, _, files) -> return (reverse files))
+  where
+    go (Left (), n, files) =
+      \case
+        (Still _) -> return (Left (), n, files)
+        (Moving f) -> do
+          let ep = (defaultH264 800 450) {epFps = 25}
+              filePath = outDir </> show n ++ ".mp4"
+          writeFrame <- liftIO (imageWriter ep filePath)
+          liftIO (writeFrame (Just f))
+          return (Right writeFrame, n, filePath : files)
+    go (Right writeFrame, n, files) =
+      \case
+        (Still _) -> do
+          liftIO (writeFrame Nothing)
+          return (Left (), succ n, files)
+        (Moving f) -> do
+          liftIO (writeFrame (Just f))
+          return (Right writeFrame, n, files)
+
+instance MonadIO m => MonadVideoImporter (FFmpegImporterT m) where
+  importVideoFileAutoSplit sourceFile outDir = do
+    liftIO (createDirectoryIfMissing True outDir)
+    classifyMovement (readVideoFile sourceFile >-> toMassiv)
+      >-> Pipes.map (fmap (fmap A.toJPImageRGB8))
+      >-> Pipes.map (fmap untimed)
+      & writeSplitVideoFiles outDir
+      & fmap (map (\p -> VideoAsset (AssetMetadata p 5)))
+      & runExceptT

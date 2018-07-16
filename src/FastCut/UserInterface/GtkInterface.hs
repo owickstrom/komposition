@@ -20,7 +20,7 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- | A declarative GTK implementation of the 'UserInterface' protocol.
-module FastCut.UserInterface.GtkInterface (run) where
+module FastCut.UserInterface.GtkInterface (withGtkUserInterface) where
 
 import           FastCut.Prelude                                  hiding (state)
 
@@ -202,10 +202,15 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     >>> iliftIO Gtk.mainQuit
     >>> delete n
 
-run :: FilePath -> GtkInterface (ReaderT Env IO) Empty Empty () -> IO ()
-run cssPath ui = do
+withGtkUserInterface ::
+     (MonadIO (t IO))
+  => FilePath
+  -> (forall a. t IO a -> IO a)
+  -> GtkInterface (ReaderT Env (t IO)) Empty Empty ()
+  -> IO ()
+withGtkUserInterface cssPath run ui = do
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
-  -- Start the application in a separate thread.
-  void (forkIO (runReaderT (runFSM (runGtkInterface ui)) Env {..}))
+
+  void (forkIO (run (runReaderT (runFSM (runGtkInterface ui)) Env {..})))
   Gtk.main

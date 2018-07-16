@@ -18,16 +18,17 @@
 {-# LANGUAGE TypeOperators         #-}
 module FastCut.Application where
 
-import           FastCut.Prelude            hiding (State, cancel, (>>), (>>=))
+import           FastCut.Prelude             hiding (State, cancel, (>>), (>>=))
 
 import           Control.Lens
-import           Data.Row.Records           hiding (map)
-import           Data.String                (fromString)
-import           GHC.Exts                   (fromListN)
+import           Data.Row.Records            hiding (map)
+import           Data.String                 (fromString)
+import           GHC.Exts                    (fromListN)
 import           Motor.FSM
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
+import           Control.Monad.Indexed.Trans
 import           FastCut.Composition
 import           FastCut.Composition.Insert
 import           FastCut.Focus
@@ -36,12 +37,21 @@ import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
 import           FastCut.UserInterface
+import           FastCut.Video.Import
 
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
 (>>) = (>>>)
 
 (>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
 (>>=) = (>>>=)
+
+type Application t m
+   = ( IxPointed (t m)
+     , UserInterface (t m)
+     , IxMonadIO (t m)
+     , IxMonadTrans t
+     , Monad m
+     , MonadVideoImporter m)
 
 keymaps :: SMode m -> KeyMap (Event m)
 keymaps =
@@ -91,29 +101,13 @@ selectAssetFromList gui assets n = do
   where
     continue = selectAssetFromList gui assets n
 
--- | Convenient type for actions that transition from one mode
--- into another mode, doing some user interactions, and returning back
--- to the first mode with a value.
-type ThroughMode base through n a
-   = forall m i o lm tm.
-   ( UserInterface m
-     , IxMonadIO m
-     , HasType n tm i
-     , HasType n tm o
-     , (Modify n lm i .! n) ~ lm
-     , Modify n tm (Modify n lm i) ~ o
-     , Modify n lm (Modify n lm i) ~ Modify n lm i
-     , lm ~ State m through
-     , tm ~ State m base
-     )
-   => m i o a
-
 selectAsset ::
-  Name n
+     Application t m
+  => Name n
   -> Project
   -> Focus ft
   -> SMediaType mt
-  -> ThroughMode TimelineMode LibraryMode n (Maybe (Asset mt))
+  -> ThroughMode TimelineMode LibraryMode (t m) n (Maybe (Asset mt))
 selectAsset gui project focus' mediaType =
   case mediaType of
     SVideo -> do
@@ -128,11 +122,12 @@ selectAsset gui project focus' mediaType =
       ireturn asset'
 
 selectAssetAndAppend ::
-  Name n
+     Application t m
+  => Name n
   -> Project
   -> Focus ft
   -> SMediaType mt
-  -> ThroughMode TimelineMode LibraryMode n Project
+  -> ThroughMode TimelineMode LibraryMode (t m) n Project
 selectAssetAndAppend gui project focus' mediaType =
   selectAsset gui project focus' mediaType >>= \case
     Just asset' ->
@@ -150,30 +145,43 @@ data ImportFileForm = ImportFileForm
   , autoSplit    :: Bool
   }
 
-importFile ::
-  Name n
+data Ok = Ok deriving (Eq, Enum)
+
+instance DialogChoice Ok where
+  toButtonLabel Ok = "OK"
+
+importFile
+  :: Application t m
+  => Name n
   -> Project
   -> Focus ft
-  -> ThroughMode TimelineMode ImportMode n (Maybe (FilePath, Bool))
+  -> ThroughMode TimelineMode ImportMode (t m) n Project
 importFile gui project focus' = do
   enterImport gui
-  f <-
-    awaitFileToImport
-      ImportFileForm {selectedFile = Nothing, autoSplit = False}
+  f <- fillForm ImportFileForm {selectedFile = Nothing, autoSplit = False}
   returnToTimeline gui project focus'
-  ireturn f
+  maybe (ireturn project) importAsset f
   where
-    awaitFileToImport mf = do
+    fillForm mf = do
       cmd <- nextEvent gui
       case (cmd, mf) of
         (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
         (ImportClicked, ImportFileForm {selectedFile = Just file, ..}) ->
           ireturn (Just (file, autoSplit))
-        (ImportClicked, form) -> awaitFileToImport form
+        (ImportClicked, form) -> fillForm form
         (ImportFileSelected file, form) ->
-          awaitFileToImport (form {selectedFile = Just file})
-        (ImportAutoSplitSet s, form) ->
-          awaitFileToImport (form { autoSplit = s })
+          fillForm (form {selectedFile = Just file})
+        (ImportAutoSplitSet s, form) -> fillForm (form {autoSplit = s})
+    importAsset (filepath, _autoSplit) =
+      ilift (importVideoFileAutoSplit filepath "/tmp/fastcut") >>>= \case
+        Left err -> do
+          iliftIO (print err)
+          _ <- dialog gui "Import Failed!" "I have no explanation at this point." [Ok]
+          ireturn project
+        Right assets ->
+          project
+          & library . videoAssets %~ (<> assets)
+          & ireturn
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt =
@@ -184,12 +192,12 @@ prettyFocusedAt =
     FocusedAudioPart {} -> "audio track"
 
 append ::
-     (UserInterface m, IxMonadIO m)
+     Application t m
   => Name n
   -> Project
   -> Focus ft
   -> AppendCommand
-  -> m (n .== State m 'TimelineMode) Empty ()
+  -> t m (n .== State (t m) 'TimelineMode) Empty ()
 append gui project focus' cmd =
   case (cmd, atFocus focus' (project ^. timeline)) of
     (AppendComposition, Just (FocusedSequence _)) ->
@@ -234,11 +242,11 @@ instance DialogChoice Confirmation where
     No -> "No"
 
 timelineMode ::
-     (UserInterface m, IxMonadIO m)
+  Application t m
   => Name n
   -> Focus ft
   -> Project
-  -> m (n .== State m 'TimelineMode) Empty ()
+  -> t m (n .== State (t m) 'TimelineMode) Empty ()
 timelineMode gui focus' project = do
   updateTimeline gui project focus'
   nextEvent gui >>>= \case
@@ -250,14 +258,7 @@ timelineMode gui focus' project = do
         Right newFocus -> timelineMode gui newFocus project
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Import ->
-      importFile gui project focus' >>>= \case
-        Just (filepath, _autoSplit) ->
-          timelineMode
-            gui
-            focus'
-            (project & library . videoAssets %~
-             (<> [VideoAsset (AssetMetadata filepath 10)]))
-        Nothing -> continue
+       importFile gui project focus' >>>= timelineMode gui focus'
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->
       dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
@@ -275,7 +276,7 @@ timelineMode gui focus' project = do
                (show cmd :: Text))
         _ -> ireturn ()
 
-fastcut :: (IxMonadIO m) => UserInterface m => Project -> m Empty Empty ()
+fastcut :: Application t m => UserInterface (t m) => Project -> t m Empty Empty ()
 fastcut project = do
   start #gui keymaps project initialFocus
   timelineMode #gui initialFocus project

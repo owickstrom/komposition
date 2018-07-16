@@ -1,3 +1,3 @@
-module FastCut.Prelude (module Protolude) where
+module FastCut.Prelude (module X) where
 
-import Protolude
+import           Protolude as X

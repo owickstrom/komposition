@@ -16,6 +16,7 @@ module FastCut.UserInterface where
 import           FastCut.Prelude hiding (State)
 
 import           Motor.FSM
+import           Data.Row.Records
 
 import           FastCut.Focus
 import           FastCut.KeyMap
@@ -112,3 +113,20 @@ class MonadFSM m =>
     -> [c] -- ^ Choices of the dialog, rendered as buttons.
     -> Actions m '[ n := Remain (State m t)] r (Maybe c)
   exit :: Name n -> Actions m '[ n !- State m s] r ()
+
+-- | Convenient type for actions that transition from one mode (of
+-- type 'mode1') into another mode (of type 'mode2'), doing some user
+-- interactions, and returning back to the first mode with a value of
+-- type 'a'.
+type ThroughMode mode1 mode2 m n a
+   = forall i o state2 state1.
+   ( UserInterface m
+     , HasType n state1 i
+     , HasType n state1 o
+     , (Modify n state2 i .! n) ~ state2
+     , Modify n state1 (Modify n state2 i) ~ o
+     , Modify n state2 (Modify n state2 i) ~ Modify n state2 i
+     , state1 ~ State m mode1
+     , state2 ~ State m mode2
+     )
+   => m i o a
