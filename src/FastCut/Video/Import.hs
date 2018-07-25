@@ -16,7 +16,6 @@ data VideoImportError
   deriving (Show, Eq)
 
 class MonadVideoImporter m where
-  generateVideoThumbnail :: FilePath -> FilePath -> m (Either VideoImportError FilePath)
   importVideoFile ::
        FilePath -> FilePath -> m (Either VideoImportError (Asset Video))
   importVideoFileAutoSplit ::
@@ -24,8 +23,6 @@ class MonadVideoImporter m where
 
 instance (Monad m, MonadVideoImporter m) =>
          MonadVideoImporter (ReaderT e m) where
-  generateVideoThumbnail srcFile outDir =
-    lift (generateVideoThumbnail srcFile outDir)
   importVideoFile srcFile outDir =
     lift (importVideoFile srcFile outDir)
   importVideoFileAutoSplit srcFile outDir =
