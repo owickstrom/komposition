@@ -172,16 +172,24 @@ importFile gui project focus' = do
         (ImportFileSelected file, form) ->
           fillForm (form {selectedFile = Just file})
         (ImportAutoSplitSet s, form) -> fillForm (form {autoSplit = s})
-    importAsset (filepath, _autoSplit) =
-      ilift (importVideoFileAutoSplit filepath "/tmp/fastcut") >>>= \case
+    importAsset (filepath, True) =
+      ilift (importVideoFileAutoSplit filepath "/tmp/fastcut") >>>=
+      handleImportResult
+    importAsset (filepath, False) =
+      ilift (importVideoFile filepath "/tmp/fastcut") >>>=
+      handleImportResult . fmap (: [])
+    handleImportResult =
+      \case
         Left err -> do
           iliftIO (print err)
-          _ <- dialog gui "Import Failed!" "I have no explanation at this point." [Ok]
+          _ <-
+            dialog
+              gui
+              "Import Failed!"
+              "I have no explanation at this point."
+              [Ok]
           ireturn project
-        Right assets ->
-          project
-          & library . videoAssets %~ (<> assets)
-          & ireturn
+        Right assets -> project & library . videoAssets %~ (<> assets) & ireturn
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt =

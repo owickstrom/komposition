@@ -2,9 +2,9 @@ module FastCut.Duration where
 
 import           FastCut.Prelude
 
-import           Data.Time.Clock (NominalDiffTime)
+import           Data.Time.Clock (DiffTime)
 
-type Duration = NominalDiffTime
+type Duration = DiffTime
 
 class HasDuration t where
   durationOf :: t -> Duration

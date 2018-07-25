@@ -44,6 +44,7 @@ library
                       , async
                       , deepseq
                       , directory
+                      , exceptions
                       , ffmpeg-light >= 0.12.1 && <0.13
                       , filepath
                       , gi-gobject

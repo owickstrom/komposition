@@ -24,7 +24,9 @@ renderAsset focusedIdx asset' idx =
   BoxChild False False 0 $
   node
     Label
-    [ #label := toS (asset' ^. assetMetadata . path)
+    [ #label := toS (asset' ^. assetMetadata . path) <> " (" <>
+      show (asset' ^. assetMetadata . duration) <>
+      ")"
     , classes ["clip", focusedClass]
     ]
   where

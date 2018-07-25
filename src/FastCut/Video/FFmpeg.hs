@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -15,12 +17,15 @@ import           FastCut.Prelude         hiding (catch)
 
 import           Codec.FFmpeg
 import           Codec.FFmpeg.Encode
+import qualified Codec.FFmpeg.Probe      as Probe
 import           Codec.Picture           as CP
 import           Codec.Picture.Types     as CP
+import           Control.Monad.Catch
 import           Control.Monad.Primitive
 import qualified Data.Massiv.Array       as A
 import           Data.Massiv.Array.IO    as A hiding (Image)
 import           Data.Maybe              (fromMaybe)
+import           Data.Time.Clock
 import qualified Data.Vector             as V
 import qualified Data.Vector.Generic     as VG
 import           Graphics.ColorSpace     as A
@@ -34,6 +39,7 @@ import           System.IO               hiding (putStrLn)
 import           Text.Printf
 
 import           FastCut.Library
+import           FastCut.MediaType
 import           FastCut.Video.Import
 
 initialize :: IO ()
@@ -234,10 +240,7 @@ newtype FFmpegImporterT m a = FFmpegImporterT
 
 writeSplitVideoFiles :: MonadIO m => FilePath -> Producer (Classified Frame) m () -> m [FilePath]
 writeSplitVideoFiles outDir =
-  Pipes.foldM
-    go
-    (return (Left (), 1 :: Int, []))
-    (\(_, _, files) -> return (reverse files))
+  Pipes.foldM go (return (Left (), 1 :: Int, [])) onEnd
   where
     go (Left (), n, files) =
       \case
@@ -256,13 +259,51 @@ writeSplitVideoFiles outDir =
         (Moving f) -> do
           liftIO (writeFrame (Just f))
           return (Right writeFrame, n, files)
+    onEnd (st, _, files) = do
+      case st of
+        Left ()          -> pure ()
+        Right writeFrame -> liftIO (writeFrame Nothing)
+      return (reverse files)
+
+getVideoFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m DiffTime
+getVideoFileDuration f =
+  picosecondsToDiffTime . (* 1000000) . fromIntegral <$>
+  Probe.withAvFile f Probe.duration
+
+filePathsToVideoAssets ::
+     (MonadMask m, MonadIO m)
+  => Either VideoImportError [FilePath]
+  -> m (Either VideoImportError [Asset Video])
+filePathsToVideoAssets =
+  \case
+    Left err -> return (Left err)
+    Right ps -> do
+      assets <-
+        forM ps $ \p -> VideoAsset . AssetMetadata p <$> getVideoFileDuration p
+      pure (Right assets)
 
 instance MonadIO m => MonadVideoImporter (FFmpegImporterT m) where
+  generateVideoThumbnail sourceFile outDir = liftIO $ do
+    (readImage', cleanup) <- imageReader (File sourceFile)
+    readImage' >>= \case
+      Just (img :: Image PixelRGB8) -> do
+        let fileName = outDir </> snd (splitFileName sourceFile) <> ""
+        writePng fileName img
+        cleanup
+        pure (Right fileName)
+      Nothing -> do
+        cleanup
+        pure (Left (UnexpectedError sourceFile "No frames in video."))
+
+  importVideoFile sourceFile _outDir =
+    Right . VideoAsset . AssetMetadata sourceFile
+    <$> liftIO (getVideoFileDuration sourceFile)
+
   importVideoFileAutoSplit sourceFile outDir = do
     liftIO (createDirectoryIfMissing True outDir)
     classifyMovement (readVideoFile sourceFile >-> toMassiv)
       >-> Pipes.map (fmap (fmap A.toJPImageRGB8))
       >-> Pipes.map (fmap untimed)
       & writeSplitVideoFiles outDir
-      & fmap (map (\p -> VideoAsset (AssetMetadata p 5)))
       & runExceptT
+      & liftIO . (=<<) filePathsToVideoAssets
