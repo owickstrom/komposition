@@ -1,10 +1,10 @@
-.fastcut {
-  background: #111;
-  color: #fff;
+.timeline-container {
+  background-color: #bbb;
+  border-top: 1px solid #aaa;
 }
 .timeline .sequence {
-  border-top: 2px solid #000;
-  background-color: #222;
+  border-top: 2px solid #bbb;
+  background-color: #bbb;
 }
 .timeline .parallel {
   padding-top: 2px;
@@ -13,7 +13,7 @@
   padding: 0 0 2px 0;
 }
 .timeline .sequence .video .clip {
-  background-color: #009acd;
+  background-color: #00cd9a;
 }
 .timeline .sequence .audio {
   padding: 0 0 2px 0;
@@ -21,9 +21,10 @@
 .timeline .sequence .audio .clip {
   background-color: #cdad00;
 }
-.timeline .composition.focused,
+.timeline .composition.focused {
+}
 .timeline .composition.transitively-focused {
-  background: #444;
+  background: #bbb;
 }
 
 .timeline .composition.focused {
@@ -41,7 +42,7 @@
   box-shadow: inset 1px 0px 1px rgba(255, 255, 255, 0.2);
 }
 .timeline .gap {
-  background-color: #666666;
+  background-color: #aaa;
   background-image: url('stripes.png');
   background-size: 25px;
   background-repeat: repeat;
@@ -58,19 +59,15 @@
   background-color: rgba(255, 255, 255, 0.25);
 }
 .timeline .gap.focused {
-  background-color: #aaaaaa;
+  background-color: #ccc;
 }
 
-.library {
-  background: #111;
-  color: #fff;
-}
 .library .clip {
   padding: 10px;
 }
 .library .clip.focused {
   padding: 8px;
   border-width: 2px;
-  border-color: #222;
+  border-color: #ccc;
   border-style: solid;
 }

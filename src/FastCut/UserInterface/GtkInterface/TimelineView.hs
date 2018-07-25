@@ -99,13 +99,14 @@ timelineView project focus =
   viewWithEvents $ \_ ->
     container
       Box
-      [#orientation := OrientationVertical, classes ["timeline-container"]]
+      [#orientation := OrientationVertical]
       [ BoxChild True True 0 $ node Label [#label := (project ^. projectName)]
       , BoxChild False False 0 $
         container
           ScrolledWindow
           [ #hscrollbarPolicy := PolicyTypeAutomatic
           , #vscrollbarPolicy := PolicyTypeNever
+          , classes ["timeline-container"]
           ]
           (renderComposition (applyFocus (project ^. timeline) focus))
       ]
