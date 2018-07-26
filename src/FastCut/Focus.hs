@@ -3,6 +3,7 @@
 {-# LANGUAGE ExplicitForAll     #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators      #-}
@@ -169,6 +170,7 @@ modifyFocus s e f = case (s, e, f) of
      ParallelFocus idx . Just <$> modifyFocus par e clipFocus
 
   _ -> throwError (UnhandledFocusModification e)
+
 data FocusedAt a
   = FocusedSequence (Composition a SequenceType)
   | FocusedParallel (Composition a ParallelType)
@@ -192,3 +194,26 @@ atFocus f s =
         Video -> FocusedVideoPart <$> videoParts `atMay` idx
         Audio -> FocusedAudioPart <$> audioParts `atMay` idx
     _ -> mzero
+
+data FirstCompositionPart a
+  = FirstVideoPart (CompositionPart a Video)
+  | FirstAudioPart (CompositionPart a Audio)
+
+firstCompositionPart :: Focus ft -> Composition a t -> Maybe (FirstCompositionPart a)
+firstCompositionPart f s =
+  atFocus f s >>= \case
+    FocusedSequence s' ->  firstInSequence s'
+    FocusedParallel p ->  firstInParallel p
+    FocusedVideoPart v ->  Just (FirstVideoPart v)
+    FocusedAudioPart a ->  Just (FirstAudioPart a)
+
+  where
+    firstInSequence :: Composition a SequenceType -> Maybe (FirstCompositionPart a)
+    firstInSequence = \case
+      Sequence _ [] -> Nothing
+      Sequence _ (a:_) -> firstInParallel a
+    firstInParallel :: Composition a ParallelType -> Maybe (FirstCompositionPart a)
+    firstInParallel = \case
+      Parallel _ (v:_) _ -> Just (FirstVideoPart v)
+      Parallel _ [] (a:_) -> Just (FirstAudioPart a)
+      _ -> Nothing

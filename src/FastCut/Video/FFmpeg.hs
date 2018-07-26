@@ -271,31 +271,39 @@ getVideoFileDuration f =
   Probe.withAvFile f Probe.duration
 
 filePathToVideoAsset ::
-     (MonadIO m)
+     (MonadError VideoImportError m, MonadIO m)
   => FilePath
+  -> FilePath
   -> m (Asset Video)
-filePathToVideoAsset p =
-  VideoAsset . AssetMetadata p <$> liftIO (getVideoFileDuration p)
+filePathToVideoAsset p outDir = do
+  md <-
+    AssetMetadata p
+    <$> liftIO (getVideoFileDuration p)
+    <*> generateVideoThumbnail p outDir
+  pure (VideoAsset md)
 
 generateVideoThumbnail ::
-     MonadIO m => FilePath -> FilePath -> m (Either VideoImportError FilePath)
-generateVideoThumbnail sourceFile outDir = liftIO $ do
-  (readImage', cleanup) <- imageReader (File sourceFile)
-  readImage' >>= \case
+     (MonadError VideoImportError m, MonadIO m)
+  => FilePath
+  -> FilePath
+  -> m FilePath
+generateVideoThumbnail sourceFile outDir = do
+  (readImage', cleanup) <- liftIO (imageReader (File sourceFile))
+  liftIO readImage' >>= \case
     Just (img :: Image PixelRGB8) -> do
-      let fileName = outDir </> snd (splitFileName sourceFile) <> ""
-      writePng fileName img
-      cleanup
-      pure (Right fileName)
+      let fileName = outDir </> replaceExtension (snd (splitFileName sourceFile)) "png" <> ""
+      liftIO (writePng fileName img)
+      liftIO cleanup
+      pure fileName
     Nothing -> do
-      cleanup
-      pure (Left (UnexpectedError sourceFile "No frames in video."))
-
+      liftIO cleanup
+      throwError (UnexpectedError sourceFile "No frames in video.")
 
 instance MonadIO m => MonadVideoImporter (FFmpegImporterT m) where
 
-  importVideoFile sourceFile _outDir =
-    pure <$> filePathToVideoAsset sourceFile
+  importVideoFile sourceFile outDir =
+    filePathToVideoAsset sourceFile outDir
+    & runExceptT
 
   importVideoFileAutoSplit sourceFile outDir = do
     liftIO (createDirectoryIfMissing True outDir)
@@ -303,5 +311,5 @@ instance MonadIO m => MonadVideoImporter (FFmpegImporterT m) where
       >-> Pipes.map (fmap (fmap A.toJPImageRGB8))
       >-> Pipes.map (fmap untimed)
       & writeSplitVideoFiles outDir
-      & (=<<) (mapM filePathToVideoAsset)
+      & (=<<) (mapM (`filePathToVideoAsset` outDir))
       & runExceptT

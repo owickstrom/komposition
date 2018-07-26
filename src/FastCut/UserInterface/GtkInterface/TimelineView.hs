@@ -94,13 +94,29 @@ renderComposition =
             (map renderPart as)
         ]
 
+renderPreviewPane :: Maybe (FirstCompositionPart a) -> Markup
+renderPreviewPane = \case
+  Just (FirstVideoPart (Clip _ (VideoAsset meta))) ->
+    node Image [#file := toS (meta ^. thumbnail)]
+  Just (FirstAudioPart (Clip _ (AudioAsset meta))) ->
+    node Label [#label := "Audio clip..."]
+  Just (FirstVideoPart Gap{}) ->
+    node Label [#label := "Video gap."]
+  Just (FirstAudioPart Gap{}) ->
+    node Label [#label := "Audio gap."]
+  Nothing -> node Label [#label := "No preview available."]
+
 timelineView :: Project -> Focus ft -> IO (View TimelineMode)
 timelineView project focus =
   viewWithEvents $ \_ ->
     container
       Box
       [#orientation := OrientationVertical]
-      [ BoxChild True True 0 $ node Label [#label := (project ^. projectName)]
+      [ BoxChild
+          True
+          True
+          0
+          (renderPreviewPane (firstCompositionPart focus (project ^. timeline)))
       , BoxChild False False 0 $
         container
           ScrolledWindow

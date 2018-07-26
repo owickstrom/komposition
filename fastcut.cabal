@@ -85,6 +85,7 @@ executable fastcut
   -- other-extensions:
   build-depends:        base >=4.10 && <4.12
                       , fastcut
+                      , filepath
                       , gi-gobject
                       , gi-glib
                       , gi-gtk

@@ -14,8 +14,9 @@ import           FastCut.Duration
 import           FastCut.MediaType
 
 data AssetMetadata = AssetMetadata
-  { _path     :: FilePath
-  , _duration :: Duration
+  { _path      :: FilePath
+  , _duration  :: Duration
+  , _thumbnail :: FilePath
   } deriving (Eq, Show)
 
 makeLenses ''AssetMetadata
