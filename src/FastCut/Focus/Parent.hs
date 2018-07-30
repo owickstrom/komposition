@@ -1,3 +1,5 @@
+{-# LANGUAGE KindSignatures  #-}
+{-# LANGUAGE TupleSections   #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE GADTs           #-}
@@ -15,45 +17,46 @@ import           FastCut.Composition
 import           FastCut.Focus
 import           FastCut.MediaType
 
-data ParentTraversal m a = ParentTraversal
-  { onTimeline :: Int -> Composition a TimelineType  -> m (Composition a TimelineType)
-  , onSequence   :: Int -> Composition a SequenceType -> m (Composition a SequenceType)
-  , onVideoParts :: Int -> [CompositionPart a Video] -> m [CompositionPart a Video]
-  , onAudioParts :: Int -> [CompositionPart a Audio] -> m [CompositionPart a Audio]
+type TraversalFunction m parent = Int -> parent -> m parent
+
+data ParentTraversal (m :: * -> *) a = ParentTraversal
+  { onTimeline   :: TraversalFunction m (Composition a TimelineType)
+  , onSequence   :: TraversalFunction m (Composition a SequenceType)
+  , onVideoParts :: TraversalFunction m [CompositionPart a Video]
+  , onAudioParts :: TraversalFunction m [CompositionPart a Audio]
   }
 
-parentTraversal :: Applicative m => ParentTraversal m a
-parentTraversal =
-  ParentTraversal
-    (const pure)
-    (const pure)
-    (const pure)
-    (const pure)
+parentTraversal :: Applicative f => ParentTraversal f a
+parentTraversal = ParentTraversal unchanged unchanged unchanged unchanged
+  where
+    unchanged = const pure
 
-withParentOfM ::
+withParentOf ::
   (MonadPlus m, Monad m)
   => ParentTraversal m a
   -> Focus ft
   -> Composition a t
   -> m (Composition a t)
-withParentOfM t@ParentTraversal{..} f s =
+withParentOf t@ParentTraversal {..} f s =
   case (f, s) of
     (SequenceFocus idx Nothing, Timeline ann sub) ->
       onTimeline idx (Timeline ann sub)
     (SequenceFocus idx (Just subFocus), Timeline ann sub) ->
       sub
-      & ix idx %%~ withParentOfM t subFocus
-      & fmap (Timeline ann)
-    (ParallelFocus idx Nothing, Sequence ann sub) ->
-      onSequence idx (Sequence ann sub)
+        & ix idx %%~ withParentOf t subFocus
+        & fmap (Timeline ann)
+    (ParallelFocus i Nothing, Sequence ann sub) ->
+      onSequence i (Sequence ann sub)
     (ParallelFocus idx (Just subFocus), Sequence ann sub) ->
       sub
-      & ix idx %%~ withParentOfM t subFocus
-      & fmap (Sequence ann)
-    (ClipFocus clipType idx, Parallel ann videoParts audioParts) ->
+        & ix idx %%~ withParentOf t subFocus
+        & fmap (Sequence ann)
+    (ClipFocus clipType i, Parallel ann videoParts audioParts) ->
       case clipType of
-        Video -> onVideoParts idx videoParts >>= \vs ->
-          pure (Parallel ann vs audioParts)
-        Audio -> onAudioParts idx audioParts >>= \as ->
-          pure (Parallel ann videoParts as)
+        Video ->
+          onVideoParts i videoParts >>= \vs ->
+            pure (Parallel ann vs audioParts)
+        Audio ->
+          onAudioParts i audioParts >>= \as ->
+            pure (Parallel ann videoParts as)
     _ -> mzero

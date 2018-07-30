@@ -24,12 +24,13 @@ import           Control.Lens
 import           Data.Row.Records            hiding (map)
 import           Data.String                 (fromString)
 import           GHC.Exts                    (fromListN)
-import           Motor.FSM
+import           Motor.FSM                   hiding (Delete)
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
 import           Control.Monad.Indexed.Trans
 import           FastCut.Composition
+import           FastCut.Composition.Delete
 import           FastCut.Composition.Insert
 import           FastCut.Focus
 import           FastCut.KeyMap
@@ -69,6 +70,7 @@ keymaps =
             , ([KeyChar 'g'], Mapping (AppendCommand AppendGap))
             , ([KeyChar 'p'], Mapping (AppendCommand AppendComposition))
             ])
+      , ([KeyChar 'd'], Mapping Delete)
       , ([KeyChar 'q'], Mapping Exit)
       ]
     SLibraryMode ->
@@ -265,6 +267,15 @@ timelineMode gui focus' project = do
           continue
         Right newFocus -> timelineMode gui newFocus project
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
+    CommandKeyMappedEvent Delete ->
+      case delete_ focus' (project ^. timeline) of
+        Left (cmd, err) -> do
+          printUnexpectedFocusError err cmd
+          continue
+        Right (newTimeline, newFocus) ->
+          project
+          & timeline .~ newTimeline
+          & timelineMode gui newFocus
     CommandKeyMappedEvent Import ->
        importFile gui project focus' >>>= timelineMode gui focus'
     CommandKeyMappedEvent Cancel -> continue

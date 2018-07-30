@@ -49,6 +49,7 @@ data Command mode where
 
   FocusCommand :: FocusCommand -> Command TimelineMode
   AppendCommand :: AppendCommand -> Command TimelineMode
+  Delete :: Command TimelineMode
   Import :: Command TimelineMode
   Exit :: Command TimelineMode
 

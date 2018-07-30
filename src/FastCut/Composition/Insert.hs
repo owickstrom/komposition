@@ -38,7 +38,7 @@ insert ::
   -> Composition a TimelineType
   -> Maybe (Composition a TimelineType)
 insert focus insertion position parent =
-  traversal >>= \t -> withParentOfM t focus parent
+  traversal >>= \t -> withParentOf t focus parent
   where
     traversal =
       case (insertion, position) of

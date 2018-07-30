@@ -27,6 +27,7 @@ library
                       , FastCut.Prelude
                       , FastCut.Project
                       , FastCut.Composition
+                      , FastCut.Composition.Delete
                       , FastCut.Composition.Focused
                       , FastCut.Composition.Insert
                       , FastCut.Library

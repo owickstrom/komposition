@@ -98,7 +98,7 @@ renderPreviewPane :: Maybe (FirstCompositionPart a) -> Markup
 renderPreviewPane = \case
   Just (FirstVideoPart (Clip _ (VideoAsset meta))) ->
     node Image [#file := toS (meta ^. thumbnail)]
-  Just (FirstAudioPart (Clip _ (AudioAsset meta))) ->
+  Just (FirstAudioPart (Clip _ (AudioAsset _meta))) ->
     node Label [#label := "Audio clip..."]
   Just (FirstVideoPart Gap{}) ->
     node Label [#label := "Video gap."]
