@@ -10,6 +10,8 @@ let
   };
   nixpkgs = import nixpkgsSrc {};
 
+  giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
+
   inherit (nixpkgs) pkgs;
 
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
@@ -17,8 +19,12 @@ let
       haskell-gi-overloading = pkgs.haskell.lib.dontHaddock (self.callHackage "haskell-gi-overloading" "1.0" {});
       massiv = self.callHackage "massiv" "0.1.6.1" {};
       massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
-      gi-gtk-declarative = self.callPackage ./lib/gi-gtk-declarative/gi-gtk-declarative.nix {};
       indexed-extras = pkgs.haskell.lib.doJailbreak super.indexed-extras;
+      gi-gtk-declarative = self.callCabal2nix "gi-gtk-declarative" (nixpkgs.fetchFromGitHub {
+        owner = "owickstrom";
+        repo = "gi-gtk-declarative";
+        inherit (giGtkDeclarativeJson) rev sha256;
+      }) {};
     };
   };
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
