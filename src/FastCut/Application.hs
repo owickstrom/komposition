@@ -269,8 +269,8 @@ timelineMode gui focus' project = do
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Delete ->
       case delete_ focus' (project ^. timeline) of
-        Left (cmd, err) -> do
-          printUnexpectedFocusError err cmd
+        Left (_cmd, err) -> do
+          iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
           continue
         Right (newTimeline, newFocus) ->
           project

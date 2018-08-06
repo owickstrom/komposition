@@ -5,7 +5,7 @@
   - [X] Basic library view
   - [ ] Timeline auto-scroll
   - [X] Consistent single theme
-  - [ ] Import and auto-split video
+  - [X] Import and auto-split video
   - [ ] Import and auto-split audio
   - [X] Sequence and parallel structure of limited depth
   - [X] Support for key and widget events
@@ -13,7 +13,7 @@
     - [X] Append
     - [ ] Prepend
     - [ ] Split sequence
-    - [ ] Delete
+    - [X] Delete
   - [ ] Offline video rendering, including hold-frame
 * 0.2.0 [0/6]
   - [ ] Save/open project

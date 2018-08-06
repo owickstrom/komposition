@@ -1,12 +1,3 @@
-[submodule "lib/motor"]
-	path = lib/motor
-	url = git@github.com:owickstrom/motor.git
-[submodule "lib/indexed-extras"]
-	path = lib/indexed-extras
-	url = git@github.com:typedrat/indexed-extras.git
-[submodule "lib/ffmpeg-light"]
-	path = lib/ffmpeg-light
-	url = git@github.com:acowley/ffmpeg-light.git
 [submodule "lib/gi-gtk-declarative"]
 	path = lib/gi-gtk-declarative
 	url = git@github.com:owickstrom/gi-gtk-declarative

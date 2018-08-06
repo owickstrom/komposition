@@ -43,30 +43,32 @@ data FocusError
 
 indicesWithStartPoints :: [CompositionPart a t] -> [(Int, Duration)]
 indicesWithStartPoints clips =
-    zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
+  zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
 
 nearestPartIndexLeftOf
-  :: [CompositionPart ann t] -> Int -> [CompositionPart ann (InverseMediaType t)] -> Maybe Int
+  :: [CompositionPart ann t]
+  -> Int
+  -> [CompositionPart ann (InverseMediaType t)]
+  -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
   = let cutoffPoint = durationOf (take i focusedParts)
-        below = takeWhile ((<= cutoffPoint) . snd)
-                    (indicesWithStartPoints blurredParts)
-    in (fst <$> lastMay below) <|> Just 0
+        below       = takeWhile ((<= cutoffPoint) . snd)
+                                (indicesWithStartPoints blurredParts)
+    in  (fst <$> lastMay below) <|> Just 0
   | otherwise
   = Nothing
 
 compositionAt :: [Composition a t] -> Int -> Either FocusError (Composition a t)
-compositionAt ss i =
-  maybe (throwError OutOfBounds) pure (ss `atMay` i)
+compositionAt ss i = maybe (throwError OutOfBounds) pure (ss `atMay` i)
 
-modifyFocus :: Composition a t -> FocusCommand -> Focus ft -> Either FocusError (Focus ft)
+modifyFocus
+  :: Composition a t -> FocusCommand -> Focus ft -> Either FocusError (Focus ft)
 modifyFocus s e f = case (s, e, f) of
 
   -- Up
 
-  (Timeline{}, FocusUp, SequenceFocus _ Nothing) ->
-    throwError CannotMoveUp
+  (Timeline{}, FocusUp, SequenceFocus _ Nothing) -> throwError CannotMoveUp
 
   (Timeline _ seqs, FocusUp, SequenceFocus idx (Just parallelFocus)) -> do
     sequence' <- seqs `compositionAt` idx
@@ -76,8 +78,7 @@ modifyFocus s e f = case (s, e, f) of
       Right f'           -> pure (SequenceFocus idx (Just f'))
 
   -- Here we've hit a leaf and cannot move up.
-  (Sequence{}   , FocusUp, ParallelFocus _ Nothing) ->
-    throwError CannotMoveUp
+  (Sequence{}, FocusUp, ParallelFocus _ Nothing) -> throwError CannotMoveUp
   -- In case we have a parent, we try to move up within the child, or
   -- fall back to focus this parent.
   (Sequence _ sub, FocusUp, ParallelFocus i (Just subFocus)) -> do
@@ -88,13 +89,13 @@ modifyFocus s e f = case (s, e, f) of
       Right f'           -> pure (ParallelFocus i (Just f'))
 
   -- We can move up from audio to video within a parallel.
-  (Parallel _ videoParts audioParts, FocusUp, ClipFocus Audio i)
-    -> case nearestPartIndexLeftOf audioParts i videoParts of
+  (Parallel _ videoParts audioParts, FocusUp, ClipFocus Audio i) ->
+    case nearestPartIndexLeftOf audioParts i videoParts of
       Just i' -> pure (ClipFocus Video i')
       Nothing -> throwError OutOfBounds
 
   --  Here we've hit a focus "leaf" and cannot move up.
-  (Parallel{}, FocusUp, ClipFocus _ _   ) -> throwError CannotMoveUp
+  (Parallel{}     , FocusUp  , ClipFocus _ _       ) -> throwError CannotMoveUp
 
   -- Down
 
@@ -103,7 +104,9 @@ modifyFocus s e f = case (s, e, f) of
     case pf of
       -- Down further within sequence.
       Just parallelFocus ->
-        SequenceFocus idx . Just <$> modifyFocus sequence' FocusDown parallelFocus
+        SequenceFocus idx
+          .   Just
+          <$> modifyFocus sequence' FocusDown parallelFocus
       -- Down from sequence into parallel.
       Nothing
         | null parallels -> throwError CannotMoveDown
@@ -122,14 +125,13 @@ modifyFocus s e f = case (s, e, f) of
       else pure (ParallelFocus idx (Just (ClipFocus Video 0)))
 
   -- We can move down from video to audio within a composition.
-  (Parallel _ videoParts audioParts, FocusDown, ClipFocus Video i)
-    -> case nearestPartIndexLeftOf videoParts i audioParts of
+  (Parallel _ videoParts audioParts, FocusDown, ClipFocus Video i) ->
+    case nearestPartIndexLeftOf videoParts i audioParts of
       Just i' -> pure (ClipFocus Audio i')
       Nothing -> throwError OutOfBounds
 
   -- We cannot move down any further when focusing an audio clip.
-  (Parallel{}, FocusDown, ClipFocus Audio _) ->
-      throwError CannotMoveDown
+  (Parallel{}, FocusDown, ClipFocus Audio _) -> throwError CannotMoveDown
 
   -- Left
   (Timeline{}, FocusLeft, SequenceFocus idx Nothing)
@@ -139,12 +141,11 @@ modifyFocus s e f = case (s, e, f) of
     | idx > 0   -> pure (ParallelFocus (pred idx) Nothing)
     | otherwise -> throwError OutOfBounds
   (Parallel _ videoParts audioParts, FocusLeft, ClipFocus type' idx)
-    | type' == Video && idx > 0 && idx < length videoParts
-    -> pure (ClipFocus Video (pred idx))
-    | type' == Audio && idx > 0 && idx < length audioParts
-    -> pure (ClipFocus Audio (pred idx))
-    | otherwise
-    -> throwError OutOfBounds
+    | type' == Video && idx > 0 && idx < length videoParts -> pure
+      (ClipFocus Video (pred idx))
+    | type' == Audio && idx > 0 && idx < length audioParts -> pure
+      (ClipFocus Audio (pred idx))
+    | otherwise -> throwError OutOfBounds
 
   -- Right
   (Timeline _ sub, FocusRight, SequenceFocus idx Nothing)
@@ -154,20 +155,19 @@ modifyFocus s e f = case (s, e, f) of
     | idx < (length sub - 1) -> pure (ParallelFocus (succ idx) Nothing)
     | otherwise              -> throwError OutOfBounds
   (Parallel _ videoParts audioParts, FocusRight, ClipFocus type' idx)
-    | type' == Video && idx >= 0 && idx < (length videoParts - 1)
-    -> pure (ClipFocus Video (succ idx))
-    | type' == Audio && idx >= 0 && idx < (length audioParts - 1)
-    -> pure (ClipFocus Audio (succ idx))
-    | otherwise
-    -> throwError OutOfBounds
+    | type' == Video && idx >= 0 && idx < (length videoParts - 1) -> pure
+      (ClipFocus Video (succ idx))
+    | type' == Audio && idx >= 0 && idx < (length audioParts - 1) -> pure
+      (ClipFocus Audio (succ idx))
+    | otherwise -> throwError OutOfBounds
 
   -- Left or right further down within timeline or sequence.
   (Timeline _ seqs, _, SequenceFocus idx (Just parallelFocus)) -> do
-     seq' <- seqs `compositionAt` idx
-     SequenceFocus idx . Just <$> modifyFocus seq' e parallelFocus
+    seq' <- seqs `compositionAt` idx
+    SequenceFocus idx . Just <$> modifyFocus seq' e parallelFocus
   (Sequence _ pars, _, ParallelFocus idx (Just clipFocus)) -> do
-     par <- pars `compositionAt` idx
-     ParallelFocus idx . Just <$> modifyFocus par e clipFocus
+    par <- pars `compositionAt` idx
+    ParallelFocus idx . Just <$> modifyFocus par e clipFocus
 
   _ -> throwError (UnhandledFocusModification e)
 
@@ -179,41 +179,41 @@ data FocusedAt a
   deriving (Show, Eq)
 
 atFocus :: Focus ft -> Composition a t -> Maybe (FocusedAt a)
-atFocus f s =
-  case (f, s) of
-    (SequenceFocus idx Nothing, Timeline _ sub) ->
-      FocusedSequence <$> sub `atMay` idx
-    (SequenceFocus idx (Just subFocus), Timeline _ sub) ->
-      atFocus subFocus =<< sub `atMay` idx
-    (ParallelFocus idx Nothing, Sequence _ sub) ->
-      FocusedParallel <$> sub `atMay` idx
-    (ParallelFocus idx (Just subFocus), Sequence _ sub) ->
-      atFocus subFocus =<< sub `atMay` idx
-    (ClipFocus clipType idx, Parallel _ videoParts audioParts) ->
-      case clipType of
-        Video -> FocusedVideoPart <$> videoParts `atMay` idx
-        Audio -> FocusedAudioPart <$> audioParts `atMay` idx
-    _ -> mzero
+atFocus f s = case (f, s) of
+  (SequenceFocus idx Nothing, Timeline _ sub) ->
+    FocusedSequence <$> toList sub `atMay` idx
+  (SequenceFocus idx (Just subFocus), Timeline _ sub) ->
+    atFocus subFocus =<< toList sub `atMay` idx
+  (ParallelFocus idx Nothing, Sequence _ sub) ->
+    FocusedParallel <$> toList sub `atMay` idx
+  (ParallelFocus idx (Just subFocus), Sequence _ sub) ->
+    atFocus subFocus =<< toList sub `atMay` idx
+  (ClipFocus clipType idx, Parallel _ videoParts audioParts) ->
+    case clipType of
+      Video -> FocusedVideoPart <$> videoParts `atMay` idx
+      Audio -> FocusedAudioPart <$> audioParts `atMay` idx
+  _ -> mzero
 
 data FirstCompositionPart a
   = FirstVideoPart (CompositionPart a Video)
   | FirstAudioPart (CompositionPart a Audio)
 
-firstCompositionPart :: Focus ft -> Composition a t -> Maybe (FirstCompositionPart a)
-firstCompositionPart f s =
-  atFocus f s >>= \case
-    FocusedSequence s' ->  firstInSequence s'
-    FocusedParallel p ->  firstInParallel p
-    FocusedVideoPart v ->  Just (FirstVideoPart v)
-    FocusedAudioPart a ->  Just (FirstAudioPart a)
-
-  where
-    firstInSequence :: Composition a SequenceType -> Maybe (FirstCompositionPart a)
-    firstInSequence = \case
-      Sequence _ [] -> Nothing
-      Sequence _ (a:_) -> firstInParallel a
-    firstInParallel :: Composition a ParallelType -> Maybe (FirstCompositionPart a)
-    firstInParallel = \case
-      Parallel _ (v:_) _ -> Just (FirstVideoPart v)
-      Parallel _ [] (a:_) -> Just (FirstAudioPart a)
-      _ -> Nothing
+firstCompositionPart
+  :: Focus ft -> Composition a t -> Maybe (FirstCompositionPart a)
+firstCompositionPart f s = atFocus f s >>= \case
+  FocusedSequence  s' -> firstInSequence s'
+  FocusedParallel  p  -> firstInParallel p
+  FocusedVideoPart v  -> Just (FirstVideoPart v)
+  FocusedAudioPart a  -> Just (FirstAudioPart a)
+ where
+  firstInSequence
+    :: Composition a SequenceType -> Maybe (FirstCompositionPart a)
+  firstInSequence = \case
+    Sequence _ []    -> Nothing
+    Sequence _ (p:_) -> firstInParallel p
+  firstInParallel
+    :: Composition a ParallelType -> Maybe (FirstCompositionPart a)
+  firstInParallel = \case
+    Parallel _ (v:_) _     -> Just (FirstVideoPart v)
+    Parallel _ []    (a:_) -> Just (FirstAudioPart a)
+    _                      -> Nothing

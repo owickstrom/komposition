@@ -35,22 +35,22 @@ delete focus comp = runStateT (withParentOf traversal focus comp) Nothing
       ParentTraversal
       { onTimeline =
           \i (Timeline ann children') ->
-            moveLeftIfAtEnd children' i *>
+            moveIfAtEnd children' i *>
             pure (Timeline ann (deleteAt i children'))
       , onSequence =
           \i (Sequence ann children') ->
-            moveLeftIfAtEnd children' i *>
+            moveIfAtEnd children' i *>
             pure (Sequence ann (deleteAt i children'))
-      , onVideoParts = \i vs -> moveLeftIfAtEnd vs i *> pure (deleteAt i vs)
-      , onAudioParts = \i as -> moveLeftIfAtEnd as i *> pure (deleteAt i as)
+      , onVideoParts = \i vs -> moveIfAtEnd vs i *> pure (deleteAt i vs)
+      , onAudioParts = \i as -> moveIfAtEnd as i *> pure (deleteAt i as)
       }
-    moveLeftIfAtEnd :: [a] -> Int -> StateT (Maybe FocusCommand) Maybe ()
-    moveLeftIfAtEnd (pred . length -> maxIndex) idx
+    moveIfAtEnd :: [a] -> Int -> StateT (Maybe FocusCommand) Maybe ()
+    moveIfAtEnd [_] _ = put (Just FocusUp)
+    moveIfAtEnd (pred . length -> maxIndex) idx
       | idx >= maxIndex = put (Just FocusLeft)
       | otherwise = pure ()
 
--- | Same as 'delete', but returns the original 'Composition' if the
--- deletion failed, and applies to returned focus command if present.
+-- | Same as 'delete', but trying to apply the returned focus command.
 delete_ ::
     Focus ft
   -> Composition a TimelineType
