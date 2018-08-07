@@ -42,8 +42,8 @@ instance HasDuration (CompositionPart a t) where
 data CompositionType = TimelineType | SequenceType | ParallelType
 
 data Composition a t where
-  Timeline :: a -> [Composition a SequenceType] -> Composition a TimelineType
-  Sequence :: a -> [Composition a ParallelType] -> Composition a SequenceType
+  Timeline :: a -> NonEmpty (Composition a SequenceType) -> Composition a TimelineType
+  Sequence :: a -> NonEmpty (Composition a ParallelType) -> Composition a SequenceType
   Parallel
     :: a
     -> [CompositionPart a Video]

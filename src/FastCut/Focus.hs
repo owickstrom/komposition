@@ -11,6 +11,7 @@ module FastCut.Focus where
 
 import           FastCut.Prelude
 
+import qualified Data.List.NonEmpty as NonEmpty
 import           Control.Monad.Except (throwError)
 
 import           FastCut.Composition
@@ -59,8 +60,9 @@ nearestPartIndexLeftOf focusedParts i blurredParts
   | otherwise
   = Nothing
 
-compositionAt :: [Composition a t] -> Int -> Either FocusError (Composition a t)
-compositionAt ss i = maybe (throwError OutOfBounds) pure (ss `atMay` i)
+compositionAt
+  :: NonEmpty (Composition a t) -> Int -> Either FocusError (Composition a t)
+compositionAt ss i = maybe (throwError OutOfBounds) pure (toList ss `atMay` i)
 
 modifyFocus
   :: Composition a t -> FocusCommand -> Focus ft -> Either FocusError (Focus ft)
@@ -117,12 +119,15 @@ modifyFocus s e f = case (s, e, f) of
     parallel <- parallels `compositionAt` idx
     ParallelFocus idx . Just <$> modifyFocus parallel FocusDown clipFocus
 
-  -- Down into video track of focused composition.
   (Sequence _ parallels, FocusDown, ParallelFocus idx Nothing) -> do
-    Parallel _ vs _ <- parallels `compositionAt` idx
-    if null vs
-      then throwError CannotMoveDown
-      else pure (ParallelFocus idx (Just (ClipFocus Video 0)))
+    Parallel _ vs as <- parallels `compositionAt` idx
+
+    case (vs, as) of
+      -- Down into video track of focused parallel.
+      (_:_, _) -> pure (ParallelFocus idx (Just (ClipFocus Video 0)))
+      -- Down into audio track, past empty video track, of focused parallel.
+      ([], _:_) -> pure (ParallelFocus idx (Just (ClipFocus Audio 0)))
+      _ -> throwError CannotMoveDown
 
   -- We can move down from video to audio within a composition.
   (Parallel _ videoParts audioParts, FocusDown, ClipFocus Video i) ->
@@ -208,9 +213,7 @@ firstCompositionPart f s = atFocus f s >>= \case
  where
   firstInSequence
     :: Composition a SequenceType -> Maybe (FirstCompositionPart a)
-  firstInSequence = \case
-    Sequence _ []    -> Nothing
-    Sequence _ (p:_) -> firstInParallel p
+  firstInSequence (Sequence _ ps) = firstInParallel (NonEmpty.head ps)
   firstInParallel
     :: Composition a ParallelType -> Maybe (FirstCompositionPart a)
   firstInParallel = \case

@@ -11,14 +11,16 @@ module FastCut.Composition.Delete where
 import           FastCut.Prelude
 
 import           Control.Lens
+import qualified Data.List            as List
+import qualified Data.List.NonEmpty   as NonEmpty
 
 import           FastCut.Composition
 import           FastCut.Focus
 import           FastCut.Focus.Parent
 
-deleteAt :: Int -> [a] -> [a]
-deleteAt i xs =
-  let (before, after) = splitAt i xs
+deleteAt :: (Int -> t a -> ([a], [a])) -> Int -> t a -> [a]
+deleteAt splitAt' i xs =
+  let (before, after) = splitAt' i xs
   in before <> drop 1 after
 
 -- | Delete a 'Composition' or 'CompositionPart' at the 'Focus',
@@ -34,18 +36,20 @@ delete focus comp = runStateT (withParentOf traversal focus comp) Nothing
     traversal =
       ParentTraversal
       { onTimeline =
-          \i (Timeline ann children') ->
-            moveIfAtEnd children' i *>
-            pure (Timeline ann (deleteAt i children'))
+          \i (Timeline ann children') -> do
+            moveIfAtEnd children' i
+            maybe mzero (pure . Timeline ann) $
+              NonEmpty.nonEmpty (deleteAt NonEmpty.splitAt i children')
       , onSequence =
-          \i (Sequence ann children') ->
-            moveIfAtEnd children' i *>
-            pure (Sequence ann (deleteAt i children'))
-      , onVideoParts = \i vs -> moveIfAtEnd vs i *> pure (deleteAt i vs)
-      , onAudioParts = \i as -> moveIfAtEnd as i *> pure (deleteAt i as)
+        \i (Sequence ann children') -> do
+            moveIfAtEnd children' i
+            maybe mzero (pure . Sequence ann) $
+              NonEmpty.nonEmpty (deleteAt NonEmpty.splitAt i children')
+      , onVideoParts = \i vs -> moveIfAtEnd vs i *> pure (deleteAt List.splitAt i vs)
+      , onAudioParts = \i as -> moveIfAtEnd as i *> pure (deleteAt List.splitAt i as)
       }
-    moveIfAtEnd :: [a] -> Int -> StateT (Maybe FocusCommand) Maybe ()
-    moveIfAtEnd [_] _ = put (Just FocusUp)
+    moveIfAtEnd :: Foldable t => t a -> Int -> StateT (Maybe FocusCommand) Maybe ()
+    moveIfAtEnd (length -> 1) _ = put (Just FocusUp)
     moveIfAtEnd (pred . length -> maxIndex) idx
       | idx >= maxIndex = put (Just FocusLeft)
       | otherwise = pure ()

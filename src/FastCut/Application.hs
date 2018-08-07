@@ -24,7 +24,7 @@ import           Control.Lens
 import           Data.Row.Records            hiding (map)
 import           Data.String                 (fromString)
 import           GHC.Exts                    (fromListN)
-import           Motor.FSM                   hiding (Delete)
+import           Motor.FSM                   hiding (Delete, delete)
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
@@ -263,19 +263,29 @@ timelineMode gui focus' project = do
     CommandKeyMappedEvent (FocusCommand cmd) ->
       case modifyFocus (project ^. timeline) cmd focus' of
         Left err -> do
+          beep gui
           printUnexpectedFocusError err cmd
           continue
         Right newFocus -> timelineMode gui newFocus project
     CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
     CommandKeyMappedEvent Delete ->
-      case delete_ focus' (project ^. timeline) of
-        Left (_cmd, err) -> do
-          iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
-          continue
-        Right (newTimeline, newFocus) ->
+      case delete focus' (project ^. timeline) of
+        Nothing -> beep gui >> continue
+        Just (timeline', Just cmd) ->
+          case modifyFocus (project ^. timeline) cmd focus' of
+            Left err -> do
+              beep gui
+              iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
+              continue
+            Right newFocus ->
+              project
+              & timeline .~ timeline'
+              & timelineMode gui newFocus
+        Just (timeline', Nothing) ->
           project
-          & timeline .~ newTimeline
-          & timelineMode gui newFocus
+            & timeline .~ timeline'
+            & timelineMode gui focus'
+
     CommandKeyMappedEvent Import ->
        importFile gui project focus' >>>= timelineMode gui focus'
     CommandKeyMappedEvent Cancel -> continue

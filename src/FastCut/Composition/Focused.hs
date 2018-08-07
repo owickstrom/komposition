@@ -6,6 +6,9 @@ module FastCut.Composition.Focused where
 
 import           FastCut.Prelude
 
+import           Data.List.NonEmpty   (NonEmpty (..))
+import qualified Data.List.NonEmpty   as NonEmpty
+
 import           FastCut.Composition
 import           FastCut.Focus
 import           FastCut.MediaType
@@ -26,6 +29,9 @@ blurComposition = \case
 blurPart :: CompositionPart a t -> CompositionPart Focused t
 blurPart = setPartAnnotation Blurred
 
+numsFromZero :: (Enum n, Num n) => NonEmpty n
+numsFromZero = 0 :| [1 ..]
+
 applyFocus :: Composition a t -> Focus ft -> Composition Focused t
 applyFocus = go
   where
@@ -33,11 +39,11 @@ applyFocus = go
     go (Timeline _ sub) (SequenceFocus idx parallelFocus) =
       Timeline
         TransitivelyFocused
-        (zipWith (applyAtSubComposition idx parallelFocus) sub [0 ..])
+        (NonEmpty.zipWith (applyAtSubComposition idx parallelFocus) sub numsFromZero)
     go (Sequence _ sub) (ParallelFocus idx subFocus) =
       Sequence
         TransitivelyFocused
-        (zipWith (applyAtSubComposition idx subFocus) sub [0 ..])
+        (NonEmpty.zipWith (applyAtSubComposition idx subFocus) sub numsFromZero)
     go (Parallel _ videoParts audioParts) (ClipFocus focusPartType idx) =
       let focusInParts :: [CompositionPart a mt] -> [CompositionPart Focused mt]
           focusInParts clips = zipWith (focusPartAt idx) clips [0 ..]

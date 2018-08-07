@@ -61,13 +61,13 @@ renderComposition = \case
   Timeline _ sub -> container
     Box
     [classes ["composition", "timeline", emptyClass (null sub)]]
-    (map renderComposition sub)
+    (map renderComposition (toList sub))
   Sequence focused sub -> container
     Box
     [ classes
         ["composition", "sequence", focusedClass focused, emptyClass (null sub)]
     ]
-    (map renderComposition sub)
+    (map renderComposition (toList sub))
   Parallel focused vs as -> container
     Box
     [ #orientation := OrientationVertical

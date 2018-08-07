@@ -27,18 +27,20 @@ initialProject = do
     , _timeline =
         Timeline
           ()
-          [ Sequence
+          ( Sequence
               ()
-              [ Parallel
+              ( Parallel
                   ()
                   [gap1s, Clip () video1s, gap3s]
                   [Clip () audio1s, Clip () audio5s, Clip () audio1s]
-              , Parallel
+              :| [ Parallel
                   ()
                   [gap3s, Clip () video10s, gap1s]
                   [Clip () audio8s, Clip () audio5s, Clip () audio1s]
               ]
-          ]
+              )
+          :| []
+          )
     , _library = Library [video1s, video1s] [audio1s, audio5s, audio8s]
     }
 
