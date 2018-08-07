@@ -38,6 +38,7 @@ import           System.FilePath
 import           System.IO               hiding (putStrLn)
 import           Text.Printf
 
+import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Video.Import
@@ -265,9 +266,9 @@ writeSplitVideoFiles outDir =
         Right writeFrame -> liftIO (writeFrame Nothing)
       return (reverse files)
 
-getVideoFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m DiffTime
+getVideoFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m Duration
 getVideoFileDuration f =
-  picosecondsToDiffTime . (* 1000000) . fromIntegral <$>
+  Duration . picosecondsToDiffTime . (* 1000000) . fromIntegral <$>
   Probe.withAvFile f Probe.duration
 
 filePathToVideoAsset ::

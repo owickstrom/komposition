@@ -17,17 +17,30 @@ import           FastCut.TestLibrary
 
 spec_insertRightOf = do
   it "appends a sequence after the focused one" $ do
-    let focus = SequenceFocus 0 Nothing
-        before' = Timeline (1 :: Int) [Sequence 2 [], Sequence 4 []]
-        after' = Timeline 1 [Sequence 2 [], Sequence 3 [], Sequence 4 []]
-    insert focus (InsertSequence (Sequence 3 [])) RightOf before' `shouldBe`
+    let focus = SequenceFocus 1 Nothing
+        before' =
+          Timeline
+            ()
+            (Sequence () (pure parallel1) :| [Sequence () (pure parallel2)])
+        after' =
+          Timeline
+            ()
+            (Sequence () (pure parallel1) :|
+             [Sequence () (pure parallel2), Sequence () (pure parallel1)])
+    insert focus (InsertSequence (Sequence () (pure parallel1))) RightOf before' `shouldBe`
       Just after'
   it "appends a video clip after the focused one" $ do
     let focus =
           SequenceFocus 0 (Just (ParallelFocus 0 (Just (ClipFocus Video 0))))
-        before' = Timeline () [Sequence () [Parallel () [video4s, video10s] []]]
+        before' =
+          Timeline
+            ()
+            (pure (Sequence () (pure (Parallel () [video4s, video10s] []))))
         after' =
-          Timeline () [Sequence () [Parallel () [video4s, gap3s, video10s] []]]
+          Timeline
+            ()
+            (pure
+               (Sequence () (pure (Parallel () [video4s, gap3s, video10s] []))))
     insert focus (InsertVideoPart gap3s) RightOf before' `shouldBe` Just after'
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}

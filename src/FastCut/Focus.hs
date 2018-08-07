@@ -11,8 +11,8 @@ module FastCut.Focus where
 
 import           FastCut.Prelude
 
-import qualified Data.List.NonEmpty as NonEmpty
 import           Control.Monad.Except (throwError)
+import qualified Data.List.NonEmpty   as NonEmpty
 
 import           FastCut.Composition
 import           FastCut.Duration
@@ -53,7 +53,7 @@ nearestPartIndexLeftOf
   -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
-  = let cutoffPoint = durationOf (take i focusedParts)
+  = let cutoffPoint = foldMap durationOf (take i focusedParts)
         below       = takeWhile ((<= cutoffPoint) . snd)
                                 (indicesWithStartPoints blurredParts)
     in  (fst <$> lastMay below) <|> Just 0
@@ -124,10 +124,10 @@ modifyFocus s e f = case (s, e, f) of
 
     case (vs, as) of
       -- Down into video track of focused parallel.
-      (_:_, _) -> pure (ParallelFocus idx (Just (ClipFocus Video 0)))
+      (_:_, _)  -> pure (ParallelFocus idx (Just (ClipFocus Video 0)))
       -- Down into audio track, past empty video track, of focused parallel.
       ([], _:_) -> pure (ParallelFocus idx (Just (ClipFocus Audio 0)))
-      _ -> throwError CannotMoveDown
+      _         -> throwError CannotMoveDown
 
   -- We can move down from video to audio within a composition.
   (Parallel _ videoParts audioParts, FocusDown, ClipFocus Video i) ->

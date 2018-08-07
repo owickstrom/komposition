@@ -29,7 +29,7 @@ shouldClassifyAs inFrames outFrames =
      then return ()
      else expectationFailure "Classfied frames are not equal to expected frames"
   where
-    eqFrame f1 f2 = untimed (unClassified f1) == untimed (unClassified f2)
+    eqFrame f1' f2' = untimed (unClassified f1') == untimed (unClassified f2')
 
 spec_classifyMovement = do
   it "discards too short still section" $

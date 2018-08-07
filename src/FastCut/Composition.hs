@@ -59,6 +59,13 @@ setCompositionAnnotation a = \case
 deriving instance Eq a => Eq (Composition a t)
 deriving instance Show a => Show (Composition a t)
 
+instance HasDuration (Composition a t) where
+  durationOf =
+    \case
+      Timeline _ seqs -> foldMap durationOf seqs
+      Sequence _ pars -> foldMap durationOf pars
+      Parallel _ vs as -> max (foldMap durationOf vs) (foldMap durationOf as)
+
 single :: Asset t -> Composition () ParallelType
 single = \case
   v@VideoAsset{} -> Parallel () [Clip () v] []
