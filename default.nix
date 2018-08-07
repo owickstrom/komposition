@@ -28,7 +28,7 @@ let
     };
   };
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
-  drv = variant (haskellPackages.callPackage (import ./fastcut.nix) {});
+  drv = variant (haskellPackages.callCabal2nix "fastcut" ./. {});
 in
 { fastcut = drv;
   fastcut-shell = haskellPackages.shellFor {
