@@ -231,7 +231,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     runUI $ do
       d <- Gtk.new Gtk.FileChooserNative []
       chooser <- Gtk.toFileChooser d
-      Gtk.fileChooserSetCurrentFolder chooser defaultDir
+      void (Gtk.fileChooserSetCurrentFolder chooser defaultDir)
       Gtk.fileChooserSetDoOverwriteConfirmation chooser True
       Gtk.fileChooserSetAction chooser (modeToAction mode)
       Gtk.nativeDialogSetTitle d title
