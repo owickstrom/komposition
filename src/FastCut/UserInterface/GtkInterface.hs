@@ -225,6 +225,31 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
       Gtk.widgetDestroy d
     takeMVar response
 
+  chooseFile n mode title defaultDir =
+    FSM.get n >>>= \s -> iliftIO $ do
+    response <- newEmptyMVar
+    runUI $ do
+      d <- Gtk.new Gtk.FileChooserNative []
+      chooser <- Gtk.toFileChooser d
+      Gtk.fileChooserSetCurrentFolder chooser defaultDir
+      Gtk.fileChooserSetDoOverwriteConfirmation chooser True
+      Gtk.fileChooserSetAction chooser (modeToAction mode)
+      Gtk.nativeDialogSetTitle d title
+      Gtk.nativeDialogSetTransientFor d (Just (window s))
+      Gtk.nativeDialogSetModal d True
+      res <- Gtk.nativeDialogRun d
+      case toEnum (fromIntegral res) of
+        Gtk.ResponseTypeAccept -> Gtk.fileChooserGetFilename d >>= putMVar response
+        Gtk.ResponseTypeCancel -> putMVar response Nothing
+        -- Loads of other cases:
+        _ -> putMVar response Nothing
+      Gtk.nativeDialogDestroy d
+    takeMVar response
+    where
+      modeToAction = \case
+        Open ->  Gtk.FileChooserActionOpen
+        Save -> Gtk.FileChooserActionSave
+
   exit n =
     (FSM.get n >>>= iliftIO . unsubscribeView)
     >>> iliftIO Gtk.mainQuit

@@ -70,6 +70,10 @@ type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 class Enum c => DialogChoice c where
   toButtonLabel :: c -> Text
 
+data FileChooserMode
+  = Open
+  | Save
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
@@ -114,6 +118,12 @@ class MonadFSM m =>
     -> Text -- ^ Dialog message.
     -> [c] -- ^ Choices of the dialog, rendered as buttons.
     -> Actions m '[ n := Remain (State m t)] r (Maybe c)
+  chooseFile
+    :: Name n
+    -> FileChooserMode
+    -> Text -- ^ Dialog window title.
+    -> FilePath
+    -> Actions m '[ n := Remain (State m t)] r (Maybe FilePath)
   exit :: Name n -> Actions m '[ n !- State m s] r ()
 
 -- | Convenient type for actions that transition from one mode (of

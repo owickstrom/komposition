@@ -25,6 +25,7 @@ import           Data.Row.Records            hiding (map)
 import           Data.String                 (fromString)
 import           GHC.Exts                    (fromListN)
 import           Motor.FSM                   hiding (Delete, delete)
+import           System.Directory
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
@@ -286,11 +287,17 @@ timelineMode gui focus' project = do
           project & timeline .~ timeline' & timelineMode gui focus'
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= timelineMode gui focus'
-    CommandKeyMappedEvent Render ->
-      case Render.flattenTimeline (project ^. timeline) of
-        Just flat ->
-          iliftIO (Render.renderComposition 25 "/tmp/fastcut/out.mp4" flat) >>> continue
-        Nothing -> beep gui >>> continue
+    CommandKeyMappedEvent Render -> do
+             case Render.flattenTimeline (project ^. timeline) of
+               Just flat -> do
+                 outDir <- iliftIO getUserDocumentsDirectory
+                 chooseFile gui Save "Render To File" outDir >>>=
+                   \case
+                     Just outFile -> do
+                       iliftIO (Render.renderComposition 25 outFile flat)
+                       continue
+                     Nothing -> continue
+               Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->
       dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
