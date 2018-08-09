@@ -33,6 +33,7 @@ library
                       , FastCut.Library
                       , FastCut.MediaType
                       , FastCut.Render.Composition
+                      , FastCut.Render.FFmpeg
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
                       , FastCut.UserInterface.GtkInterface.View
@@ -70,8 +71,10 @@ library
                       , pipes-parse
                       , primitive
                       , protolude
+                      , process
                       , row-types
                       , transformers
+                      , temporary
                       , text
                       , time
                       , unordered-containers

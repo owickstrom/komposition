@@ -37,6 +37,8 @@ import           FastCut.KeyMap
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
+import qualified FastCut.Render.Composition  as Render
+import qualified FastCut.Render.FFmpeg       as Render
 import           FastCut.UserInterface
 import           FastCut.Video.Import
 
@@ -64,6 +66,7 @@ keymaps =
       , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
       , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
       , ([KeyChar 'i'], Mapping Import)
+      , ([KeyChar 'r'], Mapping Render)
       , ( [KeyChar 'a']
         , SequencedMappings
             [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
@@ -278,16 +281,16 @@ timelineMode gui focus' project = do
               iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
               continue
             Right newFocus ->
-              project
-              & timeline .~ timeline'
-              & timelineMode gui newFocus
+              project & timeline .~ timeline' & timelineMode gui newFocus
         Just (timeline', Nothing) ->
-          project
-            & timeline .~ timeline'
-            & timelineMode gui focus'
-
+          project & timeline .~ timeline' & timelineMode gui focus'
     CommandKeyMappedEvent Import ->
-       importFile gui project focus' >>>= timelineMode gui focus'
+      importFile gui project focus' >>>= timelineMode gui focus'
+    CommandKeyMappedEvent Render ->
+      case Render.flattenTimeline (project ^. timeline) of
+        Just flat ->
+          iliftIO (Render.renderComposition 25 "/tmp/fastcut/out.mp4" flat) >>> continue
+        Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Exit ->
       dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case

@@ -1,4 +1,1 @@
 packages:       fastcut.cabal
-              , lib/indexed-extras
-              , lib/ffmpeg-light
-              , lib/gi-gtk-declarative

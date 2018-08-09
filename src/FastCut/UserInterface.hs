@@ -51,6 +51,7 @@ data Command mode where
   AppendCommand :: AppendCommand -> Command TimelineMode
   Delete :: Command TimelineMode
   Import :: Command TimelineMode
+  Render :: Command TimelineMode
   Exit :: Command TimelineMode
 
   LibraryUp :: Command LibraryMode
