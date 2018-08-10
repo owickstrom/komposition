@@ -1,17 +1,17 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-module FastCut.Video.FFmpeg where
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
+module FastCut.Import.FFmpeg where
 
 import           FastCut.Prelude         hiding (catch)
 
@@ -31,6 +31,7 @@ import qualified Data.Vector.Generic     as VG
 import           Graphics.ColorSpace     as A
 import           Pipes                   (Consumer', Pipe, Producer, (>->))
 import qualified Pipes
+import qualified Pipes.Lift              as Pipes
 import qualified Pipes.Parse             as Pipes
 import qualified Pipes.Prelude           as Pipes hiding (show)
 import           System.Directory
@@ -41,7 +42,7 @@ import           Text.Printf
 import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.MediaType
-import           FastCut.Video.Import
+import           FastCut.Progress
 
 initialize :: IO ()
 initialize = initFFmpeg
@@ -235,36 +236,38 @@ split src outDir = do
     Left err -> putStrLn ("Failed to split video file: " <> show err :: Text)
     Right () -> return ()
 
-newtype FFmpegImporterT m a = FFmpegImporterT
-  { runFFmpegImporterT :: m a
-  } deriving (Functor, Applicative, Monad, MonadIO)
-
-writeSplitVideoFiles :: MonadIO m => FilePath -> Producer (Classified Frame) m () -> m [FilePath]
-writeSplitVideoFiles outDir =
-  Pipes.foldM go (return (Left (), 1 :: Int, [])) onEnd
+writeSplitVideoFiles ::
+     MonadIO m
+  => FilePath
+  -> Producer (Classified (Timed Frame)) m ()
+  -> Producer (Classified (Timed Frame)) m [FilePath]
+writeSplitVideoFiles outDir = Pipes.evalStateT (go (Left (), 1 :: Int, []))
   where
-    go (Left (), n, files) =
-      \case
-        (Still _) -> return (Left (), n, files)
-        (Moving f) -> do
-          let ep = (defaultH264 800 450) {epFps = 25}
-              filePath = outDir </> show n ++ ".mp4"
-          writeFrame <- liftIO (imageWriter ep filePath)
-          liftIO (writeFrame (Just f))
-          return (Right writeFrame, n, filePath : files)
-    go (Right writeFrame, n, files) =
-      \case
-        (Still _) -> do
-          liftIO (writeFrame Nothing)
-          return (Left (), succ n, files)
-        (Moving f) -> do
-          liftIO (writeFrame (Just f))
-          return (Right writeFrame, n, files)
-    onEnd (st, _, files) = do
-      case st of
-        Left ()          -> pure ()
-        Right writeFrame -> liftIO (writeFrame Nothing)
-      return (reverse files)
+    go state' =
+      draw' >>= \case
+        Just frame -> do
+          yield' frame
+          case (state', frame) of
+            ((Left (), n, files), Still _) -> go (Left (), n, files)
+            ((Left (), n, files), Moving f) -> do
+              let ep = (defaultH264 800 450) {epFps = 25}
+                  filePath = outDir </> show n ++ ".mp4"
+              writeFrame <- liftIO (imageWriter ep filePath)
+              liftIO (writeFrame (Just (untimed f)))
+              go (Right writeFrame, n, filePath : files)
+            ((Right writeFrame, n, files), Still _) -> do
+              liftIO (writeFrame Nothing)
+              go (Left (), succ n, files)
+            ((Right writeFrame, n, files), Moving (untimed -> f)) -> do
+              liftIO (writeFrame (Just f))
+              go (Right writeFrame, n, files)
+        Nothing ->
+          case state' of
+            (Left (), _, files) ->
+              return (reverse files)
+            (Right writeFrame, _, files) -> do
+              liftIO (writeFrame Nothing)
+              return (reverse files)
 
 getVideoFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m Duration
 getVideoFileDuration f =
@@ -276,7 +279,7 @@ filePathToVideoAsset ::
   => FilePath
   -> FilePath
   -> m (Asset Video)
-filePathToVideoAsset p outDir = do
+filePathToVideoAsset outDir p = do
   md <-
     AssetMetadata p
     <$> liftIO (getVideoFileDuration p)
@@ -300,17 +303,35 @@ generateVideoThumbnail sourceFile outDir = do
       liftIO cleanup
       throwError (UnexpectedError sourceFile "No frames in video.")
 
-instance MonadIO m => MonadVideoImporter (FFmpegImporterT m) where
+newtype AutoSplit = AutoSplit Bool deriving (Show, Eq)
 
-  importVideoFile sourceFile outDir =
-    filePathToVideoAsset sourceFile outDir
-    & runExceptT
+data VideoImportError
+  = UnexpectedError FilePath Text
+  deriving (Show, Eq)
 
-  importVideoFileAutoSplit sourceFile outDir = do
-    liftIO (createDirectoryIfMissing True outDir)
-    classifyMovement (readVideoFile sourceFile >-> toMassiv)
-      >-> Pipes.map (fmap (fmap A.toJPImageRGB8))
-      >-> Pipes.map (fmap untimed)
-      & writeSplitVideoFiles outDir
-      & (=<<) (mapM (`filePathToVideoAsset` outDir))
-      & runExceptT
+importVideoFile ::
+     MonadIO m
+  => FilePath
+  -> FilePath
+  -> Producer ProgressUpdate m (Either VideoImportError (Asset Video))
+importVideoFile sourceFile outDir =
+  filePathToVideoAsset sourceFile outDir & runExceptT
+
+importVideoFileAutoSplit ::
+     MonadIO m
+  => FilePath
+  -> FilePath
+  -> Producer ProgressUpdate m (Either VideoImportError [Asset Video])
+importVideoFileAutoSplit sourceFile outDir = do
+  liftIO (createDirectoryIfMissing True outDir)
+  fullLength <- liftIO (getVideoFileDuration sourceFile)
+  let classifiedFrames =
+        classifyMovement (readVideoFile sourceFile >-> toMassiv)
+        >-> Pipes.map (fmap (fmap A.toJPImageRGB8))
+  writeSplitVideoFiles outDir classifiedFrames
+    >-> Pipes.map (toProgress fullLength . unClassified)
+    & (>>= mapM (filePathToVideoAsset outDir))
+    & Pipes.runExceptP
+  where
+    toProgress (durationToSeconds -> fullLength) Timed {..} =
+      ProgressUpdate (time / fullLength) "Importing..."

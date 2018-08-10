@@ -34,6 +34,7 @@ import           FastCut.Composition
 import           FastCut.Composition.Delete
 import           FastCut.Composition.Insert
 import           FastCut.Focus
+import           FastCut.Import.FFmpeg
 import           FastCut.KeyMap
 import           FastCut.Library
 import           FastCut.MediaType
@@ -41,7 +42,6 @@ import           FastCut.Project
 import qualified FastCut.Render.Composition  as Render
 import qualified FastCut.Render.FFmpeg       as Render
 import           FastCut.UserInterface
-import           FastCut.Video.Import
 
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
 (>>) = (>>>)
@@ -55,7 +55,7 @@ type Application t m
      , IxMonadIO (t m)
      , IxMonadTrans t
      , Monad m
-     , MonadVideoImporter m)
+     )
 
 keymaps :: SMode m -> KeyMap (Event m)
 keymaps =
@@ -179,11 +179,15 @@ importFile gui project focus' = do
           fillForm (form {selectedFile = Just file})
         (ImportAutoSplitSet s, form) -> fillForm (form {autoSplit = s})
     importAsset (filepath, True) =
-      ilift (importVideoFileAutoSplit filepath "/tmp/fastcut") >>>=
-      handleImportResult
+      progressBar gui "" (importVideoFileAutoSplit filepath "/tmp/fastcut") >>>= \case
+        Nothing -> do
+          iliftIO (putStrLn ("No result." :: Text))
+          ireturn project
+        Just assets -> handleImportResult assets
     importAsset (filepath, False) =
-      ilift (importVideoFile filepath "/tmp/fastcut") >>>=
-      handleImportResult . fmap (: [])
+      progressBar gui "" (importVideoFile filepath "/tmp/fastcut") >>>= \case
+        Nothing -> ireturn project
+        Just asset -> handleImportResult (fmap pure asset)
     handleImportResult =
       \case
         Left err -> do
@@ -195,7 +199,9 @@ importFile gui project focus' = do
               "I have no explanation at this point."
               [Ok]
           ireturn project
-        Right assets -> project & library . videoAssets %~ (<> assets) & ireturn
+        Right assets -> do
+          iliftIO (print assets)
+          project & library . videoAssets %~ (<> assets) & ireturn
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt =

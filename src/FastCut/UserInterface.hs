@@ -17,11 +17,13 @@ import           FastCut.Prelude hiding (State)
 
 import           Motor.FSM
 import           Data.Row.Records
+import           Pipes
 
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Library
 import           FastCut.Project
+import           FastCut.Progress
 
 data Mode
   = TimelineMode
@@ -124,6 +126,11 @@ class MonadFSM m =>
     -> Text -- ^ Dialog window title.
     -> FilePath
     -> Actions m '[ n := Remain (State m t)] r (Maybe FilePath)
+  progressBar
+    :: Name n
+    -> Text -- ^ Progress window title.
+    -> Producer ProgressUpdate IO a -- ^ Progress updates producer.
+    -> Actions m '[ n := Remain (State m t)] r (Maybe a)
   exit :: Name n -> Actions m '[ n !- State m s] r ()
 
 -- | Convenient type for actions that transition from one mode (of

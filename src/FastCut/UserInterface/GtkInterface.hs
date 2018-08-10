@@ -21,7 +21,7 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- | A declarative GTK implementation of the 'UserInterface' protocol.
-module FastCut.UserInterface.GtkInterface (withGtkUserInterface) where
+module FastCut.UserInterface.GtkInterface (runGtkUserInterface) where
 
 import           FastCut.Prelude                                  hiding (state)
 
@@ -34,10 +34,14 @@ import           Data.String
 import qualified Data.Text                                        as Text
 import qualified GI.Gdk                                           as Gdk
 import qualified GI.GLib.Constants                                as GLib
+import           GI.Gtk                                           (AttrOp (..))
 import qualified GI.Gtk.Declarative                               as Gtk
-import           Motor.FSM                                        as FSM
+import           Motor.FSM                                        hiding ((:=))
+import qualified Motor.FSM                                        as FSM
+import           Pipes
 
 import           Control.Monad.Indexed.IO
+import           FastCut.Progress
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.EventListener
 import           FastCut.UserInterface.GtkInterface.ImportView
@@ -171,7 +175,7 @@ switchView'
   -> SMode b
   -> Actions
        m
-       '[n := GtkInterfaceState a !--> GtkInterfaceState b]
+       '[(FSM.:=) n (GtkInterfaceState a !--> GtkInterfaceState b)]
        r
        ()
 switchView' n view newMode = FSM.get n
@@ -250,20 +254,50 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
         Open ->  Gtk.FileChooserActionOpen
         Save -> Gtk.FileChooserActionSave
 
+  progressBar n title producer =
+    FSM.get n >>>= \s -> iliftIO $ do
+      response <- newEmptyMVar
+      runUI $ do
+        d <- Gtk.new Gtk.Dialog [#title := title, #transientFor := window s, #modal := True]
+        content <- Gtk.dialogGetContentArea d
+        pb <- Gtk.new Gtk.ProgressBar [#showText := True]
+        contentStyle <- Gtk.widgetGetStyleContext content
+        Gtk.styleContextAddClass contentStyle "progress-bar-container"
+        let updateProgress = forever $ do
+              ProgressUpdate fraction text <- await
+              liftIO . runUI $
+                Gtk.set pb [#fraction := fraction, #text := text]
+        #add content pb
+        #showAll d
+
+        jobResult <- newEmptyMVar
+        tid <- forkIO $ do
+          result <- Pipes.runEffect (producer >-> updateProgress)
+          putMVar jobResult result
+          runUI (#destroy d)
+
+        r <- #run d
+        when (r < 0) (#destroy d)
+
+        tryReadMVar jobResult >>= \case
+          Just result -> putMVar response (Just result)
+          Nothing -> do
+            killThread tid
+            putMVar response Nothing
+      takeMVar response
+
   exit n =
     (FSM.get n >>>= iliftIO . unsubscribeView)
     >>> iliftIO Gtk.mainQuit
     >>> delete n
 
-withGtkUserInterface
-  :: (MonadIO (t IO))
-  => FilePath
-  -> (forall a . t IO a -> IO a)
-  -> GtkInterface (ReaderT Env (t IO)) Empty Empty ()
+runGtkUserInterface
+  :: FilePath
+  -> GtkInterface (ReaderT Env IO) Empty Empty ()
   -> IO ()
-withGtkUserInterface cssPath run ui = do
+runGtkUserInterface cssPath ui = do
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
-  void (forkIO (run (runReaderT (runFSM (runGtkInterface ui)) Env {..})))
+  void (forkIO (runReaderT (runFSM (runGtkInterface ui)) Env {..}))
   Gtk.main

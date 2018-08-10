@@ -21,7 +21,7 @@ importView =
   viewWithEvents $ \events ->
     container
       Box
-      []
+      [ classes ["import-view"] ]
       [ BoxChild True True 0 $ node Label [#label := "Import Asset"]
       , BoxChild False False 0 $
         node

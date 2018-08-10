@@ -20,16 +20,18 @@ data-files:           gui.glade
 library
   exposed-modules:      Control.Monad.Indexed.IO
                       , FastCut.Application
-                      , FastCut.Duration
-                      , FastCut.Focus
-                      , FastCut.Focus.Parent
-                      , FastCut.KeyMap
-                      , FastCut.Prelude
-                      , FastCut.Project
                       , FastCut.Composition
                       , FastCut.Composition.Delete
                       , FastCut.Composition.Focused
                       , FastCut.Composition.Insert
+                      , FastCut.Duration
+                      , FastCut.Focus
+                      , FastCut.Focus.Parent
+                      , FastCut.Import.FFmpeg
+                      , FastCut.KeyMap
+                      , FastCut.Prelude
+                      , FastCut.Progress
+                      , FastCut.Project
                       , FastCut.Library
                       , FastCut.MediaType
                       , FastCut.Render.Composition
@@ -41,8 +43,6 @@ library
                       , FastCut.UserInterface.GtkInterface.ImportView
                       , FastCut.UserInterface.GtkInterface.LibraryView
                       , FastCut.UserInterface.GtkInterface.TimelineView
-                      , FastCut.Video.FFmpeg
-                      , FastCut.Video.Import
   build-depends:        base >=4.10 && <4.12
                       , async
                       , deepseq

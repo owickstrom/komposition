@@ -83,3 +83,10 @@
   border-color: #ccc;
   border-style: solid;
 }
+
+.import-view {
+  padding: 20px;
+}
+.progress-bar-container {
+  padding: 20px;
+}

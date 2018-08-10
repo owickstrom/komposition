@@ -4,10 +4,10 @@ import           FastCut.Prelude
 
 import           FastCut.Application
 import           FastCut.Composition
+import           FastCut.Import.FFmpeg
 import           FastCut.Library
 import           FastCut.Project                    (Project (..))
 import           FastCut.UserInterface.GtkInterface
-import           FastCut.Video.FFmpeg
 import           Paths_fastcut
 
 initialProject :: IO Project
@@ -38,4 +38,4 @@ main = do
   initialize
   cssPath <- getDataFileName "style.css"
   p <- initialProject
-  withGtkUserInterface cssPath runFFmpegImporterT (fastcut p)
+  runGtkUserInterface cssPath (fastcut p)
