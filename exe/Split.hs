@@ -2,7 +2,7 @@ module Main where
 
 import           FastCut.Prelude
 
-import           FastCut.Video.FFmpeg
+import           FastCut.Import.FFmpeg
 
 main :: IO ()
 main = do

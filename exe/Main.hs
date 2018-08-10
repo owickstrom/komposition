@@ -2,6 +2,8 @@
 
 import           FastCut.Prelude
 
+import           System.IO.Temp
+
 import           FastCut.Application
 import           FastCut.Composition
 import           FastCut.Import.FFmpeg
@@ -10,8 +12,8 @@ import           FastCut.Project                    (Project (..))
 import           FastCut.UserInterface.GtkInterface
 import           Paths_fastcut
 
-initialProject :: IO Project
-initialProject = do
+initialProject :: FilePath -> IO Project
+initialProject workDir = do
   let
     gap1s = Gap () 1
 
@@ -31,11 +33,13 @@ initialProject = do
           :| []
           )
     , _library = Library [] []
+    , _workingDirectory = workDir
     }
 
 main :: IO ()
 main = do
   initialize
   cssPath <- getDataFileName "style.css"
-  p <- initialProject
-  runGtkUserInterface cssPath (fastcut p)
+  withSystemTempDirectory "project.fastcut" $ \workDir -> do
+    p <- initialProject workDir
+    runGtkUserInterface cssPath (fastcut p)

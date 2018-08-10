@@ -18,9 +18,10 @@ import           FastCut.Composition
 import           FastCut.Library
 
 data Project = Project
-  { _projectName :: Text
-  , _timeline    :: Composition () TimelineType
-  , _library     :: Library
+  { _projectName      :: Text
+  , _timeline         :: Composition () TimelineType
+  , _library          :: Library
+  , _workingDirectory :: FilePath
   } deriving (Eq, Show)
 
 makeLenses ''Project
