@@ -219,6 +219,8 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
       forM_ choices $ \choice ->
         void (Gtk.dialogAddButton d (toButtonLabel choice) (fromIntegral (fromEnum choice)))
       content <- Gtk.dialogGetContentArea d
+      contentStyle <- Gtk.widgetGetStyleContext content
+      Gtk.styleContextAddClass contentStyle "dialog-container"
       label <- Gtk.new Gtk.Label []
       Gtk.labelSetLabel label message
       Gtk.boxPackStart content label True True 10

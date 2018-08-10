@@ -85,8 +85,9 @@
 }
 
 .import-view {
-  padding: 20px;
+  padding: 1em;
 }
+.dialog-container,
 .progress-bar-container {
-  padding: 20px;
+  padding: 1em;
 }
