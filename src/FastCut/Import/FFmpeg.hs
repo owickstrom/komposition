@@ -326,12 +326,12 @@ importVideoFileAutoSplit sourceFile outDir = do
   liftIO (createDirectoryIfMissing True outDir)
   fullLength <- liftIO (getVideoFileDuration sourceFile)
   let classifiedFrames =
-        classifyMovement (readVideoFile sourceFile >-> toMassiv)
-        >-> Pipes.map (fmap (fmap A.toJPImageRGB8))
-  writeSplitVideoFiles outDir classifiedFrames
-    >-> Pipes.map (toProgress fullLength . unClassified)
-    & (>>= mapM (filePathToVideoAsset outDir))
-    & Pipes.runExceptP
+        classifyMovement (readVideoFile sourceFile >-> toMassiv) >->
+        Pipes.map (fmap (fmap A.toJPImageRGB8))
+  writeSplitVideoFiles outDir classifiedFrames >->
+    Pipes.map (toProgress fullLength . unClassified) &
+    (>>= mapM (filePathToVideoAsset outDir)) &
+    Pipes.runExceptP
   where
     toProgress (durationToSeconds -> fullLength) Timed {..} =
-      ProgressUpdate (time / fullLength) "Importing..."
+      ProgressUpdate (time / fullLength)

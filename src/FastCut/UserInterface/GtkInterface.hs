@@ -24,6 +24,7 @@
 module FastCut.UserInterface.GtkInterface (runGtkUserInterface) where
 
 import           FastCut.Prelude                                  hiding (state)
+import qualified Prelude
 
 import           Control.Monad                                    (void)
 import           Control.Monad.Indexed                            ()
@@ -39,6 +40,7 @@ import qualified GI.Gtk.Declarative                               as Gtk
 import           Motor.FSM                                        hiding ((:=))
 import qualified Motor.FSM                                        as FSM
 import           Pipes
+import           Text.Printf
 
 import           Control.Monad.Indexed.IO
 import           FastCut.Progress
@@ -181,6 +183,10 @@ switchView'
 switchView' n view newMode = FSM.get n
   >>>= \s -> iliftIO (view >>= \v -> switchView v newMode s) >>>= FSM.enter n
 
+printFractionAsPercent :: Double -> Text
+printFractionAsPercent fraction =
+  toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
+
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
@@ -266,9 +272,9 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
         contentStyle <- Gtk.widgetGetStyleContext content
         Gtk.styleContextAddClass contentStyle "progress-bar-container"
         let updateProgress = forever $ do
-              ProgressUpdate fraction text <- await
+              ProgressUpdate fraction <- await
               liftIO . runUI $
-                Gtk.set pb [#fraction := fraction, #text := text]
+                Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction]
         #add content pb
         #showAll d
 

@@ -305,7 +305,7 @@ timelineMode gui focus' project = do
           outDir <- iliftIO getUserDocumentsDirectory
           chooseFile gui Save "Render To File" outDir >>>= \case
             Just outFile -> do
-              iliftIO (Render.renderComposition 25 outFile flat)
+              _ <- progressBar gui "Rendering" (Render.renderComposition 25 outFile flat)
               continue
             Nothing -> continue
         Nothing -> beep gui >>> continue

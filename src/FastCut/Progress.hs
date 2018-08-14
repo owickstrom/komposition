@@ -2,5 +2,5 @@ module FastCut.Progress where
 
 import           FastCut.Prelude
 
-data ProgressUpdate = ProgressUpdate Double Text
+newtype ProgressUpdate = ProgressUpdate Double
   deriving (Show, Eq)

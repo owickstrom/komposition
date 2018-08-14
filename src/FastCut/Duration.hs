@@ -3,7 +3,8 @@ module FastCut.Duration where
 
 import           FastCut.Prelude
 
-import           Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
+import           Data.Time.Clock (DiffTime, diffTimeToPicoseconds,
+                                  picosecondsToDiffTime)
 
 newtype Duration = Duration DiffTime
   deriving (Show, Eq, Ord, Num)
@@ -13,6 +14,10 @@ instance Semigroup Duration where
 
 instance Monoid Duration where
   mempty = 0
+
+durationFromSeconds :: Double -> Duration
+durationFromSeconds =
+  Duration . picosecondsToDiffTime . round . (* 10e11)
 
 durationToSeconds :: Duration -> Double
 durationToSeconds (Duration dt) =

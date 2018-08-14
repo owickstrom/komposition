@@ -11,8 +11,9 @@ import qualified Prelude
 import           Control.Lens
 import qualified Data.List.NonEmpty         as NonEmpty
 import qualified Data.Text                  as Text
-import qualified Data.Text.Read             as Text
+import           Pipes
 import           System.FilePath
+import qualified System.IO                  as IO
 import           System.IO.Temp
 import           System.Process
 import           Text.Printf
@@ -20,6 +21,7 @@ import           Text.Printf
 import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.MediaType
+import           FastCut.Progress
 import           FastCut.Render.Composition (Composition (..))
 import qualified FastCut.Render.Composition as Composition
 
@@ -42,17 +44,13 @@ extractNumberOfFrames videoFile  = do
     & mapMaybe parseKeyValue
     & find ((== "nb_frames") . fst)
     & map snd
-    & (>>= readInt)
+    & (>>= readDecimal)
     & maybe (Prelude.fail "Couldn't parse number of frames from ffprobe output") return
   where
     parseKeyValue t =
       case Text.splitOn "=" t of
         [key, value] -> Just (key, value)
         _            -> Nothing
-    readInt t =
-      case Text.decimal t of
-        Left _err    -> Nothing
-        Right (n, _) -> Just n
 
 
 extractFrameToFile :: Composition.StillFrameMode -> Asset Video -> FilePath -> IO ()
@@ -103,20 +101,38 @@ toIndexedParts tmpDir frameRate =
           return (i, StillFrame frameFile frameRate duration')
         (i, Composition.Silence duration') -> return (i, Silence duration')
 
-formatTimestamp :: Duration -> Prelude.String
-formatTimestamp d =
+prettyPrintTimestamp :: Duration -> Text
+prettyPrintTimestamp d =
   let sec = durationToSeconds d
-      hours, minutes, seconds :: Int
+      hours, minutes :: Int
       hours = floor (sec / 3600)
-      minutes = floor (sec / 3600)
-      seconds = floor sec
-      milliseconds = sec - fromIntegral seconds
-      millisecondsFractionPart =
-        drop 1 (printf "%f" milliseconds) :: Prelude.String
-  in printf "%02d:%02d:%02d%s" hours minutes seconds millisecondsFractionPart
+      minutes = floor (sec / 60)
+      seconds :: Double
+      seconds = sec - (fromIntegral hours * 3600) - (fromIntegral minutes * 60)
+  in toS (printf "%02d:%02d:%f" hours minutes seconds :: Prelude.String)
+
+
+parseTimestamp :: Text -> Maybe Duration
+parseTimestamp t =
+  case Text.splitOn ":" t of
+    [hourStr, minStr, secStr] -> do
+      hours <- fromIntegral <$> (readDecimal hourStr :: Maybe Integer)
+      mins <- fromIntegral <$> (readDecimal minStr :: Maybe Integer)
+      secs <- readDouble secStr
+      pure (durationFromSeconds (hours * 3600 + mins * 60 + secs))
+    _ -> Nothing
+
+parseTimestampFromProgress :: Text -> Maybe Duration
+parseTimestampFromProgress line =
+  parseTimestamp =<<
+  Prelude.lookup "time" (toPairs (splitByWhitespaceOrEquals line))
+  where
+    splitByWhitespaceOrEquals = filter (not . Text.null) . Text.split (`elem` ['\t', ' ', '='])
+    toPairs (key:value:rest) = (key, value) : toPairs rest
+    toPairs _                = []
 
 renderVideoCommand :: FilePath -> NonEmpty (IndexedPart Video) -> CreateProcess
-renderVideoCommand outFile parts
+renderVideoCommand outFile parts'
   -- https://stackoverflow.com/questions/43958438/merge-videos-and-images-using-ffmpeg#
   --
   -- ffmpeg \
@@ -125,11 +141,11 @@ renderVideoCommand outFile parts
   --   -loop 1 -framerate 24 -t 10 -i image2.jpg \
   --   -loop 1 -framerate 24 -t 10 -i image3.jpg \
   --   -filter_complex "[0][1][2][3]concat=n=4:v=1:a=0" out.mp4
- = proc "ffmpeg" ("-nostdin" : partParams <> filterComplex <> outputParams)
+ = proc "ffmpeg" ("-v" : "quiet" : "-stats" : "-nostdin" : partParams <> filterComplex <> outputParams)
   where
     partParams, filterComplex, outputParams :: [Prelude.String]
     partParams =
-      flip concatMap (NonEmpty.toList parts) $ \case
+      flip concatMap (NonEmpty.toList parts') $ \case
         (_, Clip (VideoAsset asset)) -> ["-i", asset ^. path]
         (_, StillFrame imagePath frameRate duration') ->
           [ "-loop"
@@ -137,24 +153,46 @@ renderVideoCommand outFile parts
           , "-framerate"
           , show frameRate
           , "-t"
-          , formatTimestamp duration'
+          , toS (prettyPrintTimestamp duration')
           , "-i"
           , imagePath
           ]
     filterComplex =
       [ "-filter_complex"
-      , concatMap (inBrackets . fst) parts <> "concat=n=" <> show (length parts) <>
+      , concatMap (inBrackets . fst) parts' <> "concat=n=" <> show (length parts') <>
         ":v=1:a=0"
       ]
     outputParams = ["-f", "mp4", outFile]
     inBrackets :: Show a => a -> Prelude.String
     inBrackets x = "[" <> show x <> "]"
 
+fromCarriageReturnSplit :: Handle -> Producer Text IO ()
+fromCarriageReturnSplit h = go mempty
+  where
+    go buf =
+      lift (IO.hIsEOF h) >>= \case
+        True -> yield buf
+        False -> do
+          c <- lift (IO.hGetChar h)
+          if c == '\r'
+          then yield buf >> go mempty
+          else go (buf <> Text.singleton c)
 
-renderComposition :: FrameRate -> FilePath -> Composition -> IO ()
-renderComposition frameRate outFile (Composition video _audio) = do
-  canonical <- getCanonicalTemporaryDirectory
-  tmpDir <- createTempDirectory canonical "fastcut.render"
-  indexedVideo <- toIndexedParts tmpDir frameRate video
-  _ <- readCreateProcess (renderVideoCommand outFile indexedVideo) ""
-  return ()
+renderComposition :: FrameRate -> FilePath -> Composition -> Producer ProgressUpdate IO ()
+renderComposition frameRate outFile c@(Composition video _audio) = do
+  canonical <- lift getCanonicalTemporaryDirectory
+  tmpDir <- lift (createTempDirectory canonical "fastcut.render")
+  indexedVideo <- lift (toIndexedParts tmpDir frameRate video)
+  (_, _, Just progressOut, _) <-
+    lift
+      (createProcess_
+         ""
+         (renderVideoCommand outFile indexedVideo) {std_err = CreatePipe})
+  lift (IO.hSetBuffering progressOut IO.NoBuffering)
+  let totalDuration = durationToSeconds (durationOf c)
+  Pipes.for (fromCarriageReturnSplit progressOut) $ \line ->
+    case parseTimestampFromProgress line of
+      Just currentDuration ->
+        yield
+          (ProgressUpdate (durationToSeconds currentDuration / totalDuration))
+      Nothing -> return ()

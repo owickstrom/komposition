@@ -59,8 +59,8 @@ audioPart range =
   , Gap () <$> duration range
   ]
 
-duration :: MonadGen m => Range Int -> m Duration
-duration range = fromIntegral <$> Gen.int range
+duration :: Integral n => MonadGen m => Range n -> m Duration
+duration range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)
 
 assetMetadata :: MonadGen m => Range Int -> m AssetMetadata
 assetMetadata range =
