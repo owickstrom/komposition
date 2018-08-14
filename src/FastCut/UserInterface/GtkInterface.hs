@@ -237,6 +237,49 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
       Gtk.widgetDestroy d
     takeMVar response
 
+  prompt n title message okText mode =
+    FSM.get n >>>= \s -> iliftIO $ do
+    response <- newEmptyMVar
+    runUI $ do
+      d <- Gtk.new Gtk.Dialog []
+      Gtk.windowSetTitle d title
+      Gtk.windowSetTransientFor d (Just (window s))
+      Gtk.windowSetModal d True
+      let cancelResponse = fromIntegral (fromEnum Gtk.ResponseTypeCancel)
+          acceptResponse = fromIntegral (fromEnum Gtk.ResponseTypeAccept)
+          okResponse = fromIntegral (fromEnum Gtk.ResponseTypeOk)
+
+      void (Gtk.dialogAddButton d "Cancel" cancelResponse)
+      void (Gtk.dialogAddButton d okText okResponse)
+
+      content <- Gtk.dialogGetContentArea d
+      contentStyle <- Gtk.widgetGetStyleContext content
+      Gtk.styleContextAddClass contentStyle "dialog-container"
+      label <- Gtk.new Gtk.Label []
+      Gtk.labelSetLabel label message
+      Gtk.boxPackStart content label True True 10
+
+      getReturnValue <-
+        case mode of
+          NumberPrompt (lower, upper) -> do
+            input <- Gtk.spinButtonNewWithRange lower upper 0.1
+            Gtk.boxPackStart content input True True 10
+            void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
+            return (Just <$> Gtk.spinButtonGetValue input)
+          TextPrompt -> do
+            input <- Gtk.entryNew
+            Gtk.boxPackStart content input True True 10
+            void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
+            return (Just <$> Gtk.entryGetText input)
+
+      Gtk.widgetShowAll content
+      Gtk.dialogRun d >>= \case
+        r | r `elem` [acceptResponse, okResponse] ->
+            getReturnValue >>= putMVar response
+          |otherwise -> putMVar response Nothing
+      Gtk.widgetDestroy d
+    takeMVar response
+
   chooseFile n mode title defaultDir =
     FSM.get n >>>= \s -> iliftIO $ do
     response <- newEmptyMVar

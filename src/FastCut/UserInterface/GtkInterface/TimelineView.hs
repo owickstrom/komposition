@@ -27,8 +27,8 @@ import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.View
 
 widthFromDuration :: Duration -> Int32
-widthFromDuration (Duration duration') =
-  fromIntegral (ceiling duration' :: Int) * 10
+widthFromDuration duration' =
+  round (durationToSeconds duration' * 50)
 
 focusedClass :: Focused -> Text
 focusedClass = \case

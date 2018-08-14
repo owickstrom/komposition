@@ -76,6 +76,10 @@ data FileChooserMode
   = Open
   | Save
 
+data PromptMode ret where
+  NumberPrompt :: (Double, Double) -> PromptMode Double
+  TextPrompt :: PromptMode Text
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
@@ -120,6 +124,13 @@ class MonadFSM m =>
     -> Text -- ^ Dialog message.
     -> [c] -- ^ Choices of the dialog, rendered as buttons.
     -> Actions m '[ n := Remain (State m t)] r (Maybe c)
+  prompt
+    :: Name n
+    -> Text -- ^ Prompt window title.
+    -> Text -- ^ Prompt message.
+    -> Text -- ^ Button text for confirming the choice.
+    -> PromptMode ret -- ^ Type of prompt, decides the return value type.
+    -> Actions m '[ n := Remain (State m t)] r (Maybe ret)
   chooseFile
     :: Name n
     -> FileChooserMode

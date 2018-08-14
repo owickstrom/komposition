@@ -9,6 +9,8 @@
 }
 .timeline .parallel {
   padding-top: 2pt;
+}
+.timeline .empty {
   min-width: 5em;
 }
 
@@ -46,7 +48,7 @@
 
 .timeline .clip,
 .timeline .gap {
-  padding: 9px;
+  padding: 2px;
   border: 1pt solid rgba(0, 0, 0, .2);
   margin: 0 2pt;
 }
@@ -62,7 +64,7 @@
 }
 .timeline .clip.focused,
 .timeline .gap.focused {
-  padding: 8px;
+  padding: 1px;
   border-width: 2pt;
   border-color: #eee;
   border-style: solid;

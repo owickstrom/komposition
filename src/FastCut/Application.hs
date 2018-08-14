@@ -33,6 +33,7 @@ import           Control.Monad.Indexed.Trans
 import           FastCut.Composition
 import           FastCut.Composition.Delete
 import           FastCut.Composition.Insert
+import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.Import.FFmpeg
 import           FastCut.KeyMap
@@ -225,38 +226,42 @@ append gui project focus' cmd =
     (AppendComposition, Just (FocusedSequence _)) ->
       selectAsset gui project focus' SVideo >>= \case
         Just asset' ->
-          project
-            &  timeline
-            %~ insert_ focus'
-                       (InsertParallel (Parallel () [Clip () asset'] []))
-                       RightOf
-            &  timelineMode gui focus'
+          project & timeline %~
+          insert_
+            focus'
+            (InsertParallel (Parallel () [Clip () asset'] []))
+            RightOf &
+          timelineMode gui focus'
         Nothing -> continue
     (AppendClip, Just (FocusedVideoPart _)) ->
-      selectAssetAndAppend gui project focus' SVideo
-        >>>= timelineMode gui focus'
+      selectAssetAndAppend gui project focus' SVideo >>>=
+      timelineMode gui focus'
     (AppendClip, Just (FocusedAudioPart _)) ->
-      selectAssetAndAppend gui project focus' SAudio
-        >>>= timelineMode gui focus'
+      selectAssetAndAppend gui project focus' SAudio >>>=
+      timelineMode gui focus'
     (AppendGap, Just _) ->
-      project
-        &  timeline
-        %~ insert_ focus' (InsertVideoPart (Gap () 10)) RightOf
-        &  timelineMode gui focus'
+      prompt
+        gui
+        "Insert Gap"
+        "Please specify a gap duration in seconds."
+        "Insert Gap"
+        (NumberPrompt (0.1, 10e10)) >>>= \case
+        Just seconds ->
+          project
+            & timeline %~ insert_ focus' (InsertVideoPart (Gap () (durationFromSeconds seconds))) RightOf
+            & timelineMode gui focus'
+        Nothing -> continue
     (c, Just f) -> do
       iliftIO
         (putStrLn
-          (  "Cannot perform "
-          <> show c
-          <> " when focused at "
-          <> prettyFocusedAt f
-          )
-        )
+           ("Cannot perform " <> show c <> " when focused at " <>
+            prettyFocusedAt f))
       continue
     (_, Nothing) -> do
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
-  where continue = timelineMode gui focus' project
+  where
+    continue = timelineMode gui focus' project
 
 data Confirmation
   = Yes
