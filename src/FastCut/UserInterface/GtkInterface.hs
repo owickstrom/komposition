@@ -187,14 +187,20 @@ printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =
   toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
 
+data ModalDialog ctx t = ModalDialog
+  { title      :: Text
+  , message    :: Maybe Text
+  , setUp      :: Gtk.Dialog -> Gtk.Box -> IO ctx
+  , toResponse :: Gtk.Dialog -> ctx -> Int32 -> IO (Maybe t)
+  , tearDown   :: Gtk.Dialog -> ctx -> IO ()
+  }
+
 inNewModalDialog ::
      (MonadFSM m, IxMonadIO m)
   => Name n
-  -> Text
-  -> Maybe Text
-  -> (Gtk.Dialog -> Gtk.Box -> IO (Int32 -> IO (Maybe t)))
+  -> ModalDialog ctx t
   -> Actions m '[ (FSM.:=) n (Remain (GtkInterfaceState a))] r (Maybe t)
-inNewModalDialog n title message render' =
+inNewModalDialog n ModalDialog{..} =
   FSM.get n >>>= \s -> iliftIO $ do
     response <- newEmptyMVar
     runUI $ do
@@ -211,10 +217,10 @@ inNewModalDialog n title message render' =
           Gtk.boxPackStart content label True True 10
         Nothing -> return ()
 
-      toResponse <- render' d content
+      ctx <- setUp d content
       #showAll content
-      putMVar response =<< toResponse =<< #run d
-      #destroy d
+      putMVar response =<< toResponse d ctx =<< #run d
+      tearDown d ctx
     takeMVar response
 
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
@@ -245,36 +251,40 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   beep _ = iliftIO (runUI Gdk.beep)
 
   dialog n title message choices =
-    inNewModalDialog n title (Just message) $ \d _ -> do
-      forM_ choices $ \choice ->
-        void (Gtk.dialogAddButton d (toButtonLabel choice) (fromIntegral (fromEnum choice)))
-      return (return . Just . toEnum . fromIntegral)
+    let setUp d _ =
+          forM_ choices $ \choice ->
+            void (Gtk.dialogAddButton d (toButtonLabel choice) (fromIntegral (fromEnum choice)))
+        toResponse _ _ r
+          | r < 0 = return Nothing
+          | otherwise = return $ Just $ toEnum $ fromIntegral r
+        tearDown d _ = #destroy d
+    in inNewModalDialog n ModalDialog { message = Just message
+                                      , ..
+                                      }
 
   prompt n title message okText mode =
-    inNewModalDialog n title (Just message) $ \d content -> do
-      let cancelResponse = fromIntegral (fromEnum Gtk.ResponseTypeCancel)
-          acceptResponse = fromIntegral (fromEnum Gtk.ResponseTypeAccept)
-          okResponse = fromIntegral (fromEnum Gtk.ResponseTypeOk)
-
-      void (Gtk.dialogAddButton d "Cancel" cancelResponse)
-      void (Gtk.dialogAddButton d okText okResponse)
-
-      getReturnValue <-
-        case mode of
-          NumberPrompt (lower, upper) -> do
-            input <- Gtk.spinButtonNewWithRange lower upper 0.1
-            Gtk.boxPackStart content input True True 10
-            void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
-            return (Just <$> Gtk.spinButtonGetValue input)
-          TextPrompt -> do
-            input <- Gtk.entryNew
-            Gtk.boxPackStart content input True True 10
-            void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
-            return (Just <$> Gtk.entryGetText input)
-
-      return $ \case
-        r | r `elem` [acceptResponse, okResponse] -> getReturnValue
-          | otherwise -> return Nothing
+    let cancelResponse = fromIntegral (fromEnum Gtk.ResponseTypeCancel)
+        acceptResponse = fromIntegral (fromEnum Gtk.ResponseTypeAccept)
+        okResponse = fromIntegral (fromEnum Gtk.ResponseTypeOk)
+        setUp d content = do
+          void (Gtk.dialogAddButton d "Cancel" cancelResponse)
+          void (Gtk.dialogAddButton d okText okResponse)
+          case mode of
+            NumberPrompt (lower, upper) -> do
+              input <- Gtk.spinButtonNewWithRange lower upper 0.1
+              Gtk.boxPackStart content input True True 10
+              void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
+              return (Just <$> Gtk.spinButtonGetValue input)
+            TextPrompt -> do
+              input <- Gtk.entryNew
+              Gtk.boxPackStart content input True True 10
+              void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
+              return (Just <$> Gtk.entryGetText input)
+        toResponse _ getReturnValue r
+          | r `elem` [acceptResponse, okResponse] = getReturnValue
+          | otherwise = return Nothing
+        tearDown d _ = #destroy d
+    in inNewModalDialog n ModalDialog { message = Just message, .. }
 
   chooseFile n mode title defaultDir =
     FSM.get n >>>= \s -> iliftIO $ do
