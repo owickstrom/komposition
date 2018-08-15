@@ -187,6 +187,36 @@ printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =
   toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
 
+inNewModalDialog ::
+     (MonadFSM m, IxMonadIO m)
+  => Name n
+  -> Text
+  -> Maybe Text
+  -> (Gtk.Dialog -> Gtk.Box -> IO (Int32 -> IO (Maybe t)))
+  -> Actions m '[ (FSM.:=) n (Remain (GtkInterfaceState a))] r (Maybe t)
+inNewModalDialog n title message render' =
+  FSM.get n >>>= \s -> iliftIO $ do
+    response <- newEmptyMVar
+    runUI $ do
+      d <- Gtk.new Gtk.Dialog [#title := title, #transientFor := window s, #modal := True]
+
+      content <- Gtk.dialogGetContentArea d
+      contentStyle <- Gtk.widgetGetStyleContext content
+      Gtk.styleContextAddClass contentStyle "dialog-container"
+
+      case message of
+        Just m -> do
+          label <- Gtk.new Gtk.Label []
+          Gtk.labelSetLabel label m
+          Gtk.boxPackStart content label True True 10
+        Nothing -> return ()
+
+      toResponse <- render' d content
+      #showAll content
+      putMVar response =<< toResponse =<< #run d
+      #destroy d
+    takeMVar response
+
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
@@ -215,49 +245,19 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   beep _ = iliftIO (runUI Gdk.beep)
 
   dialog n title message choices =
-    FSM.get n >>>= \s -> iliftIO $ do
-    response <- newEmptyMVar
-    runUI $ do
-      d <- Gtk.new Gtk.Dialog []
-      Gtk.windowSetTitle d title
-      Gtk.windowSetTransientFor d (Just (window s))
-      Gtk.windowSetModal d True
+    inNewModalDialog n title (Just message) $ \d _ -> do
       forM_ choices $ \choice ->
         void (Gtk.dialogAddButton d (toButtonLabel choice) (fromIntegral (fromEnum choice)))
-      content <- Gtk.dialogGetContentArea d
-      contentStyle <- Gtk.widgetGetStyleContext content
-      Gtk.styleContextAddClass contentStyle "dialog-container"
-      label <- Gtk.new Gtk.Label []
-      Gtk.labelSetLabel label message
-      Gtk.boxPackStart content label True True 10
-      Gtk.widgetShowAll content
-      Gtk.dialogRun d >>= \case
-        r | r < 0 -> putMVar response Nothing
-        r -> putMVar response (Just (toEnum (fromIntegral r)))
-      Gtk.widgetDestroy d
-    takeMVar response
+      return (return . Just . toEnum . fromIntegral)
 
   prompt n title message okText mode =
-    FSM.get n >>>= \s -> iliftIO $ do
-    response <- newEmptyMVar
-    runUI $ do
-      d <- Gtk.new Gtk.Dialog []
-      Gtk.windowSetTitle d title
-      Gtk.windowSetTransientFor d (Just (window s))
-      Gtk.windowSetModal d True
+    inNewModalDialog n title (Just message) $ \d content -> do
       let cancelResponse = fromIntegral (fromEnum Gtk.ResponseTypeCancel)
           acceptResponse = fromIntegral (fromEnum Gtk.ResponseTypeAccept)
           okResponse = fromIntegral (fromEnum Gtk.ResponseTypeOk)
 
       void (Gtk.dialogAddButton d "Cancel" cancelResponse)
       void (Gtk.dialogAddButton d okText okResponse)
-
-      content <- Gtk.dialogGetContentArea d
-      contentStyle <- Gtk.widgetGetStyleContext content
-      Gtk.styleContextAddClass contentStyle "dialog-container"
-      label <- Gtk.new Gtk.Label []
-      Gtk.labelSetLabel label message
-      Gtk.boxPackStart content label True True 10
 
       getReturnValue <-
         case mode of
@@ -272,13 +272,9 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
             void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
             return (Just <$> Gtk.entryGetText input)
 
-      Gtk.widgetShowAll content
-      Gtk.dialogRun d >>= \case
-        r | r `elem` [acceptResponse, okResponse] ->
-            getReturnValue >>= putMVar response
-          |otherwise -> putMVar response Nothing
-      Gtk.widgetDestroy d
-    takeMVar response
+      return $ \case
+        r | r `elem` [acceptResponse, okResponse] -> getReturnValue
+          | otherwise -> return Nothing
 
   chooseFile n mode title defaultDir =
     FSM.get n >>>= \s -> iliftIO $ do
@@ -296,7 +292,6 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
       case toEnum (fromIntegral res) of
         Gtk.ResponseTypeAccept -> Gtk.fileChooserGetFilename d >>= putMVar response
         Gtk.ResponseTypeCancel -> putMVar response Nothing
-        -- Loads of other cases:
         _ -> putMVar response Nothing
       Gtk.nativeDialogDestroy d
     takeMVar response
