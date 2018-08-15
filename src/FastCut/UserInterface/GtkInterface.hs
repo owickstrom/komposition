@@ -311,36 +311,28 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
         Save -> Gtk.FileChooserActionSave
 
   progressBar n title producer =
-    FSM.get n >>>= \s -> iliftIO $ do
-      response <- newEmptyMVar
-      runUI $ do
-        d <- Gtk.new Gtk.Dialog [#title := title, #transientFor := window s, #modal := True]
-        content <- Gtk.dialogGetContentArea d
-        pb <- Gtk.new Gtk.ProgressBar [#showText := True]
-        contentStyle <- Gtk.widgetGetStyleContext content
-        Gtk.styleContextAddClass contentStyle "progress-bar-container"
-        let updateProgress = forever $ do
-              ProgressUpdate fraction <- await
-              liftIO . runUI $
-                Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction]
-        #add content pb
-        #showAll d
+    let setUp d content = do
+          pb <- Gtk.new Gtk.ProgressBar [#showText := True]
+          let updateProgress = forever $ do
+                ProgressUpdate fraction <- await
+                liftIO . runUI $
+                  Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction]
+          #add content pb
 
-        jobResult <- newEmptyMVar
-        tid <- forkIO $ do
-          result <- Pipes.runEffect (producer >-> updateProgress)
-          putMVar jobResult result
-          runUI (#destroy d)
+          jobResult <- newEmptyMVar
+          tid <- forkIO $ do
+            result <- Pipes.runEffect (producer >-> updateProgress)
+            putMVar jobResult result
+            runUI (#destroy d)
+          return (jobResult, tid)
 
-        r <- #run d
-        when (r < 0) (#destroy d)
-
-        tryReadMVar jobResult >>= \case
-          Just result -> putMVar response (Just result)
-          Nothing -> do
-            killThread tid
-            putMVar response Nothing
-      takeMVar response
+        toResponse d (jobResult, tid) r = do
+          when (r < 0) (#destroy d)
+          result <- tryReadMVar jobResult
+          when (isNothing result) (killThread tid)
+          return result
+        tearDown _ _ = return ()
+    in inNewModalDialog n ModalDialog { message = Nothing, .. }
 
   exit n =
     (FSM.get n >>>= iliftIO . unsubscribeView)
