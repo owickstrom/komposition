@@ -18,13 +18,18 @@
 {-# LANGUAGE TypeOperators         #-}
 module FastCut.Application where
 
-import           FastCut.Prelude             hiding (State, (>>), (>>=))
+import           FastCut.Prelude                   hiding ( State
+                                                          , (>>)
+                                                          , (>>=)
+                                                          )
 
 import           Control.Lens
 import           Data.Row.Records
-import           Data.String                 (fromString)
-import           GHC.Exts                    (fromListN)
-import           Motor.FSM                   hiding (Delete, delete)
+import           Data.String                              ( fromString )
+import           GHC.Exts                                 ( fromListN )
+import           Motor.FSM                         hiding ( Delete
+                                                          , delete
+                                                          )
 import           System.Directory
 import           Text.Printf
 
@@ -40,8 +45,8 @@ import           FastCut.KeyMap
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
-import qualified FastCut.Render.Composition  as Render
-import qualified FastCut.Render.FFmpeg       as Render
+import qualified FastCut.Render.Composition    as Render
+import qualified FastCut.Render.FFmpeg         as Render
 import           FastCut.UserInterface
 
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
@@ -67,16 +72,32 @@ keymaps = fmap CommandKeyMappedEvent . \case
     , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
     , ([KeyChar 'i'], Mapping Import)
     , ([KeyChar 'r'], Mapping Render)
-    , ( [KeyChar 'a']
-      , SequencedMappings
-        [ ([KeyChar 'c'], Mapping (AppendCommand AppendClip))
-        , ([KeyChar 'g'], Mapping (AppendCommand AppendGap))
-        , ([KeyChar 'p'], Mapping (AppendCommand AppendComposition))
-        ]
-      )
     , ( [KeyChar 'p']
       , SequencedMappings
+        [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip LeftOf))
+        , ([KeyChar 'g'], Mapping (InsertCommand InsertGap LeftOf))
+        , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftOf))
+        ]
+      )
+    , ( [KeyChar 'P']
+      , SequencedMappings
         [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip LeftMost))
+        , ([KeyChar 'g'], Mapping (InsertCommand InsertGap LeftMost))
+        , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftMost))
+        ]
+      )
+    , ( [KeyChar 'a']
+      , SequencedMappings
+        [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip RightOf))
+        , ([KeyChar 'g'], Mapping (InsertCommand InsertGap RightOf))
+        , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition RightOf))
+        ]
+      )
+    , ( [KeyChar 'A']
+      , SequencedMappings
+        [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip RightMost))
+        , ([KeyChar 'g'], Mapping (InsertCommand InsertGap RightMost))
+        , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition RightMost))
         ]
       )
     , ([KeyChar 'd'], Mapping Delete)
@@ -137,19 +158,20 @@ selectAsset gui project focus' mediaType = case mediaType of
     returnToTimeline gui project focus'
     ireturn asset'
 
-selectAssetAndAppend
+selectAssetAndInsert
   :: Application t m
   => Name n
   -> Project
   -> Focus ft
   -> SMediaType mt
+  -> InsertPosition
   -> ThroughMode TimelineMode LibraryMode (t m) n Project
-selectAssetAndAppend gui project focus' mediaType =
+selectAssetAndInsert gui project focus' mediaType position =
   selectAsset gui project focus' mediaType >>= \case
     Just asset' ->
       project
         &  timeline
-        %~ insert_ focus' (insertionOf asset') RightOf
+        %~ insert_ focus' (insertionOf asset') position
         &  ireturn
     Nothing -> ireturn project
  where
@@ -190,16 +212,22 @@ importFile gui project focus' = do
         fillForm (form { selectedFile = Just file })
       (ImportAutoSplitSet s, form) -> fillForm (form { autoSplit = s })
   importAsset (filepath, True) =
-    progressBar gui "Import Video" (importVideoFileAutoSplit filepath (project ^. workingDirectory))
+    progressBar
+        gui
+        "Import Video"
+        (importVideoFileAutoSplit filepath (project ^. workingDirectory))
       >>>= \case
              Nothing -> do
                iliftIO (putStrLn ("No result." :: Text))
                ireturn project
              Just assets -> handleImportResult assets
   importAsset (filepath, False) =
-    progressBar gui "Import Video" (importVideoFile filepath (project ^. workingDirectory)) >>>= \case
-      Nothing    -> ireturn project
-      Just asset -> handleImportResult (fmap pure asset)
+    progressBar gui
+                "Import Video"
+                (importVideoFile filepath (project ^. workingDirectory))
+      >>>= \case
+             Nothing    -> ireturn project
+             Just asset -> handleImportResult (fmap pure asset)
   handleImportResult = \case
     Left err -> do
       iliftIO (print err)
@@ -232,42 +260,55 @@ insertIntoTimeline gui project focus' type' position =
     (InsertComposition, Just (FocusedSequence _)) ->
       selectAsset gui project focus' SVideo >>= \case
         Just asset' ->
-          project & timeline %~
-          insert_
-            focus'
-            (InsertParallel (Parallel () [Clip () asset'] []))
-            RightOf &
-          timelineMode gui focus'
-        Nothing -> continue
-    (InsertClip, Just (FocusedVideoPart _)) ->
-      selectAssetAndAppend gui project focus' SVideo >>>=
-      timelineMode gui focus'
-    (InsertClip, Just (FocusedAudioPart _)) ->
-      selectAssetAndAppend gui project focus' SAudio >>>=
-      timelineMode gui focus'
-    (InsertGap, Just _) ->
-      prompt
-        gui
-        "Insert Gap"
-        "Please specify a gap duration in seconds."
-        "Insert Gap"
-        (NumberPrompt (0.1, 10e10)) >>>= \case
-        Just seconds ->
           project
-            & timeline %~ insert_ focus' (InsertVideoPart (Gap () (durationFromSeconds seconds))) RightOf
-            & timelineMode gui focus'
+            &  timeline
+            %~ insert_
+                 focus'
+                 (InsertParallel (Parallel () [Clip () asset'] []))
+                 RightOf
+            &  timelineMode gui focus'
         Nothing -> continue
+    (InsertClip, Just (FocusedParallel _)) ->
+      selectAssetAndInsert gui project focus' SVideo position
+        >>>= timelineMode gui focus'
+    (InsertClip, Just (FocusedVideoPart _)) ->
+      selectAssetAndInsert gui project focus' SVideo position
+        >>>= timelineMode gui focus'
+    (InsertClip, Just (FocusedAudioPart _)) ->
+      selectAssetAndInsert gui project focus' SAudio position
+        >>>= timelineMode gui focus'
+    (InsertGap, Just _) ->
+      prompt gui
+             "Insert Gap"
+             "Please specify a gap duration in seconds."
+             "Insert Gap"
+             (NumberPrompt (0.1, 10e10))
+        >>>= \case
+               Just seconds ->
+                 project
+                   &  timeline
+                   %~ insert_
+                        focus'
+                        (InsertVideoPart
+                          (Gap () (durationFromSeconds seconds))
+                        )
+                        position
+                   &  timelineMode gui focus'
+               Nothing -> continue
     (c, Just f) -> do
       iliftIO
         (putStrLn
-           ("Cannot perform " <> show c <> " when focused at " <>
-            prettyFocusedAt f))
+          (  "Cannot perform "
+          <> show c
+          <> " when focused at "
+          <> prettyFocusedAt f
+          )
+        )
       continue
     (_, Nothing) -> do
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
-  where
-    continue = timelineMode gui focus' project
+  where continue = timelineMode gui focus' project
 
 data Confirmation
   = Yes
@@ -295,7 +336,8 @@ timelineMode gui focus' project = do
           printUnexpectedFocusError err cmd
           continue
         Right newFocus -> timelineMode gui newFocus project
-    CommandKeyMappedEvent (InsertCommand type' position) -> insertIntoTimeline gui project focus' type' position
+    CommandKeyMappedEvent (InsertCommand type' position) ->
+      insertIntoTimeline gui project focus' type' position
     CommandKeyMappedEvent Delete -> case delete focus' (project ^. timeline) of
       Nothing -> beep gui >> continue
       Just (timeline', Just cmd) ->
@@ -316,7 +358,9 @@ timelineMode gui focus' project = do
           outDir <- iliftIO getUserDocumentsDirectory
           chooseFile gui Save "Render To File" outDir >>>= \case
             Just outFile -> do
-              _ <- progressBar gui "Rendering" (Render.renderComposition 25 outFile flat)
+              _ <- progressBar gui
+                               "Rendering"
+                               (Render.renderComposition 25 outFile flat)
               continue
             Nothing -> continue
         Nothing -> beep gui >>> continue

@@ -18,10 +18,10 @@ import           Motor.FSM
 import           Data.Row.Records
 import           Pipes
 
-import           FastCut.Composition.Insert
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Library
+import           FastCut.Composition.Insert
 import           FastCut.Project
 import           FastCut.Progress
 

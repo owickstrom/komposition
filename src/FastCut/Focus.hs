@@ -14,8 +14,8 @@ module FastCut.Focus where
 import           FastCut.Prelude
 
 import           Control.Lens
-import           Control.Monad.Except (throwError)
-import qualified Data.List.NonEmpty   as NonEmpty
+import           Control.Monad.Except                     ( throwError )
+import qualified Data.List.NonEmpty            as NonEmpty
 
 import           FastCut.Composition
 import           FastCut.Duration
@@ -34,6 +34,14 @@ data Focus (t :: FocusType) where
 
 deriving instance Eq (Focus t)
 deriving instance Show (Focus t)
+
+focusType :: Focus t -> FocusType
+focusType = \case
+  SequenceFocus _ Nothing -> SequenceFocusType
+  SequenceFocus _ (Just f) -> focusType f
+  ParallelFocus _ Nothing -> ParallelFocusType
+  ParallelFocus _ (Just f) -> focusType f
+  ClipFocus{} -> ClipFocusType
 
 data FocusCommand = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show)
@@ -57,9 +65,9 @@ nearestPartIndexLeftOf
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
   = let cutoffPoint = foldMap durationOf (take i focusedParts)
-        below       = takeWhile ((<= cutoffPoint) . snd)
+        below'      = takeWhile ((<= cutoffPoint) . snd)
                                 (indicesWithStartPoints blurredParts)
-    in  (fst <$> lastMay below) <|> Just 0
+    in  (fst <$> lastMay below') <|> Just 0
   | otherwise
   = Nothing
 
@@ -127,10 +135,10 @@ modifyFocus s e f = case (s, e, f) of
 
     case (vs, as) of
       -- Down into video track of focused parallel.
-      (_:_, _)  -> pure (ParallelFocus idx (Just (ClipFocus Video 0)))
+      (_ : _, _    ) -> pure (ParallelFocus idx (Just (ClipFocus Video 0)))
       -- Down into audio track, past empty video track, of focused parallel.
-      ([], _:_) -> pure (ParallelFocus idx (Just (ClipFocus Audio 0)))
-      _         -> throwError CannotMoveDown
+      ([]   , _ : _) -> pure (ParallelFocus idx (Just (ClipFocus Audio 0)))
+      _              -> throwError CannotMoveDown
 
   -- We can move down from video to audio within a composition.
   (Parallel _ videoParts audioParts, FocusDown, ClipFocus Video i) ->
@@ -185,33 +193,34 @@ data FocusedTraversal (f :: * -> *) a = FocusedTraversal
   , mapCompositionPart :: forall mt. SMediaType mt -> CompositionPart a mt -> f (CompositionPart a mt)
   }
 
-mapAtFocus ::
-  Applicative f
+mapAtFocus
+  :: Applicative f
   => Focus ft
   -> FocusedTraversal f a
   -> Composition a t
   -> f (Composition a t)
-mapAtFocus focus t@FocusedTraversal{..} s =
-  case (focus, s) of
-    (SequenceFocus idx Nothing, Timeline ann sub) ->
-      Timeline ann <$> mapAt idx mapSequence sub
-    (SequenceFocus idx (Just subFocus), Timeline ann sub) ->
-      Timeline ann <$>
-      mapAt idx (mapAtFocus subFocus t) sub
-    (ParallelFocus idx Nothing, Sequence ann sub) ->
-      Sequence ann <$> mapAt idx mapParallel sub
-    (ParallelFocus idx (Just subFocus), Sequence ann sub) ->
-      Sequence ann <$>
-      mapAt idx (mapAtFocus subFocus t) sub
-    (ClipFocus clipType idx, Parallel ann videoParts audioParts) ->
-      case clipType of
-        Video ->
-          Parallel ann <$> (videoParts & ix idx %%~ mapCompositionPart SVideo) <*> pure audioParts
-        Audio -> Parallel ann videoParts <$> (audioParts & ix idx %%~ mapCompositionPart SAudio)
-    _ -> pure s
-  where
-    mapAt :: Applicative f => Int -> (a -> f a) -> NonEmpty a -> f (NonEmpty a)
-    mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList
+mapAtFocus focus t@FocusedTraversal {..} s = case (focus, s) of
+  (SequenceFocus idx Nothing, Timeline ann sub) ->
+    Timeline ann <$> mapAt idx mapSequence sub
+  (SequenceFocus idx (Just subFocus), Timeline ann sub) ->
+    Timeline ann <$> mapAt idx (mapAtFocus subFocus t) sub
+  (ParallelFocus idx Nothing, Sequence ann sub) ->
+    Sequence ann <$> mapAt idx mapParallel sub
+  (ParallelFocus idx (Just subFocus), Sequence ann sub) ->
+    Sequence ann <$> mapAt idx (mapAtFocus subFocus t) sub
+  (ClipFocus clipType idx, Parallel ann videoParts audioParts) ->
+    case clipType of
+      Video ->
+        Parallel ann
+          <$> (videoParts & ix idx %%~ mapCompositionPart SVideo)
+          <*> pure audioParts
+      Audio ->
+        Parallel ann videoParts
+          <$> (audioParts & ix idx %%~ mapCompositionPart SAudio)
+  _ -> pure s
+ where
+  mapAt :: Applicative f => Int -> (a -> f a) -> NonEmpty a -> f (NonEmpty a)
+  mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList
 
 data FocusedAt a
   = FocusedSequence (Composition a SequenceType)
@@ -222,22 +231,20 @@ data FocusedAt a
 
 atFocus :: Focus ft -> Composition a t -> Maybe (FocusedAt a)
 atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
-  where
-    remember ::
-         forall c a (t :: k).
-         (c a t -> FocusedAt a)
-      -> c a t
-      -> State (Maybe (FocusedAt a)) (c a t)
-    remember focused x = put (Just (focused x)) >> pure x
-    traversal =
-      FocusedTraversal
-      { mapSequence = remember FocusedSequence
-      , mapParallel = remember FocusedParallel
-      , mapCompositionPart =
-          \case
-            SVideo -> remember FocusedVideoPart
-            SAudio -> remember FocusedAudioPart
-      }
+ where
+  remember
+    :: forall c a (t :: k)
+     . (c a t -> FocusedAt a)
+    -> c a t
+    -> State (Maybe (FocusedAt a)) (c a t)
+  remember focused x = put (Just (focused x)) >> pure x
+  traversal = FocusedTraversal
+    { mapSequence        = remember FocusedSequence
+    , mapParallel        = remember FocusedParallel
+    , mapCompositionPart = \case
+      SVideo -> remember FocusedVideoPart
+      SAudio -> remember FocusedAudioPart
+    }
 
 data FirstCompositionPart a
   = FirstVideoPart (CompositionPart a Video)
@@ -257,6 +264,6 @@ firstCompositionPart f s = atFocus f s >>= \case
   firstInParallel
     :: Composition a ParallelType -> Maybe (FirstCompositionPart a)
   firstInParallel = \case
-    Parallel _ (v:_) _     -> Just (FirstVideoPart v)
-    Parallel _ []    (a:_) -> Just (FirstAudioPart a)
-    _                      -> Nothing
+    Parallel _ (v : _) _       -> Just (FirstVideoPart v)
+    Parallel _ []      (a : _) -> Just (FirstAudioPart a)
+    _                          -> Nothing

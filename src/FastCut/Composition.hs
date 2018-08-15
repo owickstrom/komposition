@@ -8,7 +8,6 @@
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 module FastCut.Composition where
 
