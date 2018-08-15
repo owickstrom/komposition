@@ -42,5 +42,18 @@ spec_insertRightOf = do
             (pure
                (Sequence () (pure (Parallel () [video4s, gap3s, video10s] []))))
     insert focus (InsertVideoPart gap3s) RightOf before' `shouldBe` Just after'
+  it "insert a video clip into an empty parallel" $ do
+    let focus =
+          SequenceFocus 0 (Just (ParallelFocus 0 Nothing))
+        before' =
+          Timeline
+            ()
+            (pure (Sequence () (pure (Parallel () [] []))))
+        after' =
+          Timeline
+            ()
+            (pure
+               (Sequence () (pure (Parallel () [video4s] []))))
+    insert focus (InsertVideoPart video4s) IntoLeftMost before' `shouldBe` Just after'
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}

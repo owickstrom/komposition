@@ -9,7 +9,6 @@
 {-# LANGUAGE TypeFamilies     #-}
 {-# LANGUAGE TypeInType       #-}
 {-# LANGUAGE TypeOperators    #-}
--- |
 
 module FastCut.UserInterface where
 
@@ -19,6 +18,7 @@ import           Motor.FSM
 import           Data.Row.Records
 import           Pipes
 
+import           FastCut.Composition.Insert
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Library
@@ -40,17 +40,17 @@ class ReturnsToTimeline (mode :: Mode)
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
 
-data AppendCommand
-  = AppendClip
-  | AppendGap
-  | AppendComposition
+data InsertType
+  = InsertClip
+  | InsertGap
+  | InsertComposition
   deriving (Show, Eq)
 
 data Command mode where
   Cancel :: Command mode
 
   FocusCommand :: FocusCommand -> Command TimelineMode
-  AppendCommand :: AppendCommand -> Command TimelineMode
+  InsertCommand :: InsertType -> InsertPosition -> Command TimelineMode
   Delete :: Command TimelineMode
   Import :: Command TimelineMode
   Render :: Command TimelineMode

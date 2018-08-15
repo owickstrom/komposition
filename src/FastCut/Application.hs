@@ -74,6 +74,11 @@ keymaps = fmap CommandKeyMappedEvent . \case
         , ([KeyChar 'p'], Mapping (AppendCommand AppendComposition))
         ]
       )
+    , ( [KeyChar 'p']
+      , SequencedMappings
+        [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip LeftMost))
+        ]
+      )
     , ([KeyChar 'd'], Mapping Delete)
     , ([KeyChar 'q'], Mapping Exit)
     ]
@@ -214,16 +219,17 @@ prettyFocusedAt = \case
   FocusedVideoPart{} -> "video track"
   FocusedAudioPart{} -> "audio track"
 
-append
+insertIntoTimeline
   :: Application t m
   => Name n
   -> Project
   -> Focus ft
-  -> AppendCommand
+  -> InsertType
+  -> InsertPosition
   -> t m (n .== State (t m) 'TimelineMode) Empty ()
-append gui project focus' cmd =
-  case (cmd, atFocus focus' (project ^. timeline)) of
-    (AppendComposition, Just (FocusedSequence _)) ->
+insertIntoTimeline gui project focus' type' position =
+  case (type', atFocus focus' (project ^. timeline)) of
+    (InsertComposition, Just (FocusedSequence _)) ->
       selectAsset gui project focus' SVideo >>= \case
         Just asset' ->
           project & timeline %~
@@ -233,13 +239,13 @@ append gui project focus' cmd =
             RightOf &
           timelineMode gui focus'
         Nothing -> continue
-    (AppendClip, Just (FocusedVideoPart _)) ->
+    (InsertClip, Just (FocusedVideoPart _)) ->
       selectAssetAndAppend gui project focus' SVideo >>>=
       timelineMode gui focus'
-    (AppendClip, Just (FocusedAudioPart _)) ->
+    (InsertClip, Just (FocusedAudioPart _)) ->
       selectAssetAndAppend gui project focus' SAudio >>>=
       timelineMode gui focus'
-    (AppendGap, Just _) ->
+    (InsertGap, Just _) ->
       prompt
         gui
         "Insert Gap"
@@ -289,7 +295,7 @@ timelineMode gui focus' project = do
           printUnexpectedFocusError err cmd
           continue
         Right newFocus -> timelineMode gui newFocus project
-    CommandKeyMappedEvent (AppendCommand cmd) -> append gui project focus' cmd
+    CommandKeyMappedEvent (InsertCommand type' position) -> insertIntoTimeline gui project focus' type' position
     CommandKeyMappedEvent Delete -> case delete focus' (project ^. timeline) of
       Nothing -> beep gui >> continue
       Just (timeline', Just cmd) ->

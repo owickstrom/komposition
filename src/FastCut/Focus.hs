@@ -4,13 +4,16 @@
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE PolyKinds          #-}
 {-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators      #-}
 module FastCut.Focus where
 
 import           FastCut.Prelude
 
+import           Control.Lens
 import           Control.Monad.Except (throwError)
 import qualified Data.List.NonEmpty   as NonEmpty
 
@@ -176,6 +179,40 @@ modifyFocus s e f = case (s, e, f) of
 
   _ -> throwError (UnhandledFocusModification e)
 
+data FocusedTraversal (f :: * -> *) a = FocusedTraversal
+  { mapSequence   :: Composition a SequenceType -> f (Composition a SequenceType)
+  , mapParallel   :: Composition a ParallelType -> f (Composition a ParallelType)
+  , mapCompositionPart :: forall mt. SMediaType mt -> CompositionPart a mt -> f (CompositionPart a mt)
+  }
+
+mapAtFocus ::
+  Applicative f
+  => Focus ft
+  -> FocusedTraversal f a
+  -> Composition a t
+  -> f (Composition a t)
+mapAtFocus focus t@FocusedTraversal{..} s =
+  case (focus, s) of
+    (SequenceFocus idx Nothing, Timeline ann sub) ->
+      Timeline ann <$> mapAt idx mapSequence sub
+    (SequenceFocus idx (Just subFocus), Timeline ann sub) ->
+      Timeline ann <$>
+      mapAt idx (mapAtFocus subFocus t) sub
+    (ParallelFocus idx Nothing, Sequence ann sub) ->
+      Sequence ann <$> mapAt idx mapParallel sub
+    (ParallelFocus idx (Just subFocus), Sequence ann sub) ->
+      Sequence ann <$>
+      mapAt idx (mapAtFocus subFocus t) sub
+    (ClipFocus clipType idx, Parallel ann videoParts audioParts) ->
+      case clipType of
+        Video ->
+          Parallel ann <$> (videoParts & ix idx %%~ mapCompositionPart SVideo) <*> pure audioParts
+        Audio -> Parallel ann videoParts <$> (audioParts & ix idx %%~ mapCompositionPart SAudio)
+    _ -> pure s
+  where
+    mapAt :: Applicative f => Int -> (a -> f a) -> NonEmpty a -> f (NonEmpty a)
+    mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList
+
 data FocusedAt a
   = FocusedSequence (Composition a SequenceType)
   | FocusedParallel (Composition a ParallelType)
@@ -184,20 +221,23 @@ data FocusedAt a
   deriving (Show, Eq)
 
 atFocus :: Focus ft -> Composition a t -> Maybe (FocusedAt a)
-atFocus f s = case (f, s) of
-  (SequenceFocus idx Nothing, Timeline _ sub) ->
-    FocusedSequence <$> toList sub `atMay` idx
-  (SequenceFocus idx (Just subFocus), Timeline _ sub) ->
-    atFocus subFocus =<< toList sub `atMay` idx
-  (ParallelFocus idx Nothing, Sequence _ sub) ->
-    FocusedParallel <$> toList sub `atMay` idx
-  (ParallelFocus idx (Just subFocus), Sequence _ sub) ->
-    atFocus subFocus =<< toList sub `atMay` idx
-  (ClipFocus clipType idx, Parallel _ videoParts audioParts) ->
-    case clipType of
-      Video -> FocusedVideoPart <$> videoParts `atMay` idx
-      Audio -> FocusedAudioPart <$> audioParts `atMay` idx
-  _ -> mzero
+atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
+  where
+    remember ::
+         forall c a (t :: k).
+         (c a t -> FocusedAt a)
+      -> c a t
+      -> State (Maybe (FocusedAt a)) (c a t)
+    remember focused x = put (Just (focused x)) >> pure x
+    traversal =
+      FocusedTraversal
+      { mapSequence = remember FocusedSequence
+      , mapParallel = remember FocusedParallel
+      , mapCompositionPart =
+          \case
+            SVideo -> remember FocusedVideoPart
+            SAudio -> remember FocusedAudioPart
+      }
 
 data FirstCompositionPart a
   = FirstVideoPart (CompositionPart a Video)
