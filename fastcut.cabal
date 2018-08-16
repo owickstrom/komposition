@@ -133,8 +133,10 @@ test-suite fastcut-tests
   other-modules:   FastCut.Composition.FocusedTest
                  , FastCut.Composition.Generators
                  , FastCut.Composition.InsertTest
+                 , FastCut.Composition.ValidFocusTest
                  , FastCut.FocusTest
                  , FastCut.Render.CompositionTest
+                 , FastCut.Render.TimestampTest
                  , FastCut.TestLibrary
                  , FastCut.Import.FFmpegTest
   build-depends:   base                 >= 4        && < 5

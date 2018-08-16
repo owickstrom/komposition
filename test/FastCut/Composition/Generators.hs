@@ -9,6 +9,7 @@ import           Hedgehog            hiding (Parallel (..))
 import qualified Hedgehog.Gen        as Gen
 
 import           FastCut.Composition
+import           FastCut.Focus
 import           FastCut.Duration
 import           FastCut.Library     hiding (assetMetadata, duration)
 import           FastCut.MediaType
@@ -65,3 +66,35 @@ duration range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)
 assetMetadata :: MonadGen m => Range Int -> m AssetMetadata
 assetMetadata range =
   AssetMetadata <$> Gen.string range Gen.unicode <*> duration range <*> Gen.string range Gen.unicode
+
+-- With Focus
+
+timelineWithFocus ::
+     MonadGen m
+  => Range Int
+  -> m (Composition () TimelineType, Focus SequenceFocusType)
+timelineWithFocus r = do
+  t <- timeline r
+  f <- sequenceFocus t
+  pure (t, f)
+
+sequenceFocus :: MonadGen m => Composition () TimelineType -> m (Focus SequenceFocusType)
+sequenceFocus (Timeline _ seqs) =
+  Gen.choice $ flip concatMap (zip [0..] (toList seqs)) $ \(i, seq') ->
+    [ pure (SequenceFocus i Nothing)
+    , SequenceFocus i . Just <$> parallelFocus seq'
+    ]
+
+parallelFocus :: MonadGen m => Composition () SequenceType -> m (Focus ParallelFocusType)
+parallelFocus (Sequence _ pars) =
+  Gen.choice $ flip concatMap (zip [0..] (toList pars)) $ \(i, par) ->
+    [ pure (ParallelFocus i Nothing)
+    , ParallelFocus i . Just <$> clipFocus par
+    ]
+
+clipFocus :: MonadGen m => Composition () ParallelType -> m (Focus ClipFocusType)
+clipFocus (Parallel _ vs as) =
+  Gen.choice (anyOf Video vs <> anyOf Audio as)
+  where
+    anyOf mediaType xs =
+      [pure (ClipFocus mediaType i) | i <- [0 .. pred (length xs)]]

@@ -44,7 +44,7 @@ focusType = \case
   ClipFocus{} -> ClipFocusType
 
 data FocusCommand = FocusUp | FocusDown | FocusLeft | FocusRight
-  deriving (Eq, Show)
+  deriving (Eq, Show, Enum, Bounded)
 
 data FocusError
   = OutOfBounds

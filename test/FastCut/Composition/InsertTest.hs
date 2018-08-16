@@ -54,6 +54,6 @@ spec_insertRightOf = do
             ()
             (pure
                (Sequence () (pure (Parallel () [video4s] []))))
-    insert focus (InsertVideoPart video4s) IntoLeftMost before' `shouldBe` Just after'
+    insert focus (InsertVideoPart video4s) LeftMost before' `shouldBe` Just after'
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}
