@@ -101,11 +101,14 @@ modifyFocus s e f = case (s, e, f) of
       Left  err          -> throwError err
       Right f'           -> pure (ParallelFocus i (Just f'))
 
-  -- We can move up from audio to video within a parallel.
-  (Parallel _ videoParts audioParts, FocusUp, ClipFocus Audio i) ->
-    case nearestPartIndexLeftOf audioParts i videoParts of
-      Just i' -> pure (ClipFocus Video i')
-      Nothing -> throwError OutOfBounds
+  (Parallel _ videoParts audioParts, FocusUp, ClipFocus Audio i)
+    -- We can move up from audio to video within a parallel if there are video parts.
+    | not (null videoParts) ->
+      case nearestPartIndexLeftOf audioParts i videoParts of
+        Just i' -> pure (ClipFocus Video i')
+        Nothing -> throwError OutOfBounds
+    -- Otherwise we'll move further up.
+    | otherwise -> throwError CannotMoveUp
 
   --  Here we've hit a focus "leaf" and cannot move up.
   (Parallel{}     , FocusUp  , ClipFocus _ _       ) -> throwError CannotMoveUp

@@ -131,6 +131,7 @@ test-suite fastcut-tests
   hs-source-dirs:  test
   main-is:         Main.hs
   other-modules:   FastCut.Composition.FocusedTest
+                 , FastCut.Composition.DeleteTest
                  , FastCut.Composition.Generators
                  , FastCut.Composition.InsertTest
                  , FastCut.Composition.ValidFocusTest

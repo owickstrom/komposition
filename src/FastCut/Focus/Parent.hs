@@ -1,5 +1,4 @@
 {-# LANGUAGE KindSignatures  #-}
-{-# LANGUAGE TupleSections   #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE GADTs           #-}
@@ -16,6 +15,30 @@ import           Control.Lens        hiding (below)
 import           FastCut.Composition
 import           FastCut.Focus
 import           FastCut.MediaType
+
+data ParentAtFocus a where
+  TimelineParent :: Composition a TimelineType -> ParentAtFocus a
+  SequenceParent :: Composition a SequenceType -> ParentAtFocus a
+  ParallelParent :: Composition a ParallelType -> ParentAtFocus a
+
+parentAtFocus ::
+  Focus ft
+  -> Composition a t
+  -> Maybe (ParentAtFocus a)
+parentAtFocus f s =
+  case (f, s) of
+    (SequenceFocus _ Nothing, Timeline ann sub) ->
+      pure (TimelineParent (Timeline ann sub))
+    (SequenceFocus idx (Just subFocus), Timeline _ sub) ->
+      parentAtFocus subFocus =<< toList sub `atMay` idx
+    (ParallelFocus _ Nothing, Sequence ann sub) ->
+      pure (SequenceParent (Sequence ann sub))
+    (ParallelFocus idx (Just subFocus), Sequence _ sub) ->
+      parentAtFocus subFocus =<< toList sub `atMay` idx
+    (ClipFocus{}, Parallel ann videoParts audioParts) ->
+        pure (ParallelParent (Parallel ann videoParts audioParts))
+    _ -> mzero
+
 
 type TraversalFunction m parent = Int -> parent -> m parent
 
