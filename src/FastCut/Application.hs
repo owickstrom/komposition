@@ -179,6 +179,36 @@ selectAssetAndInsert gui project focus' mediaType position =
     SVideo -> InsertVideoPart (Clip () a)
     SAudio -> InsertAudioPart (Clip () a)
 
+insertGap
+  :: Application t m
+  => Name n
+  -> Project
+  -> Focus ft
+  -> SMediaType mt
+  -> InsertPosition
+  -> Actions (t m) '[ n := Remain (State (t m) TimelineMode) ] r Project
+insertGap gui project focus' mediaType position = do
+  gapDuration <-
+    prompt gui
+          "Insert Gap"
+          "Please specify a gap duration in seconds."
+          "Insert Gap"
+          (NumberPrompt (0.1, 10e10))
+  let gapInsertion seconds =
+        case mediaType of
+          SVideo -> (InsertVideoPart (Gap () (durationFromSeconds seconds)))
+          SAudio -> (InsertAudioPart (Gap () (durationFromSeconds seconds)))
+  case gapDuration of
+    Just seconds ->
+      project
+        &  timeline
+        %~ insert_
+            focus'
+            (gapInsertion seconds)
+            position
+        & ireturn
+    Nothing -> ireturn project
+
 data ImportFileForm = ImportFileForm
   { selectedFile :: Maybe FilePath
   , autoSplit    :: Bool
@@ -277,24 +307,12 @@ insertIntoTimeline gui project focus' type' position =
     (InsertClip, Just (FocusedAudioPart _)) ->
       selectAssetAndInsert gui project focus' SAudio position
         >>>= timelineMode gui focus'
-    (InsertGap, Just _) ->
-      prompt gui
-             "Insert Gap"
-             "Please specify a gap duration in seconds."
-             "Insert Gap"
-             (NumberPrompt (0.1, 10e10))
-        >>>= \case
-               Just seconds ->
-                 project
-                   &  timeline
-                   %~ insert_
-                        focus'
-                        (InsertVideoPart
-                          (Gap () (durationFromSeconds seconds))
-                        )
-                        position
-                   &  timelineMode gui focus'
-               Nothing -> continue
+    (InsertGap, Just FocusedVideoPart{}) ->
+      insertGap gui project focus' SVideo position
+        >>>= timelineMode gui focus'
+    (InsertGap, Just FocusedAudioPart{}) ->
+      insertGap gui project focus' SAudio position
+        >>>= timelineMode gui focus'
     (c, Just f) -> do
       iliftIO
         (putStrLn
