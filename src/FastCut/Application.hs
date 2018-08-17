@@ -298,14 +298,17 @@ insertIntoTimeline gui project focus' type' position =
                  RightOf
             &  timelineMode gui focus'
         Nothing -> continue
-    (InsertClip, Just (FocusedParallel _)) ->
+    (InsertClip, Just FocusedParallel{}) ->
       selectAssetAndInsert gui project focus' SVideo position
         >>>= timelineMode gui focus'
-    (InsertClip, Just (FocusedVideoPart _)) ->
+    (InsertClip, Just FocusedVideoPart{}) ->
       selectAssetAndInsert gui project focus' SVideo position
         >>>= timelineMode gui focus'
-    (InsertClip, Just (FocusedAudioPart _)) ->
+    (InsertClip, Just FocusedAudioPart{}) ->
       selectAssetAndInsert gui project focus' SAudio position
+        >>>= timelineMode gui focus'
+    (InsertGap, Just FocusedParallel{}) ->
+      insertGap gui project focus' SVideo position
         >>>= timelineMode gui focus'
     (InsertGap, Just FocusedVideoPart{}) ->
       insertGap gui project focus' SVideo position

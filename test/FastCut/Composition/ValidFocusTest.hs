@@ -35,7 +35,7 @@ data TestCommand
 testCommand
   :: MonadGen m => Composition () TimelineType -> Focus ft -> m TestCommand
 testCommand composition focus = Gen.frequency
-  ([(5, changeFocusCommand), (1, insertCommand)] <> map (1, ) deleteCommands)
+  ([(3, changeFocusCommand), (2, insertCommand)] <> map (1, ) deleteCommands)
  where
   ft                 = focusType focus
   changeFocusCommand = case ft of
