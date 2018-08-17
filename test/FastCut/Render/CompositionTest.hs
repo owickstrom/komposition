@@ -16,7 +16,7 @@ import qualified FastCut.Composition.Generators as Gen
 
 hprop_flattenTimeline =
   property $ do
-    s <- forAll $ Gen.timeline (linear 1 10)
+    s <- forAll $ Gen.timeline (linear 1 10) Gen.parallelWithClips
     let Just flat = Render.flattenTimeline s
     durationOf s === durationOf flat
 

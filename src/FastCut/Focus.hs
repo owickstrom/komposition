@@ -111,7 +111,7 @@ modifyFocus s e f = case (s, e, f) of
     | otherwise -> throwError CannotMoveUp
 
   --  Here we've hit a focus "leaf" and cannot move up.
-  (Parallel{}     , FocusUp  , ClipFocus _ _       ) -> throwError CannotMoveUp
+  (Parallel{}     , FocusUp  , ClipFocus Video _       ) -> throwError CannotMoveUp
 
   -- Down
 
