@@ -9,6 +9,8 @@ screencast editing workflow. I'm not interested in all the low-level
 control it gives -- I want something that supports my workflow, and
 nothing more. *FastCut* is that program (or will be!)
 
+TODO: proper motivation text.
+
 ## Concepts
 
 ### Timeline Structure
@@ -58,7 +60,7 @@ This project can be built using Nix or Stack.
 
 TODO: instructions.
 
-## Backlog
+## Roadmap
 
 * 0.1.0
   - [X] Timeline UI
