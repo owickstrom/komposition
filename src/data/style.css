@@ -1,3 +1,11 @@
+.heading {
+  font-size: 20px;
+  font-weight: bold;
+}
+.subheading {
+  font-size: 16px;
+  font-weight: bold;
+}
 .timeline-container {
   background-color: #aaa;
   border-top: 1pt solid #888;
@@ -30,12 +38,8 @@
 .timeline .sequence .video .clip {
   background-color: #00cd9a;
 }
-.timeline .sequence .audio {
-}
 .timeline .sequence .audio .clip {
   background-color: #cdad00;
-}
-.timeline .composition.focused {
 }
 .timeline .composition.transitively-focused {
   background: #bbb;
@@ -89,7 +93,24 @@
 .import-view {
   padding: 1em;
 }
-.dialog-container,
-.progress-bar-container {
+
+.dialog,
+.prompt,
+.progress-bar,
+.help-container {
   padding: 1em;
+}
+
+.key-map-entry {
+  margin: .5em 0;
+}
+.key-combo {
+  font-family: monospace;
+  font-weight: bold;
+  border: 1pt solid #999;
+  margin-right: .5em;
+  padding: .5em .75em;
+  background: #ddd;
+  border-radius: .3em;
+  box-shadow: inset 1pt 1pt 1pt #fff;
 }

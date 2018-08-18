@@ -63,8 +63,8 @@ type Application t m
      , Monad m
      )
 
-keymaps :: SMode m -> KeyMap (Event m)
-keymaps = fmap CommandKeyMappedEvent . \case
+keymaps :: SMode m -> KeyMap (Command m)
+keymaps = \case
   STimelineMode ->
     [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
     , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
@@ -101,15 +101,18 @@ keymaps = fmap CommandKeyMappedEvent . \case
         ]
       )
     , ([KeyChar 'd'], Mapping Delete)
+    , ([KeyChar '?'], Mapping Help)
     , ([KeyChar 'q'], Mapping Exit)
     ]
   SLibraryMode ->
     [ ([KeyChar 'j'], Mapping LibraryDown)
     , ([KeyChar 'k'], Mapping LibraryUp)
     , ([KeyChar 'q'], Mapping Cancel)
+    , ([KeyChar '?'], Mapping Help)
     , ([KeyEnter]   , Mapping LibrarySelect)
     ]
-  SImportMode -> [([KeyChar 'q'], Mapping Cancel)]
+  SImportMode ->
+    [([KeyChar 'q'], Mapping Cancel), ([KeyChar '?'], Mapping Help)]
 
 selectAssetFromList
   :: (UserInterface m, IxMonadIO m, Modify n (State m LibraryMode) r ~ r)
@@ -124,7 +127,9 @@ selectAssetFromList
 selectAssetFromList gui assets n = do
   updateLibrary gui assets n
   nextEvent gui >>>= \case
-    CommandKeyMappedEvent Cancel        -> ireturn Nothing
+    CommandKeyMappedEvent Cancel -> ireturn Nothing
+    CommandKeyMappedEvent Help ->
+      help gui [ModeKeyMap SLibraryMode (keymaps SLibraryMode)] >>> continue
     CommandKeyMappedEvent LibrarySelect -> ireturn (assets ^? element n)
     CommandKeyMappedEvent LibraryUp
       | n > 0     -> selectAssetFromList gui assets (pred n)
@@ -186,27 +191,26 @@ insertGap
   -> Focus ft
   -> SMediaType mt
   -> InsertPosition
-  -> Actions (t m) '[ n := Remain (State (t m) TimelineMode) ] r Project
+  -> Actions
+       (t m)
+       '[n := Remain (State (t m) TimelineMode)]
+       r
+       Project
 insertGap gui project focus' mediaType position = do
-  gapDuration <-
-    prompt gui
-          "Insert Gap"
-          "Please specify a gap duration in seconds."
-          "Insert Gap"
-          (NumberPrompt (0.1, 10e10))
-  let gapInsertion seconds =
-        case mediaType of
-          SVideo -> (InsertVideoPart (Gap () (durationFromSeconds seconds)))
-          SAudio -> (InsertAudioPart (Gap () (durationFromSeconds seconds)))
+  gapDuration <- prompt gui
+                        "Insert Gap"
+                        "Please specify a gap duration in seconds."
+                        "Insert Gap"
+                        (NumberPrompt (0.1, 10e10))
+  let gapInsertion seconds = case mediaType of
+        SVideo -> (InsertVideoPart (Gap () (durationFromSeconds seconds)))
+        SAudio -> (InsertAudioPart (Gap () (durationFromSeconds seconds)))
   case gapDuration of
     Just seconds ->
       project
         &  timeline
-        %~ insert_
-            focus'
-            (gapInsertion seconds)
-            position
-        & ireturn
+        %~ insert_ focus' (gapInsertion seconds) position
+        &  ireturn
     Nothing -> ireturn project
 
 data ImportFileForm = ImportFileForm
@@ -235,6 +239,9 @@ importFile gui project focus' = do
     cmd <- nextEvent gui
     case (cmd, mf) of
       (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
+      (CommandKeyMappedEvent Help  , _) -> do
+        help gui [ModeKeyMap SImportMode (keymaps SImportMode)]
+        fillForm mf
       (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
         ireturn (Just (file, autoSplit))
       (ImportClicked, form) -> fillForm form
@@ -292,10 +299,9 @@ insertIntoTimeline gui project focus' type' position =
         Just asset' ->
           project
             &  timeline
-            %~ insert_
-                 focus'
-                 (InsertParallel (Parallel () [Clip () asset'] []))
-                 RightOf
+            %~ insert_ focus'
+                       (InsertParallel (Parallel () [Clip () asset'] []))
+                       RightOf
             &  timelineMode gui focus'
         Nothing -> continue
     (InsertClip, Just FocusedParallel{}) ->
@@ -308,14 +314,11 @@ insertIntoTimeline gui project focus' type' position =
       selectAssetAndInsert gui project focus' SAudio position
         >>>= timelineMode gui focus'
     (InsertGap, Just FocusedParallel{}) ->
-      insertGap gui project focus' SVideo position
-        >>>= timelineMode gui focus'
+      insertGap gui project focus' SVideo position >>>= timelineMode gui focus'
     (InsertGap, Just FocusedVideoPart{}) ->
-      insertGap gui project focus' SVideo position
-        >>>= timelineMode gui focus'
+      insertGap gui project focus' SVideo position >>>= timelineMode gui focus'
     (InsertGap, Just FocusedAudioPart{}) ->
-      insertGap gui project focus' SAudio position
-        >>>= timelineMode gui focus'
+      insertGap gui project focus' SAudio position >>>= timelineMode gui focus'
     (c, Just f) -> do
       iliftIO
         (putStrLn
@@ -386,6 +389,8 @@ timelineMode gui focus' project = do
             Nothing -> continue
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Cancel -> continue
+    CommandKeyMappedEvent Help ->
+      help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
     CommandKeyMappedEvent Exit ->
       dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes]
         >>>= \case
@@ -404,6 +409,6 @@ timelineMode gui focus' project = do
 fastcut
   :: Application t m => UserInterface (t m) => Project -> t m Empty Empty ()
 fastcut project = do
-  start #gui keymaps project initialFocus
+  start #gui (fmap CommandKeyMappedEvent . keymaps) project initialFocus
   timelineMode #gui initialFocus project
   where initialFocus = SequenceFocus 0 Nothing

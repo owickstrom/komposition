@@ -1,20 +1,22 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE KindSignatures   #-}
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE TypeFamilies     #-}
-{-# LANGUAGE TypeInType       #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE KindSignatures    #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeInType        #-}
+{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module FastCut.UserInterface where
 
-import           FastCut.Prelude hiding (State)
+import           FastCut.Prelude                   hiding ( State )
 
-import           Motor.FSM
+import           Motor.FSM                         hiding ( Delete )
 import           Data.Row.Records
 import           Pipes
 
@@ -35,6 +37,12 @@ data SMode m where
   SLibraryMode :: SMode LibraryMode
   SImportMode :: SMode ImportMode
 
+modeTitle :: SMode m -> Text
+modeTitle = \case
+  STimelineMode -> "Timeline Mode"
+  SLibraryMode  -> "Library Mode"
+  SImportMode   -> "Import Mode"
+
 class ReturnsToTimeline (mode :: Mode)
 
 instance ReturnsToTimeline LibraryMode
@@ -48,6 +56,7 @@ data InsertType
 
 data Command mode where
   Cancel :: Command mode
+  Help :: Command mode
 
   FocusCommand :: FocusCommand -> Command TimelineMode
   InsertCommand :: InsertType -> InsertPosition -> Command TimelineMode
@@ -60,12 +69,48 @@ data Command mode where
   LibraryDown :: Command LibraryMode
   LibrarySelect :: Command LibraryMode
 
+commandName :: Command mode -> Text
+commandName = \case
+  Cancel           -> "Cancel"
+  Help             -> "Show Help"
+  FocusCommand cmd ->
+    case cmd of
+      FocusUp -> "Move Focus Up"
+      FocusDown -> "Move Focus Down"
+      FocusLeft -> "Move Focus Left"
+      FocusRight -> "Move Focus Right"
+  InsertCommand insertType insertPosition ->
+    mconcat [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
+  Delete           -> "Delete"
+  Import           -> "Import Assets"
+  Render           -> "Render"
+  Exit             -> "Exit"
+
+  LibraryUp        -> "Navigate Up"
+  LibraryDown      -> "Navigate Down"
+  LibrarySelect    -> "Select Asset"
+  where
+    insertTypeName :: InsertType -> Text
+    insertTypeName = \case
+      InsertClip -> "Insert Clip"
+      InsertGap -> "Insert Gap"
+      InsertComposition -> "Insert Composition"
+    insertPositionName :: InsertPosition -> Text
+    insertPositionName = \case
+      LeftMost -> "Leftmost"
+      LeftOf -> "Left of"
+      RightOf -> "Right of"
+      RightMost -> "Rightmost"
+
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
 
   ImportFileSelected :: FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
   ImportClicked :: Event ImportMode
+
+data ModeKeyMap where
+  ModeKeyMap :: forall mode. SMode mode -> KeyMap (Command mode) -> ModeKeyMap
 
 type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 
@@ -142,6 +187,10 @@ class MonadFSM m =>
     -> Text -- ^ Progress window title.
     -> Producer ProgressUpdate IO a -- ^ Progress updates producer.
     -> Actions m '[ n := Remain (State m t)] r (Maybe a)
+  help
+    :: Name n
+    -> [ModeKeyMap]
+    -> Actions m '[ n := Remain (State m t)] r ()
   exit :: Name n -> Actions m '[ n !- State m s] r ()
 
 -- | Convenient type for actions that transition from one mode (of

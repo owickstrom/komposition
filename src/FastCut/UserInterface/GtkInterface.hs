@@ -21,24 +21,28 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- | A declarative GTK implementation of the 'UserInterface' protocol.
-module FastCut.UserInterface.GtkInterface (runGtkUserInterface) where
+module FastCut.UserInterface.GtkInterface
+  ( runGtkUserInterface
+  )
+where
 
-import           FastCut.Prelude                                  hiding (state)
+import           FastCut.Prelude                   hiding ( state )
 import qualified Prelude
 
-import           Control.Monad                                    (void)
-import           Control.Monad.Indexed                            ()
+import           Control.Monad                            ( void )
+import           Control.Monad.Indexed                    ( )
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
-import           Data.Row.Records                                 (Empty)
+import           Data.Row.Records                         ( Empty )
+import qualified Data.HashSet as HashSet
 import           Data.String
-import qualified Data.Text                                        as Text
-import qualified GI.Gdk                                           as Gdk
-import qualified GI.GLib.Constants                                as GLib
-import           GI.Gtk                                           (AttrOp (..))
-import qualified GI.Gtk.Declarative                               as Gtk
-import           Motor.FSM                                        hiding ((:=))
-import qualified Motor.FSM                                        as FSM
+import qualified Data.Text                     as Text
+import qualified GI.Gdk                        as Gdk
+import qualified GI.GLib.Constants             as GLib
+import           GI.Gtk                                   ( AttrOp(..) )
+import qualified GI.Gtk.Declarative            as Gtk
+import           Motor.FSM                         hiding ( (:=) )
+import qualified Motor.FSM                     as FSM
 import           Pipes
 import           Text.Printf
 
@@ -47,6 +51,7 @@ import           FastCut.Progress
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.EventListener
 import           FastCut.UserInterface.GtkInterface.ImportView
+import           FastCut.UserInterface.GtkInterface.HelpView
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
 import           FastCut.UserInterface.GtkInterface.View
@@ -129,8 +134,8 @@ render newView state = runUI
   patchBox :: Gtk.Window -> Gtk.Markup -> Gtk.Markup -> IO ()
   patchBox w o1 o2 = case Gtk.patch o1 o2 of
     Gtk.Modify f -> Gtk.containerGetChildren w >>= \case
-      []    -> return ()
-      (c:_) -> do
+      []      -> return ()
+      (c : _) -> do
         f =<< Gtk.toWidget c
         Gtk.widgetShowAll w
     Gtk.Replace createNew -> do
@@ -183,6 +188,9 @@ switchView'
 switchView' n view newMode = FSM.get n
   >>>= \s -> iliftIO (view >>= \v -> switchView v newMode s) >>>= FSM.enter n
 
+oneOffWidget :: Gtk.Markup -> IO Gtk.Widget
+oneOffWidget markup = Gtk.toWidget =<< Gtk.create markup
+
 printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =
   toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
@@ -190,38 +198,39 @@ printFractionAsPercent fraction =
 data ModalDialog ctx t = ModalDialog
   { title      :: Text
   , message    :: Maybe Text
+  , classes    :: Gtk.ClassSet
   , setUp      :: Gtk.Dialog -> Gtk.Box -> IO ctx
   , toResponse :: Gtk.Dialog -> ctx -> Int32 -> IO (Maybe t)
   , tearDown   :: Gtk.Dialog -> ctx -> IO ()
   }
 
-inNewModalDialog ::
-     (MonadFSM m, IxMonadIO m)
+inNewModalDialog
+  :: (MonadFSM m, IxMonadIO m)
   => Name n
   -> ModalDialog ctx t
-  -> Actions m '[ (FSM.:=) n (Remain (GtkInterfaceState a))] r (Maybe t)
-inNewModalDialog n ModalDialog{..} =
-  FSM.get n >>>= \s -> iliftIO $ do
-    response <- newEmptyMVar
-    runUI $ do
-      d <- Gtk.new Gtk.Dialog [#title := title, #transientFor := window s, #modal := True]
+  -> Actions m '[(FSM.:=) n (Remain (GtkInterfaceState a))] r (Maybe t)
+inNewModalDialog n ModalDialog {..} = FSM.get n >>>= \s -> iliftIO $ do
+  response <- newEmptyMVar
+  runUI $ do
+    d <- Gtk.new Gtk.Dialog
+                 [#title := title, #transientFor := window s, #modal := True]
 
-      content <- Gtk.dialogGetContentArea d
-      contentStyle <- Gtk.widgetGetStyleContext content
-      Gtk.styleContextAddClass contentStyle "dialog-container"
+    content      <- Gtk.dialogGetContentArea d
+    contentStyle <- Gtk.widgetGetStyleContext content
+    traverse_ (Gtk.styleContextAddClass contentStyle) (HashSet.toList classes)
 
-      case message of
-        Just m -> do
-          label <- Gtk.new Gtk.Label []
-          Gtk.labelSetLabel label m
-          Gtk.boxPackStart content label True True 10
-        Nothing -> return ()
+    case message of
+      Just m -> do
+        label <- Gtk.new Gtk.Label []
+        Gtk.labelSetLabel label m
+        Gtk.boxPackStart content label True True 10
+      Nothing -> return ()
 
-      ctx <- setUp d content
-      #showAll content
-      putMVar response =<< toResponse d ctx =<< #run d
-      tearDown d ctx
-    takeMVar response
+    ctx <- setUp d content
+    #showAll content
+    putMVar response =<< toResponse d ctx =<< #run d
+    tearDown d ctx
+  takeMVar response
 
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
@@ -258,6 +267,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           | r < 0 = return Nothing
           | otherwise = return $ Just $ toEnum $ fromIntegral r
         tearDown d _ = #destroy d
+        classes = HashSet.fromList ["dialog"]
     in inNewModalDialog n ModalDialog { message = Just message
                                       , ..
                                       }
@@ -284,6 +294,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           | r `elem` [acceptResponse, okResponse] = getReturnValue
           | otherwise = return Nothing
         tearDown d _ = #destroy d
+        classes = HashSet.fromList ["prompt"]
     in inNewModalDialog n ModalDialog { message = Just message, .. }
 
   chooseFile n mode title defaultDir =
@@ -332,7 +343,17 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           when (isNothing result) (killThread tid)
           return result
         tearDown _ _ = return ()
+        classes = HashSet.fromList ["progress-bar"]
     in inNewModalDialog n ModalDialog { message = Nothing, .. }
+
+  help n keymaps =
+    let setUp _ content = do
+          w <- oneOffWidget (helpView keymaps)
+          Gtk.boxPackStart content w True True 0
+        toResponse _ () _ = return (Just ())
+        tearDown _ _ = return ()
+        classes = HashSet.fromList ["help"]
+    in inNewModalDialog n ModalDialog { title = "Help", message = Nothing, .. } >>> ireturn ()
 
   exit n =
     (FSM.get n >>>= iliftIO . unsubscribeView)
@@ -340,9 +361,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     >>> delete n
 
 runGtkUserInterface
-  :: FilePath
-  -> GtkInterface (ReaderT Env IO) Empty Empty ()
-  -> IO ()
+  :: FilePath -> GtkInterface (ReaderT Env IO) Empty Empty () -> IO ()
 runGtkUserInterface cssPath ui = do
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault

@@ -40,6 +40,7 @@ library
                       , FastCut.UserInterface.GtkInterface
                       , FastCut.UserInterface.GtkInterface.View
                       , FastCut.UserInterface.GtkInterface.EventListener
+                      , FastCut.UserInterface.GtkInterface.HelpView
                       , FastCut.UserInterface.GtkInterface.ImportView
                       , FastCut.UserInterface.GtkInterface.LibraryView
                       , FastCut.UserInterface.GtkInterface.TimelineView
