@@ -91,3 +91,7 @@ TODO: instructions.
   - [ ] Command fuzzy completion
   - [ ] Undo
   - [ ] Yank/paste
+
+## License
+
+Copyright 2018 Oskar Wickström
