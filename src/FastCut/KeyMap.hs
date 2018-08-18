@@ -48,14 +48,15 @@ instance IsList (KeyMap a) where
 data KeyMapEntry a = Mapping a | SequencedMappings (KeyMap a)
   deriving (Show, Eq, Functor)
 
-sequences :: KeyMap a -> [(KeySequence, a)]
-sequences = flattenKeyMap []
+sequences :: Ord a => KeyMap a -> [(KeySequence, a)]
+sequences = sortBy cmdOrdering . flattenKeyMap []
  where
   flattenKeyMap prefix (KeyMap entries) =
     concatMap (flattenEntry prefix) (toList entries)
   flattenEntry prefix (keys, Mapping x) = [(prefix <> [keys], x)]
   flattenEntry prefix (keys, SequencedMappings km) =
     flattenKeyMap (prefix <> [keys]) km
+  cmdOrdering (_, c1) (_, c2) = c1 `compare` c2
 
 
 keySequenceToText :: KeySequence -> Text

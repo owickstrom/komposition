@@ -1,16 +1,17 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE KindSignatures    #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE TypeInType        #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ConstraintKinds    #-}
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeInType         #-}
+{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE OverloadedStrings  #-}
 
 module FastCut.UserInterface where
 
@@ -49,10 +50,10 @@ instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
 
 data InsertType
-  = InsertClip
+  = InsertComposition
+  | InsertClip
   | InsertGap
-  | InsertComposition
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data Command mode where
   Cancel :: Command mode
@@ -68,6 +69,10 @@ data Command mode where
   LibraryUp :: Command LibraryMode
   LibraryDown :: Command LibraryMode
   LibrarySelect :: Command LibraryMode
+
+deriving instance Eq (Command mode)
+
+deriving instance Ord (Command mode)
 
 commandName :: Command mode -> Text
 commandName = \case
@@ -110,7 +115,7 @@ data Event mode where
   ImportClicked :: Event ImportMode
 
 data ModeKeyMap where
-  ModeKeyMap :: forall mode. SMode mode -> KeyMap (Command mode) -> ModeKeyMap
+  ModeKeyMap :: forall mode. Ord (Command mode) => SMode mode -> KeyMap (Command mode) -> ModeKeyMap
 
 type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 

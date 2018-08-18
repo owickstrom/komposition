@@ -45,7 +45,7 @@ data InsertPosition
   | LeftOf
   | RightOf
   | RightMost
-  deriving (Show, Eq, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Insertion a
   = InsertSequence (Composition a SequenceType)
