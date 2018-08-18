@@ -63,36 +63,36 @@ TODO: instructions.
 ## Roadmap
 
 * 0.1.0
-  - [X] Timeline UI
-  - [X] Basic library view
-  - [ ] Timeline auto-scroll
-  - [X] Consistent single theme
-  - [ ] Video import without auto-splitting
-  - [ ] Audio import without auto-splitting
-  - [ ] Image (still frame) import
-  - [X] Import and auto-split video
-  - [ ] Import and auto-split audio
-  - [X] Sequence and parallel structure of limited depth
-  - [X] Support for key and widget events
-  - [X] Preview area for video clips
-  - [ ] Preview area for gaps
-  - [ ] Preview area for audio clips
-  - [X] Help windows showing key bindings
-  - Commands
-    - [X] Insert (append, prepend)
-    - [ ] Split sequence
-    - [X] Delete
-    - [X] Insert into empty parallel
-    - [ ] Insert composition (sequence, parallel)
-  - [X] Offline video rendering, including hold-frame
-  - [ ] Offline rendering including audio
+    - [X] Timeline UI
+    - [X] Basic library view
+    - [ ] Timeline auto-scroll
+    - [X] Consistent single theme
+    - [ ] Video import without auto-splitting
+    - [ ] Audio import without auto-splitting
+    - [ ] Image (still frame) import
+    - [X] Import and auto-split video
+    - [ ] Import and auto-split audio
+    - [X] Sequence and parallel structure of limited depth
+    - [X] Support for key and widget events
+    - [X] Preview area for video clips
+    - [ ] Preview area for gaps
+    - [ ] Preview area for audio clips
+    - [X] Help windows showing key bindings
+    - Commands
+        - [X] Insert (append, prepend)
+        - [ ] Split sequence
+        - [X] Delete
+        - [X] Insert into empty parallel
+        - [ ] Insert composition (sequence, parallel)
+    - [X] Offline video rendering, including hold-frame
+    - [ ] Offline rendering including audio
 * 0.2.0
-  - [ ] Save/open project
-  - [ ] Script/subtitle split
-  - [ ] Subtitle editing
-  - [ ] Command fuzzy completion
-  - [ ] Undo
-  - [ ] Yank/paste
+    - [ ] Save/open project
+    - [ ] Script/subtitle split
+    - [ ] Subtitle editing
+    - [ ] Command fuzzy completion
+    - [ ] Undo
+    - [ ] Yank/paste
 
 ## License
 
