@@ -1,10 +1,15 @@
+.fastcut > * {
+  min-width: 25em;
+  min-height: 20em;
+}
 .heading {
-  font-size: 20px;
+  font-size: 150%;
   font-weight: bold;
+  margin: .5em 0;
 }
 .subheading {
-  font-size: 16px;
   font-weight: bold;
+  margin: .25em 0;
 }
 .timeline-container {
   background-color: #aaa;
@@ -30,7 +35,7 @@
 
 .timeline .sequence .video,
 .timeline .sequence .audio {
-  min-height: 3em;
+  min-height: 2.5em;
 }
 .timeline .sequence .video {
   border-bottom: 2pt solid #aaa;
@@ -99,6 +104,11 @@
 .progress-bar,
 .help-container {
   padding: 1em;
+}
+
+.help {
+  min-width: 25em;
+  min-height: 50em;
 }
 
 .key-map-entry {

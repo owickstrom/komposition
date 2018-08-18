@@ -93,7 +93,6 @@ initializeWindow Env { cssPath, screen } obj = do
   runUI $ do
     window <- Gtk.windowNew Gtk.WindowTypeToplevel
     Gtk.windowSetTitle window "FastCut"
-    Gtk.windowResize window 640 480
     void $ Gtk.onWidgetDestroy window Gtk.mainQuit
 
     cssProviderVar <- newMVar Nothing
@@ -351,7 +350,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           w <- oneOffWidget (helpView keymaps)
           Gtk.boxPackStart content w True True 0
         toResponse _ () _ = return (Just ())
-        tearDown _ _ = return ()
+        tearDown d _ = #destroy d
         classes = HashSet.fromList ["help"]
     in inNewModalDialog n ModalDialog { title = "Help", message = Nothing, .. } >>> ireturn ()
 

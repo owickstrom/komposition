@@ -21,7 +21,7 @@ import           FastCut.KeyMap
 helpView :: [ModeKeyMap] -> Markup
 helpView keymaps = container
   ScrolledWindow
-  [#widthRequest := 400, #heightRequest := 600, classes []]
+  []
   (container
     Box
     [#orientation := OrientationVertical, classes ["help-container"]]
