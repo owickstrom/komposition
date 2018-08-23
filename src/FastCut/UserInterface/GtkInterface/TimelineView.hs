@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists   #-}
 
 -- | The main view of FastCut's GTK interface.
 module FastCut.UserInterface.GtkInterface.TimelineView
@@ -15,7 +16,9 @@ import           FastCut.Prelude                         hiding (on)
 import           Control.Lens
 import           Data.Int                                (Int32)
 import           Data.Text                               (Text)
-import           GI.Gtk.Declarative                      as Gtk
+import           GI.Gtk.Declarative
+import           GI.Gtk                (Box (..), Label (..), Orientation (..),
+                                        PolicyType (..), ScrolledWindow (..), Image(..))
 
 import           FastCut.Composition
 import           FastCut.Composition.Focused
@@ -24,7 +27,6 @@ import           FastCut.Focus
 import           FastCut.Library
 import           FastCut.Project
 import           FastCut.UserInterface
-import           FastCut.UserInterface.GtkInterface.View
 
 widthFromDuration :: Duration -> Int32
 widthFromDuration duration' =
@@ -36,17 +38,16 @@ focusedClass = \case
   TransitivelyFocused -> "transitively-focused"
   Blurred             -> "blurred"
 
-renderClipAsset :: Focused -> Asset mt -> Markup
+renderClipAsset :: Focused -> Asset mt -> Widget (Event TimelineMode)
 renderClipAsset focused asset' = container
   Box
   [ classes ["clip", focusedClass focused]
   , #orientation := OrientationHorizontal
   , #widthRequest := widthFromDuration (durationOf asset')
   , #tooltipText := toS (asset' ^. assetMetadata . path)
-  ]
-  [BoxChild False False 0 $ node Label []]
+  ] $ boxChild False False 0 $ node Label []
 
-renderPart :: CompositionPart Focused t -> Markup
+renderPart :: CompositionPart Focused t -> Widget (Event TimelineMode)
 renderPart = \case
   Clip focused asset'    -> renderClipAsset focused asset'
   Gap  focused duration' -> container
@@ -54,21 +55,20 @@ renderPart = \case
     [ classes ["gap", focusedClass focused]
     , #orientation := OrientationHorizontal
     , #widthRequest := widthFromDuration duration'
-    ]
-    [node Label []]
+    ] $ boxChild False False 0 (node Label [])
 
-renderComposition :: Composition Focused t -> Markup
+renderComposition :: Composition Focused t -> Widget (Event TimelineMode)
 renderComposition = \case
   Timeline _ sub -> container
     Box
     [classes ["composition", "timeline", emptyClass (null sub)]]
-    (map renderComposition (toList sub))
+    (mapM_ (boxChild False False 0 . renderComposition) (toList sub))
   Sequence focused sub -> container
     Box
     [ classes
         ["composition", "sequence", focusedClass focused, emptyClass (null sub)]
     ]
-    (map renderComposition (toList sub))
+    (mapM_ (boxChild False False 0 . renderComposition) (toList sub))
   Parallel focused vs as -> container
     Box
     [ #orientation := OrientationVertical
@@ -78,23 +78,22 @@ renderComposition = \case
       , focusedClass focused
       , emptyClass (null vs && null as)
       ]
-    ]
-    [ BoxChild False False 0
+    ] $ do
+    boxChild False False 0
       $ container
           Box
           [classes ["video", focusedClass focused]]
-          (map renderPart vs)
-    , BoxChild False False 0
+          (mapM_ (boxChild False False 0 . renderPart) vs)
+    boxChild False False 0
       $ container
           Box
           [classes ["audio", focusedClass focused]]
-          (map renderPart as)
-    ]
+          (mapM_ (boxChild False False 0 . renderPart) as)
  where
   emptyClass True  = "empty"
   emptyClass False = "non-empty"
 
-renderPreviewPane :: Maybe (FirstCompositionPart a) -> Markup
+renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
 renderPreviewPane = \case
   Just (FirstVideoPart (Clip _ (VideoAsset meta))) ->
     node Image [#file := toS (meta ^. thumbnail)]
@@ -104,20 +103,19 @@ renderPreviewPane = \case
   Just (FirstAudioPart Gap{}) -> node Label [#label := "Audio gap."]
   Nothing                     -> node Label [#label := "No preview available."]
 
-timelineView :: Project -> Focus ft -> IO (View TimelineMode)
-timelineView project focus = viewWithEvents $ \_ -> container
+timelineView :: Project -> Focus ft -> Widget (Event TimelineMode)
+timelineView project focus = container
   Box
-  [#orientation := OrientationVertical]
-  [ BoxChild
+  [#orientation := OrientationVertical] $ do
+  boxChild
     True
     True
     0
     (renderPreviewPane (firstCompositionPart focus (project ^. timeline)))
-  , BoxChild False False 0 $ container
+  boxChild False False 0 $ container
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeAutomatic
     , #vscrollbarPolicy := PolicyTypeNever
     , classes ["timeline-container"]
     ]
     (renderComposition (applyFocus (project ^. timeline) focus))
-  ]

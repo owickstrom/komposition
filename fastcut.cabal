@@ -38,7 +38,6 @@ library
                       , FastCut.Render.FFmpeg
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
-                      , FastCut.UserInterface.GtkInterface.View
                       , FastCut.UserInterface.GtkInterface.EventListener
                       , FastCut.UserInterface.GtkInterface.HelpView
                       , FastCut.UserInterface.GtkInterface.ImportView

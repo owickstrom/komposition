@@ -6,11 +6,13 @@ module FastCut.UserInterface.GtkInterface.EventListener where
 
 import           FastCut.Prelude
 
-import qualified Data.HashMap.Strict  as HashMap
-import qualified Data.HashSet         as HashSet
-import qualified GI.Gdk               as Gdk
-import qualified GI.GObject.Functions as GObject
-import           GI.Gtk.Declarative   as Gtk
+import qualified Data.HashMap.Strict            as HashMap
+import qualified Data.HashSet                   as HashSet
+import qualified GI.Gdk                         as Gdk
+import qualified GI.GObject.Functions           as GObject
+import qualified GI.Gtk                         as Gtk
+import qualified GI.Gtk.Declarative             as Declarative
+import qualified GI.Gtk.Declarative.EventSource as Declarative
 
 import           FastCut.KeyMap
 
@@ -21,6 +23,13 @@ data EventListener e = EventListener
 
 readEvent :: EventListener e -> IO e
 readEvent = readChan . events
+
+subscribeToDeclarativeWidget
+  :: Declarative.Widget e -> Gtk.Widget -> IO (EventListener e)
+subscribeToDeclarativeWidget declWidget gtkWidget = do
+  events       <- newChan
+  subscription <- Declarative.subscribe declWidget gtkWidget (writeChan events)
+  pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
 
 mergeEvents :: EventListener e -> EventListener e -> IO (EventListener e)
 mergeEvents a b = do

@@ -246,7 +246,7 @@ importFile gui project focus' = do
         ireturn (Just (file, autoSplit))
       (ImportClicked, form) -> fillForm form
       (ImportFileSelected file, form) ->
-        fillForm (form { selectedFile = Just file })
+        fillForm (form { selectedFile = file })
       (ImportAutoSplitSet s, form) -> fillForm (form { autoSplit = s })
   importAsset (filepath, True) =
     progressBar

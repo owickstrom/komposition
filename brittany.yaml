@@ -1,0 +1,8 @@
+conf_forward:
+  options_ghc:
+  - -XLambdaCase
+  - -XGADTs
+  - -XViewPatterns
+  - -XTupleSections
+  - -XOverloadedLabels
+  - -XExplicitForAll

@@ -55,7 +55,7 @@ data InsertType
   | InsertGap
   deriving (Show, Eq, Ord)
 
-data Command mode where
+data Command (mode :: Mode) where
   Cancel :: Command mode
   Help :: Command mode
 
@@ -110,7 +110,7 @@ commandName = \case
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
 
-  ImportFileSelected :: FilePath -> Event ImportMode
+  ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
   ImportClicked :: Event ImportMode
 

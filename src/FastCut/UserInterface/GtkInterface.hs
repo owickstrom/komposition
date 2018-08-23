@@ -26,23 +26,24 @@ module FastCut.UserInterface.GtkInterface
   )
 where
 
-import           FastCut.Prelude                   hiding ( state )
+import           FastCut.Prelude                                  hiding (state)
 import qualified Prelude
 
-import           Control.Monad                            ( void )
-import           Control.Monad.Indexed                    ( )
+import           Control.Monad                                    (void)
+import           Control.Monad.Indexed                            ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
-import           Data.Row.Records                         ( Empty )
-import qualified Data.HashSet as HashSet
+import qualified Data.HashSet                                     as HashSet
+import           Data.Row.Records                                 (Empty)
 import           Data.String
-import qualified Data.Text                     as Text
-import qualified GI.Gdk                        as Gdk
-import qualified GI.GLib.Constants             as GLib
-import           GI.Gtk                                   ( AttrOp(..) )
-import qualified GI.Gtk.Declarative            as Gtk
-import           Motor.FSM                         hiding ( (:=) )
-import qualified Motor.FSM                     as FSM
+import qualified Data.Text                                        as Text
+import qualified GI.Gdk                                           as Gdk
+import qualified GI.GLib.Constants                                as GLib
+import           GI.Gtk                                           (AttrOp (..))
+import qualified GI.Gtk                                           as Gtk
+import qualified GI.Gtk.Declarative                               as Declarative
+import           Motor.FSM                                        hiding ((:=))
+import qualified Motor.FSM                                        as FSM
 import           Pipes
 import           Text.Printf
 
@@ -50,11 +51,10 @@ import           Control.Monad.Indexed.IO
 import           FastCut.Progress
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.EventListener
-import           FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.UserInterface.GtkInterface.HelpView
+import           FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
-import           FastCut.UserInterface.GtkInterface.View
 
 data Env = Env
   { cssPath :: FilePath
@@ -76,18 +76,23 @@ data GtkInterfaceState mode = GtkInterfaceState
   { window      :: Gtk.Window
   , allEvents   :: EventListener (Event mode)
   , keyMaps     :: KeyMaps
-  , currentView :: View mode
+  , currentView :: (Declarative.Widget (Event mode), EventListener (Event mode))
   }
 
-runUI :: IO () -> IO ()
-runUI f = void (Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT (f *> return False))
+runUI :: IO a -> IO a
+runUI f = do
+  ret <- newEmptyMVar
+  void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+    f >>= putMVar ret
+    return False
+  takeMVar ret
 
 unsubscribeView :: GtkInterfaceState a -> IO ()
 unsubscribeView state = do
   unsubscribe (allEvents state)
-  unsubscribe (viewEvents (currentView state))
+  unsubscribe (snd (currentView state))
 
-initializeWindow :: Env -> Gtk.Markup -> IO Gtk.Window
+initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> IO Gtk.Window
 initializeWindow Env { cssPath, screen } obj = do
   w <- newEmptyMVar
   runUI $ do
@@ -111,7 +116,7 @@ initializeWindow Env { cssPath, screen } obj = do
     windowStyle <- Gtk.widgetGetStyleContext window
     Gtk.styleContextAddClass windowStyle "fastcut"
     Gtk.widgetShowAll window
-    Gtk.containerAdd window =<< Gtk.toWidget =<< Gtk.create obj
+    Gtk.containerAdd window =<< Gtk.toWidget =<< Declarative.create obj
     Gtk.widgetShowAll window
     putMVar w window
   takeMVar w
@@ -126,58 +131,69 @@ initializeWindow Env { cssPath, screen } obj = do
       Nothing -> return ()
     putMVar var (Just cssProvider)
 
-render :: View m' -> GtkInterfaceState m -> IO ()
+getFirstChild :: Gtk.Window -> IO (Maybe Gtk.Widget)
+getFirstChild w =
+  Gtk.containerGetChildren w >>= \case
+    []      -> return Nothing
+    (c : _) -> return (Just c)
+
+render :: Declarative.Widget (Event b) -> GtkInterfaceState a -> IO (Maybe Gtk.Widget)
 render newView state = runUI
-  (patchBox (window state) (markup (currentView state)) (markup newView))
- where
-  patchBox :: Gtk.Window -> Gtk.Markup -> Gtk.Markup -> IO ()
-  patchBox w o1 o2 = case Gtk.patch o1 o2 of
-    Gtk.Modify f -> Gtk.containerGetChildren w >>= \case
-      []      -> return ()
-      (c : _) -> do
+  (patchBox (window state) (fst (currentView state)) newView)
+
+patchBox :: Gtk.Window -> Declarative.Widget e1 -> Declarative.Widget e2 -> IO (Maybe Gtk.Widget)
+patchBox w o1 o2 = case Declarative.patch o1 o2 of
+  Declarative.Modify f ->
+    getFirstChild w >>= \case
+      Nothing -> return Nothing
+      Just c -> do
         f =<< Gtk.toWidget c
         Gtk.widgetShowAll w
-    Gtk.Replace createNew -> do
-      Gtk.containerForall w (Gtk.containerRemove w)
-      newWidget <- createNew
-      Gtk.containerAdd w newWidget
-      Gtk.widgetShowAll w
-    Gtk.Keep -> return ()
+        return (Just c)
+  Declarative.Replace createNew -> do
+    Gtk.containerForall w (Gtk.containerRemove w)
+    newWidget <- createNew
+    Gtk.containerAdd w newWidget
+    Gtk.widgetShowAll w
+    return (Just newWidget)
+  Declarative.Keep -> getFirstChild w
 
 renderFirst
-  :: IO (View a) -> SMode a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
-renderFirst createView mode keyMaps env = do
-  view      <- createView
-  w         <- initializeWindow env (markup view)
-  allEvents <-
-    subscribeKeyEvents w >>= applyKeyMap (keyMaps mode) >>= mergeEvents
-      (viewEvents view)
+  :: Typeable a => Declarative.Widget (Event a) -> SMode a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
+renderFirst view mode keyMaps env = do
+  w         <- initializeWindow env view
+  widget    <- Declarative.create view
+  viewEvents <- subscribeToDeclarativeWidget view widget
+  allEvents <- subscribeKeyEvents w >>= applyKeyMap (keyMaps mode) >>= mergeEvents viewEvents
   pure GtkInterfaceState
     { window      = w
-    , currentView = view { viewEvents = allEvents }
+    , currentView = (view, viewEvents)
     , ..
     }
 
 switchView
-  :: View b -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
+  :: Declarative.Widget (Event b) -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
 switchView newView newMode state = do
-  unsubscribeView state
-  render newView state
-  allEvents <-
-    subscribeKeyEvents (window state)
-    >>= applyKeyMap (keyMaps state newMode)
-    >>= mergeEvents (viewEvents newView)
-  pure GtkInterfaceState
-    { window      = window state
-    , currentView = newView
-    , keyMaps     = keyMaps state
-    , ..
-    }
+  render newView state >>= \case
+    Just widget -> do
+      unsubscribeView state
+      viewEvents <- subscribeToDeclarativeWidget newView widget
+      allEvents <-
+        subscribeKeyEvents (window state)
+        >>= applyKeyMap (keyMaps state newMode)
+        >>= mergeEvents viewEvents
+      pure GtkInterfaceState
+        { window      = window state
+        , currentView = (newView, viewEvents)
+        , keyMaps     = keyMaps state
+        , ..
+        }
+    Nothing -> fail "Could not render."
 
 switchView'
   :: (MonadFSM m, IxMonadIO m)
   => Name n
-  -> IO (View b)
+  -> Declarative.Widget (Event b)
   -> SMode b
   -> Actions
        m
@@ -185,10 +201,10 @@ switchView'
        r
        ()
 switchView' n view newMode = FSM.get n
-  >>>= \s -> iliftIO (view >>= \v -> switchView v newMode s) >>>= FSM.enter n
+  >>>= \s -> iliftIO (switchView view newMode s) >>>= FSM.enter n
 
-oneOffWidget :: Gtk.Markup -> IO Gtk.Widget
-oneOffWidget markup = Gtk.toWidget =<< Gtk.create markup
+oneOffWidget :: Typeable mode => Declarative.Widget (Event mode) -> SMode mode -> IO Gtk.Widget
+oneOffWidget markup _ = Gtk.toWidget =<< Declarative.create markup
 
 printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =
@@ -197,7 +213,7 @@ printFractionAsPercent fraction =
 data ModalDialog ctx t = ModalDialog
   { title      :: Text
   , message    :: Maybe Text
-  , classes    :: Gtk.ClassSet
+  , classes    :: Declarative.ClassSet
   , setUp      :: Gtk.Dialog -> Gtk.Box -> IO ctx
   , toResponse :: Gtk.Dialog -> ctx -> Int32 -> IO (Maybe t)
   , tearDown   :: Gtk.Dialog -> ctx -> IO ()
@@ -347,7 +363,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
 
   help n keymaps =
     let setUp _ content = do
-          w <- oneOffWidget (helpView keymaps)
+          w <- oneOffWidget (helpView keymaps) STimelineMode
           Gtk.boxPackStart content w True True 0
         toResponse _ () _ = return (Just ())
         tearDown d _ = #destroy d

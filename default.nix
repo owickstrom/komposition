@@ -20,11 +20,14 @@ let
       massiv = self.callHackage "massiv" "0.1.6.1" {};
       massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
       indexed-extras = pkgs.haskell.lib.doJailbreak super.indexed-extras;
-      gi-gtk-declarative = self.callCabal2nix "gi-gtk-declarative" (nixpkgs.fetchFromGitHub {
-        owner = "owickstrom";
-        repo = "gi-gtk-declarative";
-        inherit (giGtkDeclarativeJson) rev sha256;
-      }) {};
+      gi-gtk-declarative =
+        let
+          src = nixpkgs.fetchFromGitHub {
+            owner = "owickstrom";
+            repo = "gi-gtk-declarative";
+            inherit (giGtkDeclarativeJson) rev sha256;
+          };
+        in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
     };
   };
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;

@@ -9,19 +9,19 @@ module FastCut.UserInterface.GtkInterface.LibraryView
   ( libraryView
   ) where
 
-import           FastCut.Prelude                         hiding (State, on)
+import           FastCut.Prelude       hiding (State, on)
 
 import           Control.Lens
-import           Data.Text                               (Text)
-import           GI.Gtk.Declarative                      as Gtk
+import           Data.Text             (Text)
+import           GI.Gtk                (Box (..), Label (..), Orientation (..),
+                                        PolicyType (..), ScrolledWindow (..))
+import           GI.Gtk.Declarative
 
 import           FastCut.Library
 import           FastCut.UserInterface
-import           FastCut.UserInterface.GtkInterface.View
 
-renderAsset :: Int -> Asset mt -> Int -> BoxChild
+renderAsset :: Int -> Asset mt -> Int -> Widget (Event LibraryMode)
 renderAsset focusedIdx asset' idx =
-  BoxChild False False 0 $
   node
     Label
     [ #label := toS (asset' ^. assetMetadata . path) <> " (" <>
@@ -36,30 +36,31 @@ renderAsset focusedIdx asset' idx =
         then "focused"
         else "blurred"
 
-libraryView :: [Asset mt] -> Int -> IO (View LibraryMode)
+libraryView :: [Asset mt] -> Int -> Widget (Event LibraryMode)
 libraryView assets focusedIdx =
-  viewWithEvents $ \_ ->
   container
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeNever
     , #vscrollbarPolicy := PolicyTypeAutomatic
     ]
-    (container
-       Box
-       [#orientation := OrientationVertical, classes ["library"]]
-       [ BoxChild
-           False
-           False
-           0
-           (node Label [#label := "Library", classes ["heading"]])
-       , BoxChild True True 0 assetList
-       ])
+    scrolledArea
   where
+    scrolledArea :: Widget (Event LibraryMode)
+    scrolledArea = container
+       Box
+       [#orientation := OrientationVertical, classes ["library"]] $ do
+        boxChild
+            False
+            False
+            0
+            (node Label [#label := "Library", classes ["heading"]])
+        boxChild True True 0 assetList
     assetList
       | null assets =
         node Label [#label := "You have no assets imported."]
       | otherwise =
          container
            Box
-           [#orientation := OrientationVertical, classes ["clips"]]
-           (zipWith (renderAsset focusedIdx) assets [0..])
+           [#orientation := OrientationVertical, classes ["clips"]] $
+             for_ (zip assets [0..]) $ \(asset, i) ->
+               boxChild False False 0 $ renderAsset focusedIdx asset i
