@@ -20,6 +20,11 @@ data-files:           gui.glade
 library
   exposed-modules:      Control.Monad.Indexed.IO
                       , FastCut.Application
+                      , FastCut.Application.Base
+                      , FastCut.Application.ImportMode
+                      , FastCut.Application.KeyMaps
+                      , FastCut.Application.LibraryMode
+                      , FastCut.Application.TimelineMode
                       , FastCut.Composition
                       , FastCut.Composition.Delete
                       , FastCut.Composition.Focused
