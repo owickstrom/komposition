@@ -314,8 +314,18 @@ importVideoFile ::
   => FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError (Asset Video))
-importVideoFile sourceFile outDir =
-  filePathToVideoAsset sourceFile outDir & runExceptT
+importVideoFile sourceFile outDir = do
+  Pipes.yield (ProgressUpdate 0)
+  -- Copy asset to working directory
+  assetPath <- liftIO $ do
+    createDirectoryIfMissing True outDir
+    let assetPath = outDir </> takeFileName sourceFile
+    copyFile sourceFile assetPath
+    return assetPath
+  -- Generate thumbnail and return asset
+  Pipes.yield (ProgressUpdate 0.5) *>
+    (filePathToVideoAsset outDir assetPath & runExceptT)
+    <* Pipes.yield (ProgressUpdate 1)
 
 importVideoFileAutoSplit ::
      MonadIO m
