@@ -12,17 +12,17 @@ module FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.Prelude       hiding (State, on)
 
 import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
-                                        FileChooserButton (..),
-                                        Label(..),
-                                        toggleButtonGetActive,
-                                        fileChooserGetFilename)
+                                        FileChooserButton (..), Label (..),
+                                        Orientation (..),
+                                        fileChooserGetFilename,
+                                        toggleButtonGetActive)
 import           GI.Gtk.Declarative    as Gtk
 
 import           FastCut.UserInterface
 
 importView :: Widget (Event ImportMode)
 importView =
-  container Box [ classes ["import-view"] ] $ do
+  container Box [ classes ["import-view"], #orientation := OrientationVertical ] $ do
     boxChild True True 0 $ node Label [#label := "Import Asset"]
     boxChild False False 0 $
       node
