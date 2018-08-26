@@ -34,7 +34,7 @@ importView =
     boxChild False False 10 $
       node
         CheckButton
-        [ #label := "Automatically split video"
+        [ #label := "Automatically split"
         , onM
             #toggled
             (fmap ImportAutoSplitSet . toggleButtonGetActive)

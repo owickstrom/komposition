@@ -16,9 +16,10 @@ module FastCut.Application.ImportMode where
 import           FastCut.Application.Base
 
 import           Control.Lens
-import           Data.String                              ( fromString )
+import           Data.String                 (fromString)
 
 import           FastCut.Focus
+import           FastCut.Import.Audio
 import           FastCut.Import.FFmpeg
 import           FastCut.Library
 import           FastCut.MediaType
@@ -68,23 +69,26 @@ importAsset
   -> Project
   -> (FilePath, Bool)
   -> Actions m '[n := Remain (State m TimelineMode)] r Project
-importAsset gui project (filepath, True)
-  = progressBar
-      gui
-      "Import Video"
-      (importVideoFileAutoSplit filepath (project ^. workingDirectory))
-    >>>= \case
-           Nothing -> do
-             iliftIO (putStrLn ("No result." :: Text))
-             ireturn project
-           Just assets -> handleImportResult gui project SVideo assets
-importAsset gui project (filepath, False) =
-  progressBar gui
+importAsset gui project (filepath, autoSplit)
+  | isSupportedVideoFile filepath =
+    let action =
+          case autoSplit of
+            True -> importVideoFileAutoSplit filepath (project ^. workingDirectory)
+            False -> fmap (: []) <$> importVideoFile filepath (project ^. workingDirectory)
+    in progressBar gui "Import Video" action >>>= \case
+        Nothing -> do
+          ireturn project
+        Just assets -> handleImportResult gui project SVideo assets
+  | isSupportedAudioFile filepath =
+    progressBar gui
               "Import Video"
-              (importVideoFile filepath (project ^. workingDirectory))
+              (importAudioFile filepath (project ^. workingDirectory))
     >>>= \case
            Nothing    -> ireturn project
-           Just asset -> handleImportResult gui project SVideo (fmap pure asset)
+           Just asset -> handleImportResult gui project SAudio (fmap pure asset)
+  | otherwise = do
+    _ <- dialog gui "Unsupported File" "The file extension of the file you've selected is not supported." [Ok]
+    ireturn project
 
 handleImportResult
   :: (UserInterface m, IxMonadIO m, Show err)

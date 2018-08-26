@@ -32,6 +32,7 @@ library
                       , FastCut.Duration
                       , FastCut.Focus
                       , FastCut.Focus.Parent
+                      , FastCut.Import.Audio
                       , FastCut.Import.FFmpeg
                       , FastCut.KeyMap
                       , FastCut.Prelude

@@ -1,32 +1,33 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ConstraintKinds    #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE TypeInType         #-}
 {-# LANGUAGE TypeOperators      #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE OverloadedStrings  #-}
 
 module FastCut.UserInterface where
 
-import           FastCut.Prelude                   hiding ( State )
+import           FastCut.Prelude            hiding (State)
 
-import           Motor.FSM                         hiding ( Delete )
 import           Data.Row.Records
+import           Motor.FSM                  hiding (Delete)
 import           Pipes
 
+import           FastCut.Composition.Insert
 import           FastCut.Focus
 import           FastCut.KeyMap
 import           FastCut.Library
-import           FastCut.Composition.Insert
-import           FastCut.Project
+import           FastCut.MediaType
 import           FastCut.Progress
+import           FastCut.Project
 
 data Mode
   = TimelineMode
@@ -80,9 +81,9 @@ commandName = \case
   Help             -> "Show Help"
   FocusCommand cmd ->
     case cmd of
-      FocusUp -> "Move Focus Up"
-      FocusDown -> "Move Focus Down"
-      FocusLeft -> "Move Focus Left"
+      FocusUp    -> "Move Focus Up"
+      FocusDown  -> "Move Focus Down"
+      FocusLeft  -> "Move Focus Left"
       FocusRight -> "Move Focus Right"
   InsertCommand insertType insertPosition ->
     mconcat [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
@@ -152,11 +153,13 @@ class MonadFSM m =>
     -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n
+    -> SMediaType mt
     -> [Asset mt]
     -> Int
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
   updateLibrary
     :: Name n
+    -> SMediaType mt
     -> [Asset mt]
     -> Int
     -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()

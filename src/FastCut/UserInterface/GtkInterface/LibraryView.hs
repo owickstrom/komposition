@@ -18,6 +18,7 @@ import           GI.Gtk                (Box (..), Label (..), Orientation (..),
 import           GI.Gtk.Declarative
 
 import           FastCut.Library
+import           FastCut.MediaType
 import           FastCut.UserInterface
 
 renderAsset :: Int -> Asset mt -> Int -> Widget (Event LibraryMode)
@@ -36,8 +37,8 @@ renderAsset focusedIdx asset' idx =
         then "focused"
         else "blurred"
 
-libraryView :: [Asset mt] -> Int -> Widget (Event LibraryMode)
-libraryView assets focusedIdx =
+libraryView :: SMediaType mt -> [Asset mt] -> Int -> Widget (Event LibraryMode)
+libraryView mediaType assets focusedIdx =
   container
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeNever
@@ -57,10 +58,14 @@ libraryView assets focusedIdx =
         boxChild True True 0 assetList
     assetList
       | null assets =
-        node Label [#label := "You have no assets imported."]
+        node Label [#label := noAssetsMessage]
       | otherwise =
          container
            Box
            [#orientation := OrientationVertical, classes ["clips"]] $
              for_ (zip assets [0..]) $ \(asset, i) ->
                boxChild False False 0 $ renderAsset focusedIdx asset i
+    noAssetsMessage =
+      case mediaType of
+        SVideo -> "You have no video assets imported into your library."
+        SAudio -> "You have no audio assets imported into your library."

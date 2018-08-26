@@ -26,6 +26,7 @@ import           FastCut.Application.KeyMaps
 selectAssetFromList
   :: (UserInterface m, IxMonadIO m, Modify n (State m LibraryMode) r ~ r)
   => Name n
+  -> SMediaType mt
   -> [Asset mt]
   -> Int
   -> Actions
@@ -33,20 +34,20 @@ selectAssetFromList
        '[n := Remain (State m LibraryMode)]
        r
        (Maybe (Asset mt))
-selectAssetFromList gui assets n = do
-  updateLibrary gui assets n
+selectAssetFromList gui mediaType assets n = do
+  updateLibrary gui mediaType assets n
   nextEvent gui >>>= \case
     CommandKeyMappedEvent Cancel -> ireturn Nothing
     CommandKeyMappedEvent Help ->
       help gui [ModeKeyMap SLibraryMode (keymaps SLibraryMode)] >>> continue
     CommandKeyMappedEvent LibrarySelect -> ireturn (assets ^? element n)
     CommandKeyMappedEvent LibraryUp
-      | n > 0     -> selectAssetFromList gui assets (pred n)
+      | n > 0     -> selectAssetFromList gui mediaType assets (pred n)
       | otherwise -> continue
     CommandKeyMappedEvent LibraryDown
-      | n < length assets - 1 -> selectAssetFromList gui assets (succ n)
+      | n < length assets - 1 -> selectAssetFromList gui mediaType assets (succ n)
       | otherwise             -> continue
-  where continue = selectAssetFromList gui assets n
+  where continue = selectAssetFromList gui mediaType assets n
 
 selectAsset
   :: Application t m
@@ -62,13 +63,13 @@ selectAsset
        (Maybe (Asset mt))
 selectAsset gui project focus' mediaType = case mediaType of
   SVideo -> do
-    enterLibrary gui (project ^. library . videoAssets) 0
-    asset' <- selectAssetFromList gui (project ^. library . videoAssets) 0
+    enterLibrary gui SVideo (project ^. library . videoAssets) 0
+    asset' <- selectAssetFromList gui SVideo (project ^. library . videoAssets) 0
     returnToTimeline gui project focus'
     ireturn asset'
   SAudio -> do
-    enterLibrary gui (project ^. library . audioAssets) 0
-    asset' <- selectAssetFromList gui (project ^. library . audioAssets) 0
+    enterLibrary gui SAudio (project ^. library . audioAssets) 0
+    asset' <- selectAssetFromList gui SAudio (project ^. library . audioAssets) 0
     returnToTimeline gui project focus'
     ireturn asset'
 

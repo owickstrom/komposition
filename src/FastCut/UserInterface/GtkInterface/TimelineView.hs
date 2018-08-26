@@ -96,12 +96,18 @@ renderComposition = \case
 renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
 renderPreviewPane = \case
   Just (FirstVideoPart (Clip _ (VideoAsset meta))) ->
-    node Image [#file := toS (meta ^. thumbnail)]
-  Just (FirstAudioPart (Clip _ (AudioAsset _meta))) ->
-    node Label [#label := "Audio clip..."]
+    thumbnailImageOrPlaceholder (meta ^. thumbnail)
+  Just (FirstAudioPart (Clip _ (AudioAsset meta))) ->
+    thumbnailImageOrPlaceholder (meta ^. thumbnail)
   Just (FirstVideoPart Gap{}) -> node Label [#label := "Video gap."]
   Just (FirstAudioPart Gap{}) -> node Label [#label := "Audio gap."]
-  Nothing                     -> node Label [#label := "No preview available."]
+  Nothing                     -> noPreviewAvailable
+
+  where
+    thumbnailImageOrPlaceholder = \case
+      Just thumbnailFile -> node Image [#file := toS thumbnailFile]
+      Nothing -> noPreviewAvailable
+    noPreviewAvailable = node Label [#label := "No preview available."]
 
 timelineView :: Project -> Focus ft -> Widget (Event TimelineMode)
 timelineView project focus = container

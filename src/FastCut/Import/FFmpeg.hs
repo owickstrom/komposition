@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -283,7 +284,7 @@ filePathToVideoAsset outDir p = do
   md <-
     AssetMetadata p
     <$> liftIO (getVideoFileDuration p)
-    <*> generateVideoThumbnail p outDir
+    <*> (Just <$> generateVideoThumbnail p outDir)
   pure (VideoAsset md)
 
 generateVideoThumbnail ::
@@ -345,3 +346,6 @@ importVideoFileAutoSplit sourceFile outDir = do
   where
     toProgress (durationToSeconds -> fullLength) Timed {..} =
       ProgressUpdate (time / fullLength)
+
+isSupportedVideoFile :: FilePath -> Bool
+isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv"]

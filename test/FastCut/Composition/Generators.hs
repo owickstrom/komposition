@@ -55,7 +55,7 @@ assetMetadata =
   AssetMetadata
     <$> Gen.string (linear 1 50) Gen.unicode
     <*> duration (linear 1 10 :: Range Int)
-    <*> Gen.string (linear 1 50) Gen.unicode
+    <*> Gen.choice [pure Nothing, Just <$> Gen.string (linear 1 50) Gen.unicode]
 
 -- With Focus
 
