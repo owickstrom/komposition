@@ -33,7 +33,7 @@ library
                       , FastCut.Focus
                       , FastCut.Focus.Parent
                       , FastCut.Import.Audio
-                      , FastCut.Import.FFmpeg
+                      , FastCut.Import.Video
                       , FastCut.KeyMap
                       , FastCut.Prelude
                       , FastCut.Progress
@@ -145,7 +145,7 @@ test-suite fastcut-tests
                  , FastCut.Render.CompositionTest
                  , FastCut.Render.TimestampTest
                  , FastCut.TestLibrary
-                 , FastCut.Import.FFmpegTest
+                 , FastCut.Import.VideoTest
   build-depends:   base                 >= 4        && < 5
                  , unordered-containers >= 0.2      && < 0.3
                  , fastcut

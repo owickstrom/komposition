@@ -12,7 +12,7 @@
 {-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 {-# LANGUAGE ViewPatterns          #-}
-module FastCut.Import.FFmpeg where
+module FastCut.Import.Video where
 
 import           FastCut.Prelude         hiding (catch)
 

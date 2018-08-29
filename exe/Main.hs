@@ -6,7 +6,7 @@ import           System.IO.Temp
 
 import           FastCut.Application
 import           FastCut.Composition
-import           FastCut.Import.FFmpeg
+import           FastCut.Import.Video
 import           FastCut.Library
 import           FastCut.Project                    (Project (..))
 import           FastCut.UserInterface.GtkInterface

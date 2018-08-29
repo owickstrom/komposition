@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Import.FFmpegTest where
+module FastCut.Import.VideoTest where
 
 import           FastCut.Prelude
 
@@ -12,7 +12,7 @@ import qualified Pipes
 import qualified Pipes.Prelude        as Pipes
 import           Test.Tasty.Hspec
 
-import           FastCut.Import.FFmpeg
+import           FastCut.Import.Video
 
 colorImage :: Pixel RGB Word8 -> Timed RGB8Frame
 colorImage c = Timed (A.makeArray A.Par (640 :. 480) (const c)) 0

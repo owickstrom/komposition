@@ -20,7 +20,7 @@ import           Data.String                 (fromString)
 
 import           FastCut.Focus
 import           FastCut.Import.Audio
-import           FastCut.Import.FFmpeg
+import           FastCut.Import.Video
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
