@@ -23,7 +23,7 @@ import           FastCut.UserInterface
 
 renderAsset :: Int -> Asset mt -> Int -> Widget (Event LibraryMode)
 renderAsset focusedIdx asset' idx =
-  node
+  widget
     Label
     [ #label := toS (asset' ^. assetMetadata . path) <> " (" <>
       show (asset' ^. assetMetadata . duration) <>
@@ -39,32 +39,25 @@ renderAsset focusedIdx asset' idx =
 
 libraryView :: SMediaType mt -> [Asset mt] -> Int -> Widget (Event LibraryMode)
 libraryView mediaType assets focusedIdx =
-  container
+  bin
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeNever
     , #vscrollbarPolicy := PolicyTypeAutomatic
-    ]
-    scrolledArea
+    ] $
+  container Box [#orientation := OrientationVertical, classes ["library"]] $ do
+    boxChild
+      False
+      False
+      0
+      (widget Label [#label := "Library", classes ["heading"]])
+    boxChild True True 0 assetList
   where
-    scrolledArea :: Widget (Event LibraryMode)
-    scrolledArea = container
-       Box
-       [#orientation := OrientationVertical, classes ["library"]] $ do
-        boxChild
-            False
-            False
-            0
-            (node Label [#label := "Library", classes ["heading"]])
-        boxChild True True 0 assetList
     assetList
-      | null assets =
-        node Label [#label := noAssetsMessage]
+      | null assets = widget Label [#label := noAssetsMessage]
       | otherwise =
-         container
-           Box
-           [#orientation := OrientationVertical, classes ["clips"]] $
-             for_ (zip assets [0..]) $ \(asset, i) ->
-               boxChild False False 0 $ renderAsset focusedIdx asset i
+        container Box [#orientation := OrientationVertical, classes ["clips"]] $
+        for_ (zip assets [0 ..]) $ \(asset, i) ->
+          boxChild False False 0 $ renderAsset focusedIdx asset i
     noAssetsMessage =
       case mediaType of
         SVideo -> "You have no video assets imported into your library."

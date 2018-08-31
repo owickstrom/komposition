@@ -23,16 +23,16 @@ import           FastCut.UserInterface
 importView :: Widget (Event ImportMode)
 importView =
   container Box [ classes ["import-view"], #orientation := OrientationVertical ] $ do
-    boxChild True True 0 $ node Label [#label := "Import Asset"]
+    boxChild True True 0 $ widget Label [#label := "Import Asset"]
     boxChild False False 0 $
-      node
+      widget
         FileChooserButton
         [ onM
           #selectionChanged
           (fmap ImportFileSelected . fileChooserGetFilename)
         ]
     boxChild False False 10 $
-      node
+      widget
         CheckButton
         [ #label := "Automatically split"
         , onM
@@ -40,7 +40,7 @@ importView =
             (fmap ImportAutoSplitSet . toggleButtonGetActive)
         ]
     boxChild False False 10 $
-      node
+      widget
         Button
         [ #label := "Import"
         , on #clicked ImportClicked

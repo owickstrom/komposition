@@ -3,22 +3,23 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | The main view of FastCut's GTK interface.
 module FastCut.UserInterface.GtkInterface.TimelineView
   ( timelineView
   ) where
 
-import           FastCut.Prelude                         hiding (on)
+import           FastCut.Prelude             hiding (on)
 
 import           Control.Lens
-import           Data.Int                                (Int32)
-import           Data.Text                               (Text)
+import           Data.Int                    (Int32)
+import           Data.Text                   (Text)
+import           GI.Gtk                      (Box (..), Image (..), Label (..),
+                                              Orientation (..), PolicyType (..),
+                                              ScrolledWindow (..))
 import           GI.Gtk.Declarative
-import           GI.Gtk                (Box (..), Label (..), Orientation (..),
-                                        PolicyType (..), ScrolledWindow (..), Image(..))
 
 import           FastCut.Composition
 import           FastCut.Composition.Focused
@@ -45,7 +46,7 @@ renderClipAsset focused asset' = container
   , #orientation := OrientationHorizontal
   , #widthRequest := widthFromDuration (durationOf asset')
   , #tooltipText := toS (asset' ^. assetMetadata . path)
-  ] $ boxChild False False 0 $ node Label []
+  ] $ boxChild False False 0 $ widget Label []
 
 renderPart :: CompositionPart Focused t -> Widget (Event TimelineMode)
 renderPart = \case
@@ -55,7 +56,7 @@ renderPart = \case
     [ classes ["gap", focusedClass focused]
     , #orientation := OrientationHorizontal
     , #widthRequest := widthFromDuration duration'
-    ] $ boxChild False False 0 (node Label [])
+    ] $ boxChild False False 0 (widget Label [])
 
 renderComposition :: Composition Focused t -> Widget (Event TimelineMode)
 renderComposition = \case
@@ -99,15 +100,15 @@ renderPreviewPane = \case
     thumbnailImageOrPlaceholder (meta ^. thumbnail)
   Just (FirstAudioPart (Clip _ (AudioAsset meta))) ->
     thumbnailImageOrPlaceholder (meta ^. thumbnail)
-  Just (FirstVideoPart Gap{}) -> node Label [#label := "Video gap."]
-  Just (FirstAudioPart Gap{}) -> node Label [#label := "Audio gap."]
+  Just (FirstVideoPart Gap{}) -> widget Label [#label := "Video gap."]
+  Just (FirstAudioPart Gap{}) -> widget Label [#label := "Audio gap."]
   Nothing                     -> noPreviewAvailable
 
   where
     thumbnailImageOrPlaceholder = \case
-      Just thumbnailFile -> node Image [#file := toS thumbnailFile]
+      Just thumbnailFile -> widget Image [#file := toS thumbnailFile]
       Nothing -> noPreviewAvailable
-    noPreviewAvailable = node Label [#label := "No preview available."]
+    noPreviewAvailable = widget Label [#label := "No preview available."]
 
 timelineView :: Project -> Focus ft -> Widget (Event TimelineMode)
 timelineView project focus = container
@@ -118,7 +119,7 @@ timelineView project focus = container
     True
     0
     (renderPreviewPane (firstCompositionPart focus (project ^. timeline)))
-  boxChild False False 0 $ container
+  boxChild False False 0 $ bin
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeAutomatic
     , #vscrollbarPolicy := PolicyTypeNever
