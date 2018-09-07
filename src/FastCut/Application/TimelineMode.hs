@@ -72,10 +72,14 @@ timelineMode gui focus' project = do
           outDir <- iliftIO getUserDocumentsDirectory
           chooseFile gui Save "Render To File" outDir >>>= \case
             Just outFile -> do
-              _ <- progressBar gui
-                               "Rendering"
-                               (Render.renderComposition 25 outFile flat)
-              continue
+              progressBar gui
+                          "Rendering"
+                          (Render.renderComposition 25 outFile flat)
+                >>= \case
+                      Just Render.Success -> continue
+                      Just (Render.ProcessFailed err) ->
+                        iliftIO (putStrLn err) >>> continue
+                      Nothing -> continue
             Nothing -> continue
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Cancel -> continue
@@ -87,14 +91,14 @@ timelineMode gui focus' project = do
                Just Yes -> exit gui
                Just No  -> continue
                Nothing  -> continue
- where
-  continue = timelineMode gui focus' project
-  printUnexpectedFocusError err cmd = case err of
-    UnhandledFocusModification{} -> iliftIO
-      (printf "Error: could not handle focus modification %s\n"
-              (show cmd :: Text)
-      )
-    _ -> ireturn ()
+  where
+    continue = timelineMode gui focus' project
+    printUnexpectedFocusError err cmd = case err of
+      UnhandledFocusModification{} -> iliftIO
+        (printf "Error: could not handle focus modification %s\n"
+                (show cmd :: Text)
+        )
+      _ -> ireturn ()
 
 insertIntoTimeline
   :: Application t m

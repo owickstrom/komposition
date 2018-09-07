@@ -8,7 +8,7 @@ import qualified Prelude
 import           Hedgehog
 import           Hedgehog.Range
 
-import           FastCut.Render.FFmpeg
+import           FastCut.Render.Timestamp
 
 import qualified FastCut.Composition.Generators as Gen
 
@@ -16,7 +16,7 @@ hprop_roundtripTimestamp =
   property $ do
     d <- forAll $ Gen.duration (exponential 1 (2 ^ 16))
 
-    let printed = prettyPrintTimestamp d
+    let printed = printTimestamp d
     annotate (toS printed)
 
     let parsed = parseTimestamp printed

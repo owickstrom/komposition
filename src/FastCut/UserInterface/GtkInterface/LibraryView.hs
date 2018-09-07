@@ -23,19 +23,18 @@ import           FastCut.UserInterface
 
 renderAsset :: Int -> Asset mt -> Int -> Widget (Event LibraryMode)
 renderAsset focusedIdx asset' idx =
-  widget
-    Label
-    [ #label := toS (asset' ^. assetMetadata . path) <> " (" <>
-      show (asset' ^. assetMetadata . duration) <>
-      ")"
-    , classes ["clip", focusedClass]
-    ]
+  widget Label [#label := label, classes ["clip", focusedClass]]
   where
     focusedClass :: Text
     focusedClass =
       if focusedIdx == idx
         then "focused"
         else "blurred"
+    label :: Text
+    label =
+      toS $ (asset' ^. assetMetadata . path) <> " (" <>
+      show (asset' ^. assetMetadata . duration) <>
+      ")"
 
 libraryView :: SMediaType mt -> [Asset mt] -> Int -> Widget (Event LibraryMode)
 libraryView mediaType assets focusedIdx =

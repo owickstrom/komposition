@@ -42,6 +42,8 @@ library
                       , FastCut.MediaType
                       , FastCut.Render.Composition
                       , FastCut.Render.FFmpeg
+                      , FastCut.Render.FFmpeg.Command
+                      , FastCut.Render.Timestamp
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
                       , FastCut.UserInterface.GtkInterface.EventListener
@@ -144,6 +146,7 @@ test-suite fastcut-tests
                  , FastCut.FocusTest
                  , FastCut.Render.CompositionTest
                  , FastCut.Render.TimestampTest
+                 , FastCut.Render.FFmpeg.CommandTest
                  , FastCut.TestLibrary
                  , FastCut.Import.VideoTest
   build-depends:   base                 >= 4        && < 5
