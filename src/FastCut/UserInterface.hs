@@ -79,33 +79,32 @@ commandName :: Command mode -> Text
 commandName = \case
   Cancel           -> "Cancel"
   Help             -> "Show Help"
-  FocusCommand cmd ->
-    case cmd of
-      FocusUp    -> "Move Focus Up"
-      FocusDown  -> "Move Focus Down"
-      FocusLeft  -> "Move Focus Left"
-      FocusRight -> "Move Focus Right"
-  InsertCommand insertType insertPosition ->
-    mconcat [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
-  Delete           -> "Delete"
-  Import           -> "Import Assets"
-  Render           -> "Render"
-  Exit             -> "Exit"
+  FocusCommand cmd -> case cmd of
+    FocusUp    -> "Move Focus Up"
+    FocusDown  -> "Move Focus Down"
+    FocusLeft  -> "Move Focus Left"
+    FocusRight -> "Move Focus Right"
+  InsertCommand insertType insertPosition -> mconcat
+    [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
+  Delete        -> "Delete"
+  Import        -> "Import Assets"
+  Render        -> "Render"
+  Exit          -> "Exit"
 
-  LibraryUp        -> "Navigate Up"
-  LibraryDown      -> "Navigate Down"
-  LibrarySelect    -> "Select Asset"
+  LibraryUp     -> "Navigate Up"
+  LibraryDown   -> "Navigate Down"
+  LibrarySelect -> "Select Asset"
   where
     insertTypeName :: InsertType -> Text
     insertTypeName = \case
-      InsertClip -> "Insert Clip"
-      InsertGap -> "Insert Gap"
+      InsertClip        -> "Insert Clip"
+      InsertGap         -> "Insert Gap"
       InsertComposition -> "Insert Composition"
     insertPositionName :: InsertPosition -> Text
     insertPositionName = \case
-      LeftMost -> "Leftmost"
-      LeftOf -> "Left of"
-      RightOf -> "Right of"
+      LeftMost  -> "Leftmost"
+      LeftOf    -> "Left of"
+      RightOf   -> "Right of"
       RightMost -> "Rightmost"
 
 data Event mode where
@@ -130,6 +129,11 @@ data FileChooserMode
 data PromptMode ret where
   NumberPrompt :: (Double, Double) -> PromptMode Double
   TextPrompt :: PromptMode Text
+
+data ImportFileModel = ImportFileModel
+  { autoSplitValue     :: Bool
+  , autoSplitAvailable :: Bool
+  }
 
 class MonadFSM m =>
       UserInterface m where
@@ -165,7 +169,12 @@ class MonadFSM m =>
     -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
   enterImport
     :: Name n
+    -> ImportFileModel
     -> Actions m '[ n := State m TimelineMode !--> State m ImportMode] r ()
+  updateImport
+    :: Name n
+    -> ImportFileModel
+    -> Actions m '[ n := State m ImportMode !--> State m ImportMode] r ()
   nextEvent
     :: Name n
     -> Actions m '[ n := Remain (State m t)] r (Event t)

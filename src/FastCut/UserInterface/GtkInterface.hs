@@ -267,8 +267,11 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   updateLibrary n mediaType clips idx =
     switchView' n (libraryView mediaType clips idx) SLibraryMode
 
-  enterImport n =
-    switchView' n importView SImportMode
+  enterImport n form =
+    switchView' n (importView form) SImportMode
+
+  updateImport n form =
+    switchView' n (importView form) SImportMode
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 

@@ -39,24 +39,32 @@ importFile
   -> Focus ft
   -> ThroughMode TimelineMode ImportMode (t m) n Project
 importFile gui project focus' = do
-  enterImport gui
-  f <- fillForm ImportFileForm {selectedFile = Nothing, autoSplit = False}
+  let initialModel =
+        ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
+  enterImport gui initialModel
+  f <- fillForm initialModel
+                ImportFileForm {selectedFile = Nothing, autoSplit = False}
   returnToTimeline gui project focus'
   maybe (ireturn project) (importAsset gui project) f
- where
-  fillForm mf = do
-    cmd <- nextEvent gui
-    case (cmd, mf) of
-      (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
-      (CommandKeyMappedEvent Help  , _) -> do
-        help gui [ModeKeyMap SImportMode (keymaps SImportMode)]
-        fillForm mf
-      (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
-        ireturn (Just (file, autoSplit))
-      (ImportClicked, form) -> fillForm form
-      (ImportFileSelected file, form) ->
-        fillForm (form { selectedFile = file })
-      (ImportAutoSplitSet s, form) -> fillForm (form { autoSplit = s })
+  where
+    fillForm model mf = do
+      updateImport gui model
+      cmd <- nextEvent gui
+      case (cmd, mf) of
+        (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
+        (CommandKeyMappedEvent Help  , _) -> do
+          help gui [ModeKeyMap SImportMode (keymaps SImportMode)]
+          fillForm model mf
+        (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
+          ireturn (Just (file, autoSplit))
+        (ImportClicked          , form) -> fillForm model form
+        (ImportFileSelected file, form) -> fillForm
+          model { autoSplitValue     = False
+                , autoSplitAvailable = maybe False isSupportedVideoFile file
+                }
+          form { selectedFile = file }
+        (ImportAutoSplitSet s, form) ->
+          fillForm model { autoSplitValue = s } form { autoSplit = s }
 
 data Ok = Ok deriving (Eq, Enum)
 
@@ -70,24 +78,31 @@ importAsset
   -> (FilePath, Bool)
   -> Actions m '[n := Remain (State m TimelineMode)] r Project
 importAsset gui project (filepath, autoSplit)
-  | isSupportedVideoFile filepath =
-    let action =
-          case autoSplit of
-            True -> importVideoFileAutoSplit filepath (project ^. workingDirectory)
-            False -> fmap (: []) <$> importVideoFile filepath (project ^. workingDirectory)
-    in progressBar gui "Import Video" action >>>= \case
-        Nothing -> do
-          ireturn project
-        Just assets -> handleImportResult gui project SVideo assets
-  | isSupportedAudioFile filepath =
-    progressBar gui
-              "Import Video"
-              (importAudioFile filepath (project ^. workingDirectory))
+  | isSupportedVideoFile filepath
+  = let
+      action = case autoSplit of
+        True -> importVideoFileAutoSplit filepath (project ^. workingDirectory)
+        False ->
+          fmap (: []) <$> importVideoFile filepath (project ^. workingDirectory)
+    in  progressBar gui "Import Video" action >>>= \case
+          Nothing -> do
+            ireturn project
+          Just assets -> handleImportResult gui project SVideo assets
+  | isSupportedAudioFile filepath
+  = progressBar gui
+                "Import Video"
+                (importAudioFile filepath (project ^. workingDirectory))
     >>>= \case
-           Nothing    -> ireturn project
-           Just asset -> handleImportResult gui project SAudio (fmap pure asset)
-  | otherwise = do
-    _ <- dialog gui "Unsupported File" "The file extension of the file you've selected is not supported." [Ok]
+           Nothing -> ireturn project
+           Just asset ->
+             handleImportResult gui project SAudio (fmap pure asset)
+  | otherwise
+  = do
+    _ <- dialog
+      gui
+      "Unsupported File"
+      "The file extension of the file you've selected is not supported."
+      [Ok]
     ireturn project
 
 handleImportResult
@@ -97,13 +112,12 @@ handleImportResult
   -> SMediaType mt
   -> Either err [Asset mt]
   -> Actions m '[n := Remain (State m TimelineMode)] r Project
-handleImportResult gui project mediaType result =
-  case (mediaType, result) of
-    (_, Left err) -> do
-      iliftIO (print err)
-      _ <- dialog gui "Import Failed!" (show err) [Ok]
-      ireturn project
-    (SVideo, Right assets) -> do
-      project & library . videoAssets %~ (<> assets) & ireturn
-    (SAudio, Right assets) -> do
-      project & library . audioAssets %~ (<> assets) & ireturn
+handleImportResult gui project mediaType result = case (mediaType, result) of
+  (_, Left err) -> do
+    iliftIO (print err)
+    _ <- dialog gui "Import Failed!" (show err) [Ok]
+    ireturn project
+  (SVideo, Right assets) -> do
+    project & library . videoAssets %~ (<> assets) & ireturn
+  (SAudio, Right assets) -> do
+    project & library . audioAssets %~ (<> assets) & ireturn

@@ -127,7 +127,7 @@ equalFrame eps minEqPct f1 f2 =
 
 -- | Time (in seconds) of equal frames before going into 'Still'.
 equalFrameTimeThreshold :: Time
-equalFrameTimeThreshold = 0.5
+equalFrameTimeThreshold = 1
 
 data Classified f
   = Moving f
@@ -284,14 +284,14 @@ filePathToVideoAsset outDir p = do
   md <-
     AssetMetadata p
     <$> liftIO (getVideoFileDuration p)
-    <*> (Just <$> generateVideoThumbnail p outDir)
+    <*> generateVideoThumbnail p outDir
   pure (VideoAsset md)
 
 generateVideoThumbnail ::
      (MonadError VideoImportError m, MonadIO m)
   => FilePath
   -> FilePath
-  -> m FilePath
+  -> m (Maybe FilePath)
 generateVideoThumbnail sourceFile outDir = do
   (readImage', cleanup) <- liftIO (imageReader (File sourceFile))
   liftIO readImage' >>= \case
@@ -299,10 +299,10 @@ generateVideoThumbnail sourceFile outDir = do
       let fileName = outDir </> replaceExtension (snd (splitFileName sourceFile)) "png" <> ""
       liftIO (writePng fileName img)
       liftIO cleanup
-      pure fileName
+      pure (Just fileName)
     Nothing -> do
       liftIO cleanup
-      throwError (UnexpectedError sourceFile "No frames in video.")
+      pure Nothing
 
 newtype AutoSplit = AutoSplit Bool deriving (Show, Eq)
 

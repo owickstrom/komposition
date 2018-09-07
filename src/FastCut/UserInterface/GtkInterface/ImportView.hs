@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- | The import view of FastCut's GTK interface.
 module FastCut.UserInterface.GtkInterface.ImportView
@@ -20,8 +21,8 @@ import           GI.Gtk.Declarative    as Gtk
 
 import           FastCut.UserInterface
 
-importView :: Widget (Event ImportMode)
-importView =
+importView :: ImportFileModel -> Widget (Event ImportMode)
+importView ImportFileModel{..} =
   container Box [ classes ["import-view"], #orientation := OrientationVertical ] $ do
     boxChild True True 0 $ widget Label [#label := "Import Asset"]
     boxChild False False 0 $
@@ -35,6 +36,8 @@ importView =
       widget
         CheckButton
         [ #label := "Automatically split"
+        , #active := autoSplitValue
+        , #sensitive := autoSplitAvailable
         , onM
             #toggled
             (fmap ImportAutoSplitSet . toggleButtonGetActive)
