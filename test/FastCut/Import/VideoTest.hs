@@ -11,6 +11,8 @@ import           Graphics.ColorSpace
 import qualified Pipes
 import qualified Pipes.Prelude        as Pipes
 import           Test.Tasty.Hspec
+import           Hedgehog
+import qualified Hedgehog.Gen                  as Gen
 
 import           FastCut.Import.Video
 
@@ -38,3 +40,14 @@ spec_classifyMovement = do
   it "classifies a still section" $
     concat [[f1], replicate 20 f2, [f1]] `shouldClassifyAs`
     concat [[Moving f1], replicate 20 (Still f2), [Moving f1]]
+
+--
+-- PROPERTIES
+--
+
+genFrame :: MonadGen m => m (Timed RGB8Frame)
+
+hprop_classifiesLongEnoughSegments = property $ do
+  forAll $ do
+    frames <- genFrame (640 :. 480)
+  assert (1 == 1)
