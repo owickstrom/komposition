@@ -6,7 +6,8 @@ packages:
 extra-deps:
  - ffmpeg-light-0.12.2.2
  - indexed-0.1.3
- - gi-gtk-declarative-0.1.0
+ - git: git@github.com:owickstrom/gi-gtk-declarative.git
+   commit: 7edcfd38f2454ee596e553a279faf2551ee9cb33
  - git: git@github.com:reinerp/indexed-extras.git
    commit: 8b38e7503c030644154e844cd932003d9438cfa2
  - massiv-0.1.6.1

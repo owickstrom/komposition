@@ -14,7 +14,7 @@ import           FastCut.Prelude       hiding (State, on)
 
 import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
                                         FileChooserButton (..), Label (..),
-                                        Orientation (..),
+                                        Orientation (..), Window (..),
                                         fileChooserGetFilename,
                                         toggleButtonGetActive)
 import           GI.Gtk.Declarative    as Gtk
@@ -22,15 +22,21 @@ import           GI.Gtk.Declarative    as Gtk
 import           FastCut.UserInterface
 
 importView :: ImportFileModel -> Widget (Event ImportMode)
-importView ImportFileModel{..} =
-  container Box [ classes ["import-view"], #orientation := OrientationVertical ] $ do
-    boxChild True True 0 $ widget Label [#label := "Import Asset"]
-    boxChild False False 0 $
+importView ImportFileModel {..} =
+  bin
+    Window
+    [ #title := "Import File"
+    , on #destroy (CommandKeyMappedEvent Cancel)
+    , #defaultWidth := 300
+    , #defaultHeight := 400
+    ] $
+  container Box [classes ["import-view"], #orientation := OrientationVertical] $ do
+    boxChild False False 10 $
       widget
         FileChooserButton
         [ onM
-          #selectionChanged
-          (fmap ImportFileSelected . fileChooserGetFilename)
+            #selectionChanged
+            (fmap ImportFileSelected . fileChooserGetFilename)
         ]
     boxChild False False 10 $
       widget
@@ -38,13 +44,7 @@ importView ImportFileModel{..} =
         [ #label := "Automatically split"
         , #active := autoSplitValue
         , #sensitive := autoSplitAvailable
-        , onM
-            #toggled
-            (fmap ImportAutoSplitSet . toggleButtonGetActive)
+        , onM #toggled (fmap ImportAutoSplitSet . toggleButtonGetActive)
         ]
     boxChild False False 10 $
-      widget
-        Button
-        [ #label := "Import"
-        , on #clicked ImportClicked
-        ]
+      widget Button [#label := "Import", on #clicked ImportClicked]

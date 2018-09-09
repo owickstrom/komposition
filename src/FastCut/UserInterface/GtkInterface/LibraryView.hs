@@ -14,7 +14,8 @@ import           FastCut.Prelude       hiding (State, on)
 import           Control.Lens
 import           Data.Text             (Text)
 import           GI.Gtk                (Box (..), Label (..), Orientation (..),
-                                        PolicyType (..), ScrolledWindow (..))
+                                        PolicyType (..), ScrolledWindow (..),
+                                        Window (..))
 import           GI.Gtk.Declarative
 
 import           FastCut.Library
@@ -39,17 +40,18 @@ renderAsset focusedIdx asset' idx =
 libraryView :: SMediaType mt -> [Asset mt] -> Int -> Widget (Event LibraryMode)
 libraryView mediaType assets focusedIdx =
   bin
+    Window
+    [ #title := "Library"
+    , on #destroy (CommandKeyMappedEvent Cancel)
+    , #defaultWidth := 300
+    , #defaultHeight := 400
+    ] $
+  bin
     ScrolledWindow
     [ #hscrollbarPolicy := PolicyTypeNever
     , #vscrollbarPolicy := PolicyTypeAutomatic
-    ] $
-  container Box [#orientation := OrientationVertical, classes ["library"]] $ do
-    boxChild
-      False
-      False
-      0
-      (widget Label [#label := "Library", classes ["heading"]])
-    boxChild True True 0 assetList
+    ]
+    assetList
   where
     assetList
       | null assets = widget Label [#label := noAssetsMessage]

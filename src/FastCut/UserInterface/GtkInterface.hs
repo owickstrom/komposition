@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections              #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
@@ -72,11 +73,26 @@ deriving instance Monad m => Functor (GtkInterface m i i)
 deriving instance Monad m => Applicative (GtkInterface m i i)
 deriving instance Monad m => Monad (GtkInterface m i i)
 
+data Hierarchy a
+  = Top a
+  | Child a a
+
+lowest :: Hierarchy a -> a
+lowest = \case
+  Top a -> a
+  Child _ a -> a
+
+data AnyDeclarative where
+  AnyDeclarative :: Declarative.Widget e -> AnyDeclarative
+
+type CurrentView mode
+   = (Hierarchy AnyDeclarative, EventListener (Event mode))
+
 data GtkInterfaceState mode = GtkInterfaceState
-  { window      :: Gtk.Window
-  , allEvents   :: EventListener (Event mode)
-  , keyMaps     :: KeyMaps
-  , currentView :: (Declarative.Widget (Event mode), EventListener (Event mode))
+  { allEvents         :: EventListener (Event mode)
+  , keyMaps           :: KeyMaps
+  , currentViewParent :: Hierarchy Gtk.Window
+  , currentView       :: CurrentView mode
   }
 
 runUI :: IO a -> IO a
@@ -96,14 +112,14 @@ initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> I
 initializeWindow Env { cssPath, screen } obj = do
   w <- newEmptyMVar
   runUI $ do
-    window <- Gtk.windowNew Gtk.WindowTypeToplevel
-    Gtk.windowSetTitle window "FastCut"
-    void $ Gtk.onWidgetDestroy window Gtk.mainQuit
+    window' <- Gtk.windowNew Gtk.WindowTypeToplevel
+    Gtk.windowSetTitle window' "FastCut"
+    void $ Gtk.onWidgetDestroy window' Gtk.mainQuit
 
     cssProviderVar <- newMVar Nothing
     reloadCssProvider cssProviderVar
 
-    void $ window `Gtk.onWidgetKeyPressEvent` \eventKey -> do
+    void $ window' `Gtk.onWidgetKeyPressEvent` \eventKey -> do
       keyVal <- Gdk.getEventKeyKeyval eventKey
       case keyVal of
         Gdk.KEY_F5 ->
@@ -113,12 +129,12 @@ initializeWindow Env { cssPath, screen } obj = do
         _ -> return ()
       return False
 
-    windowStyle <- Gtk.widgetGetStyleContext window
+    windowStyle <- Gtk.widgetGetStyleContext window'
     Gtk.styleContextAddClass windowStyle "fastcut"
-    Gtk.widgetShowAll window
-    Gtk.containerAdd window =<< Gtk.toWidget =<< Declarative.create obj
-    Gtk.widgetShowAll window
-    putMVar w window
+    Gtk.widgetShowAll window'
+    Gtk.containerAdd window' =<< Gtk.toWidget =<< Declarative.create obj
+    Gtk.widgetShowAll window'
+    putMVar w window'
   takeMVar w
  where
   cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
@@ -137,71 +153,133 @@ getFirstChild w =
     []      -> return Nothing
     (c : _) -> return (Just c)
 
-render :: Declarative.Widget (Event b) -> GtkInterfaceState a -> IO (Maybe Gtk.Widget)
-render newView state = runUI
-  (patchBox (window state) (fst (currentView state)) newView)
+data NewView mode
+  = TopView (Declarative.Widget (Event mode))
+  | ModalView (Declarative.Widget (Event mode))
 
-patchBox :: Gtk.Window -> Declarative.Widget e1 -> Declarative.Widget e2 -> IO (Maybe Gtk.Widget)
-patchBox w o1 o2 = case Declarative.patch o1 o2 of
-  Declarative.Modify f ->
-    getFirstChild w >>= \case
-      Nothing -> return Nothing
-      Just c -> do
-        f =<< Gtk.toWidget c
-        Gtk.widgetShowAll w
-        return (Just c)
-  Declarative.Replace createNew -> do
-    Gtk.containerForall w (Gtk.containerRemove w)
-    newWidget <- createNew
-    Gtk.containerAdd w newWidget
-    Gtk.widgetShowAll w
-    return (Just newWidget)
-  Declarative.Keep -> getFirstChild w
+newViewWidget :: NewView mode -> Declarative.Widget (Event mode)
+newViewWidget = \case
+  TopView w -> w
+  ModalView w -> w
+
+render ::
+  NewView b
+  -> GtkInterfaceState a
+  -> IO (Hierarchy Gtk.Window, Hierarchy AnyDeclarative, Gtk.Widget)
+render newView state =
+  runUI $
+  case (currentViewParent state, fst (currentView state), newView) of
+    -- We have a top view, and patch it with a new one.
+    (Top topWindow, Top (AnyDeclarative oldView), TopView newTopView) ->
+      (Top topWindow, Top (AnyDeclarative newTopView), ) <$>
+      patchIn topWindow oldView newTopView
+    -- We had a modal, but go back to only having a top view.
+    (Child topWindow modalWindow, Child (AnyDeclarative oldTopView) _, TopView newTopView) -> do
+      #destroy modalWindow
+      (Top topWindow, Top (AnyDeclarative newTopView), ) <$>
+        patchIn topWindow oldTopView newTopView
+    -- We had a modal, and patch it with a new one.
+    (Child topWindow modalWindow, Child (AnyDeclarative oldTopView) (AnyDeclarative oldModalView), ModalView newModalView) -> do
+      case Declarative.patch oldModalView newModalView of
+        Declarative.Modify f -> do
+          widget <- Gtk.toWidget modalWindow
+          f widget
+          return
+            ( Child topWindow modalWindow
+            , Child (AnyDeclarative oldTopView) (AnyDeclarative newModalView)
+            , widget)
+        Declarative.Replace createNew -> do
+          #destroy modalWindow
+          newModal <- createNew
+          Gtk.castTo Gtk.Window newModal >>= \case
+            Just newModalWindow -> do
+              #showAll newModalWindow
+              Gtk.set newModalWindow [#transientFor := topWindow, #modal := True]
+              return
+                ( Child topWindow newModalWindow
+                , Child (AnyDeclarative oldTopView) (AnyDeclarative newModalView)
+                , newModal)
+            Nothing -> fail "ModalView widget was not a window."
+        Declarative.Keep -> do
+          widget <- Gtk.toWidget modalWindow
+          return
+            ( Child topWindow modalWindow
+            , Child (AnyDeclarative oldTopView) (AnyDeclarative newModalView)
+            , widget)
+    -- We had a top view, and create a new modal.
+    (Top topWindow, Top oldTopView, ModalView newModalView) -> do
+      widget <- Declarative.create newModalView
+      Gtk.castTo Gtk.Window widget >>= \case
+        Just modalWindow -> do
+          #showAll modalWindow
+          Gtk.set modalWindow [#transientFor := topWindow, #attachedTo := topWindow, #modal := True]
+          return
+            (Child topWindow modalWindow, Child oldTopView (AnyDeclarative newModalView), widget)
+        Nothing -> fail "ModalView widget was not a window."
+
+patchIn :: Gtk.Window -> Declarative.Widget e1 -> Declarative.Widget e2 -> IO Gtk.Widget
+patchIn w o1 o2 =
+  case Declarative.patch o1 o2 of
+    Declarative.Modify f ->
+      getFirstChild w >>= \case
+        Nothing -> crashOnEmpty
+        Just c -> do
+          f =<< Gtk.toWidget c
+          Gtk.widgetShowAll w
+          return c
+    Declarative.Replace createNew -> do
+      Gtk.containerForall w (Gtk.containerRemove w)
+      newWidget <- createNew
+      Gtk.containerAdd w newWidget
+      Gtk.widgetShowAll w
+      return newWidget
+    Declarative.Keep -> maybe crashOnEmpty return =<< getFirstChild w
+  where
+    crashOnEmpty = fail "Cannot render in an empty container."
 
 renderFirst
   :: Typeable a => Declarative.Widget (Event a) -> SMode a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
 renderFirst view mode keyMaps env = do
-  w         <- initializeWindow env view
-  widget    <- Declarative.create view
+  w <- initializeWindow env view
+  widget <- Declarative.create view
   viewEvents <- subscribeToDeclarativeWidget view widget
-  allEvents <- subscribeKeyEvents w >>= applyKeyMap (keyMaps mode) >>= mergeEvents viewEvents
-  pure GtkInterfaceState
-    { window      = w
-    , currentView = (view, viewEvents)
-    , ..
-    }
+  allEvents <-
+    subscribeKeyEvents w >>= applyKeyMap (keyMaps mode) >>=
+    mergeEvents viewEvents
+  pure
+    GtkInterfaceState
+    {currentViewParent = Top w, currentView = (Top (AnyDeclarative view), viewEvents), ..}
 
 switchView
-  :: Declarative.Widget (Event b) -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
+  :: NewView b -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
 switchView newView newMode state = do
-  render newView state >>= \case
-    Just widget -> do
-      unsubscribeView state
-      viewEvents <- subscribeToDeclarativeWidget newView widget
-      allEvents <-
-        subscribeKeyEvents (window state)
-        >>= applyKeyMap (keyMaps state newMode)
-        >>= mergeEvents viewEvents
-      pure GtkInterfaceState
-        { window      = window state
-        , currentView = (newView, viewEvents)
-        , keyMaps     = keyMaps state
-        , ..
-        }
-    Nothing -> fail "Could not render."
+  (windows, widgets, widget) <- render newView state
+  unsubscribeView state
+  viewEvents <- subscribeToDeclarativeWidget (newViewWidget newView) widget
+  allEvents <-
+    subscribeKeyEvents (lowest (currentViewParent state)) >>=
+    applyKeyMap (keyMaps state newMode) >>=
+    mergeEvents viewEvents
+  pure
+    GtkInterfaceState
+    { currentViewParent = windows
+    , currentView = (widgets, viewEvents)
+    , keyMaps = keyMaps state
+    , ..
+    }
 
 switchView'
   :: (MonadFSM m, IxMonadIO m)
   => Name n
-  -> Declarative.Widget (Event b)
+  -> NewView b
   -> SMode b
   -> Actions
        m
        '[(FSM.:=) n (GtkInterfaceState a !--> GtkInterfaceState b)]
        r
        ()
-switchView' n view newMode = FSM.get n
-  >>>= \s -> iliftIO (switchView view newMode s) >>>= FSM.enter n
+switchView' n view newMode =
+  FSM.get n >>>= \s -> iliftIO (switchView view newMode s) >>>= FSM.enter n
 
 oneOffWidget :: Typeable mode => Declarative.Widget (Event mode) -> SMode mode -> IO Gtk.Widget
 oneOffWidget markup _ = Gtk.toWidget =<< Declarative.create markup
@@ -228,7 +306,7 @@ inNewModalDialog n ModalDialog {..} = FSM.get n >>>= \s -> iliftIO $ do
   response <- newEmptyMVar
   runUI $ do
     d <- Gtk.new Gtk.Dialog
-                 [#title := title, #transientFor := window s, #modal := True]
+                 [#title := title, #transientFor := lowest (currentViewParent s), #modal := True]
 
     content      <- Gtk.dialogGetContentArea d
     contentStyle <- Gtk.widgetGetStyleContext content
@@ -256,22 +334,22 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     >>>= FSM.new n
 
   updateTimeline n project focus =
-    switchView' n (timelineView project focus) STimelineMode
+    switchView' n (TopView (timelineView project focus)) STimelineMode
 
   returnToTimeline n project focus =
-    switchView' n (timelineView project focus) STimelineMode
+    switchView' n (TopView (timelineView project focus)) STimelineMode
 
   enterLibrary n mediaType assets idx =
-    switchView' n (libraryView mediaType assets idx) SLibraryMode
+    switchView' n (ModalView (libraryView mediaType assets idx)) SLibraryMode
 
   updateLibrary n mediaType clips idx =
-    switchView' n (libraryView mediaType clips idx) SLibraryMode
+    switchView' n (ModalView (libraryView mediaType clips idx)) SLibraryMode
 
   enterImport n form =
-    switchView' n (importView form) SImportMode
+    switchView' n (ModalView (importView form)) SImportMode
 
   updateImport n form =
-    switchView' n (importView form) SImportMode
+    switchView' n (ModalView (importView form)) SImportMode
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
 
@@ -325,7 +403,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
       Gtk.fileChooserSetDoOverwriteConfirmation chooser True
       Gtk.fileChooserSetAction chooser (modeToAction mode)
       Gtk.nativeDialogSetTitle d title
-      Gtk.nativeDialogSetTransientFor d (Just (window s))
+      Gtk.nativeDialogSetTransientFor d (Just (lowest (currentViewParent s)))
       Gtk.nativeDialogSetModal d True
       res <- Gtk.nativeDialogRun d
       case toEnum (fromIntegral res) of
