@@ -13,8 +13,8 @@ module FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.Prelude       hiding (State, on)
 
 import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
-                                        FileChooserButton (..), Label (..),
-                                        Orientation (..), Window (..),
+                                        Dialog (..), FileChooserButton (..),
+                                        Label (..), Orientation (..),
                                         fileChooserGetFilename,
                                         toggleButtonGetActive)
 import           GI.Gtk.Declarative    as Gtk
@@ -24,7 +24,7 @@ import           FastCut.UserInterface
 importView :: ImportFileModel -> Widget (Event ImportMode)
 importView ImportFileModel {..} =
   bin
-    Window
+    Dialog
     [ #title := "Import File"
     , on #destroy (CommandKeyMappedEvent Cancel)
     , #defaultWidth := 300
@@ -46,5 +46,9 @@ importView ImportFileModel {..} =
         , #sensitive := autoSplitAvailable
         , onM #toggled (fmap ImportAutoSplitSet . toggleButtonGetActive)
         ]
-    boxChild False False 10 $
-      widget Button [#label := "Import", on #clicked ImportClicked]
+    boxChild True False 10 $
+      container Box [#orientation := OrientationHorizontal, #spacing := 10] $ do
+        boxChild False False 0 $
+          widget Button [#label := "Cancel", on #clicked ImportClicked]
+        boxChild False False 0 $
+          widget Button [#label := "Import", on #clicked ImportClicked]
