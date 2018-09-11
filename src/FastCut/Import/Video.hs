@@ -62,7 +62,7 @@ type RGB8Frame = A.Array A.S A.Ix2 (A.Pixel RGB Word8)
 data Timed a = Timed
   { untimed :: a
   , time    :: Time
-  } deriving (Functor)
+  } deriving (Eq, Show, Functor)
 
 readVideoFile :: MonadIO m => FilePath -> Producer (Timed Frame) (ExceptT VideoImportError m) ()
 readVideoFile filePath = do
@@ -125,14 +125,10 @@ equalFrame eps minEqPct f1 f2 =
     total = A.totalElem (A.size f1)
     pct = fromIntegral sumEq / fromIntegral total
 
--- | Time (in seconds) of equal frames before going into 'Still'.
-equalFrameTimeThreshold :: Time
-equalFrameTimeThreshold = 1
-
 data Classified f
   = Moving f
   | Still f
-  deriving (Eq, Functor)
+  deriving (Eq, Functor, Show)
 
 unClassified :: Classified f -> f
 unClassified = \case
@@ -150,8 +146,8 @@ yield' = lift . Pipes.yield
 draw' :: Monad m => Pipes.StateT (Producer a m x) (Producer b m) (Maybe a)
 draw' = Pipes.hoist lift Pipes.draw
 
-classifyMovement :: Monad m => Producer (Timed RGB8Frame) m () -> Producer (Classified (Timed RGB8Frame)) m ()
-classifyMovement =
+classifyMovement :: Monad m => Time -> Producer (Timed RGB8Frame) m () -> Producer (Classified (Timed RGB8Frame)) m ()
+classifyMovement equalFrameTimeThreshold =
   Pipes.evalStateT $
   draw' >>= \case
     Just frame -> go (InMoving (VG.singleton frame))
@@ -222,15 +218,15 @@ printProcessingInfo =
         (s `mod` 60)
       hFlush stdout
 
-split :: FilePath -> FilePath -> IO ()
-split src outDir = do
-  createDirectoryIfMissing True outDir
-  res <- classifyMovement (readVideoFile src >-> toMassiv)
+split :: Time -> FilePath -> FilePath -> IO ()
+split equalFramesTimeThreshold src outFile = do
+  createDirectoryIfMissing True (takeDirectory outFile)
+  res <- classifyMovement equalFramesTimeThreshold (readVideoFile src >-> toMassiv)
       >-> Pipes.tee (Pipes.map unClassified >-> printProcessingInfo)
       >-> colorClassifiedMovement
       >-> fromMassiv
       >-> dropTime
-    & writeVideoFile (outDir </> "debug.mp4")
+    & writeVideoFile outFile
     & runExceptT
   putStrLn ("" :: Text)
   case res of
@@ -337,7 +333,7 @@ importVideoFileAutoSplit sourceFile outDir = do
   liftIO (createDirectoryIfMissing True outDir)
   fullLength <- liftIO (getVideoFileDuration sourceFile)
   let classifiedFrames =
-        classifyMovement (readVideoFile sourceFile >-> toMassiv) >->
+        classifyMovement 1.0 (readVideoFile sourceFile >-> toMassiv) >->
         Pipes.map (fmap (fmap A.toJPImageRGB8))
   writeSplitVideoFiles outDir classifiedFrames >->
     Pipes.map (toProgress fullLength . unClassified) &
