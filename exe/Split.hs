@@ -9,5 +9,8 @@ main = do
   initialize
   args <- getArgs
   case args of
-    [input, output] -> split input output
-    _               -> putStrLn "Usage: fastcut-split INPUT OUTPUT"
+    [minStillTime, input, output] ->
+      case readDouble (toS minStillTime) of
+        Just s -> split s input output
+        Nothing -> putStrLn "Invalid MIN_STILL_TIME, must be a value in seconds."
+    _               -> putStrLn "Usage: fastcut-split MIN_STILL_TIME INPUT OUTPUT"
