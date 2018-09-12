@@ -27,6 +27,7 @@ data Key
   = KeyChar Char
   | KeyModifier Modifier
   | KeyEnter
+  | KeyEscape
   | KeyUp
   | KeyDown
   | KeyLeft
@@ -71,6 +72,7 @@ keyToText =
     KeyChar c     -> Text.singleton c
     KeyModifier m -> modifierToText m
     KeyEnter      -> "<return>"
+    KeyEscape     -> "<escape>"
     KeyUp         -> "<up>"
     KeyDown       -> "<down>"
     KeyLeft       -> "<left>"

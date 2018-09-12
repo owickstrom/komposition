@@ -64,6 +64,7 @@ subscribeKeyEvents w = do
         (_, Gdk.KEY_Down) -> Just [KeyDown]
         (_, Gdk.KEY_Left) -> Just [KeyLeft]
         (_, Gdk.KEY_Right) -> Just [KeyRight]
+        (_, Gdk.KEY_Escape) -> Just [KeyEscape]
         (_, Gdk.KEY_Return) -> Just [KeyEnter]
         (c, _) -> Just [KeyChar c]
 
