@@ -116,14 +116,14 @@ insertIntoTimeline gui project focus' type' position =
   case (type', atFocus focus' (project ^. timeline)) of
     (InsertComposition, Just (FocusedSequence _)) ->
       selectAsset gui project focus' SVideo >>= \case
-        Just asset' ->
+        Just assets ->
           project
             &  timeline
             %~ insert_ focus'
-                       (InsertParallel (Parallel () [Clip () asset'] []))
+                       (InsertParallel (Parallel () (Clip () <$> assets) []))
                        RightOf
             &  timelineMode gui focus'
-        Nothing -> continue
+        Nothing -> beep gui >>> continue
     (InsertClip, Just FocusedParallel{}) ->
       selectAssetAndInsert gui project focus' SVideo position
         >>>= timelineMode gui focus'
@@ -183,8 +183,8 @@ insertGap gui project focus' mediaType position = do
                         "Insert Gap"
                         (NumberPrompt (0.1, 10e10))
   let gapInsertion seconds = case mediaType of
-        SVideo -> (InsertVideoPart (Gap () (durationFromSeconds seconds)))
-        SAudio -> (InsertAudioPart (Gap () (durationFromSeconds seconds)))
+        SVideo -> (InsertVideoParts [Gap () (durationFromSeconds seconds)])
+        SAudio -> (InsertAudioParts [Gap () (durationFromSeconds seconds)])
   case gapDuration of
     Just seconds ->
       project

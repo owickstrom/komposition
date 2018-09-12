@@ -15,21 +15,23 @@ import           FastCut.Focus
 import           FastCut.Focus.Parent
 import           FastCut.MediaType
 
-insertAt :: Int -> a -> [a] -> [a]
-insertAt i x xs = let (before, after) = splitAt i xs in before <> (x : after)
+spliceAt :: Int -> [a] -> [a] -> [a]
+spliceAt i new xs =
+  let (before, after) = splitAt i xs
+  in before <> new <> after
 
 insertAtNonEmpty :: Int -> a -> NonEmpty a -> NonEmpty a
 insertAtNonEmpty i x xs =
   let (before, after) = NonEmpty.splitAt i xs
   in  NonEmpty.fromList (before <> (x : after))
 
-insertAtPositionInList
-  :: Applicative f => InsertPosition -> Int -> [a] -> a -> f [a]
-insertAtPositionInList position i xs x = case position of
-  LeftMost  -> pure (x : xs)
-  LeftOf    -> pure (insertAt i x xs)
-  RightOf   -> pure (insertAt (succ i) x xs)
-  RightMost -> pure (xs <> [x])
+spliceAtPositionInList
+  :: Applicative f => InsertPosition -> Int -> [a] -> [a] -> f [a]
+spliceAtPositionInList position i new xs = case position of
+  LeftMost  -> pure (new <> xs)
+  LeftOf    -> pure (spliceAt i new xs)
+  RightOf   -> pure (spliceAt (succ i) new xs)
+  RightMost -> pure (xs <> new)
 
 insertAtPositionInNonEmpty
   :: Applicative f => InsertPosition -> Int -> NonEmpty a -> a -> f (NonEmpty a)
@@ -50,8 +52,8 @@ data InsertPosition
 data Insertion a
   = InsertSequence (Composition SequenceType a)
   | InsertParallel (Composition ParallelType a)
-  | InsertVideoPart (CompositionPart Video a)
-  | InsertAudioPart (CompositionPart Audio a)
+  | InsertVideoParts [CompositionPart Video a]
+  | InsertAudioParts [CompositionPart Audio a]
   deriving (Show, Eq)
 
 -- | Inserts a 'Composition' or 'CompositionPart', wrapped in the
@@ -80,15 +82,15 @@ insert focus insertion position parent =
                Sequence ann <$>
                insertAtPositionInNonEmpty position i children' parallel
          })
-    (InsertVideoPart part, _, ClipFocusType) ->
+    (InsertVideoParts clips, _, ClipFocusType) ->
       traverseWithParent
         (parentTraversal
-         {onVideoParts = \i vs -> insertAtPositionInList position i vs part})
-    (InsertAudioPart part, _, ClipFocusType) ->
+         {onVideoParts = \i vs -> spliceAtPositionInList position i clips vs})
+    (InsertAudioParts clips, _, ClipFocusType) ->
       traverseWithParent
         (parentTraversal
-         {onAudioParts = \i as -> insertAtPositionInList position i as part})
-    (InsertVideoPart part, _, ParallelFocusType) ->
+         {onAudioParts = \i as -> spliceAtPositionInList position i clips as})
+    (InsertVideoParts clips, _, ParallelFocusType) ->
       let traversal =
             FocusedTraversal
             { mapSequence = pure
@@ -97,12 +99,12 @@ insert focus insertion position parent =
                   pure
                     (Parallel
                        ann
-                       (insertLeftMostOrRightMost position part videoParts)
+                       (spliceLeftMostOrRightMost position clips videoParts)
                        audioParts)
             , mapCompositionPart = const pure
             }
       in mapAtFocus focus traversal parent
-    (InsertAudioPart part, _, ParallelFocusType) ->
+    (InsertAudioParts clips, _, ParallelFocusType) ->
       let traversal =
             FocusedTraversal
             { mapSequence = pure
@@ -112,19 +114,19 @@ insert focus insertion position parent =
                     (Parallel
                        ann
                        videoParts
-                       (insertLeftMostOrRightMost position part audioParts))
+                       (spliceLeftMostOrRightMost position clips audioParts))
             , mapCompositionPart = const pure
             }
       in mapAtFocus focus traversal parent
     _ -> mzero
   where
     traverseWithParent t = withParentOf t focus parent
-    insertLeftMostOrRightMost pos x xs =
+    spliceLeftMostOrRightMost pos new xs =
       case pos of
-        LeftOf    -> insertAt 0 x xs
-        LeftMost  -> insertAt 0 x xs
-        RightOf   -> xs <> [x]
-        RightMost -> xs <> [x]
+        LeftOf    -> spliceAt 0 new xs
+        LeftMost  -> spliceAt 0 new xs
+        RightOf   -> xs <> new
+        RightMost -> xs <> new
 
 -- | Same as 'insert', but returns the original 'Composition' if the
 -- insertion failed.

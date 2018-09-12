@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- | The library view of FastCut's GTK interface.
 module FastCut.UserInterface.GtkInterface.LibraryView
@@ -13,8 +14,10 @@ import           FastCut.Prelude       hiding (State, on)
 
 import           Control.Lens
 import           Data.Text             (Text)
-import           GI.Gtk                (Box (..), Label (..), Orientation (..),
-                                        PolicyType (..), ScrolledWindow (..),
+import           GI.Gtk                (Box (..), Button (..), Label (..),
+                                        ListBox (..), ListBoxRow (..),
+                                        Orientation (..), PolicyType (..),
+                                        ScrolledWindow (..), SelectionMode (..),
                                         Window (..))
 import           GI.Gtk.Declarative
 
@@ -22,23 +25,21 @@ import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.UserInterface
 
-renderAsset :: Int -> Asset mt -> Int -> Widget (Event LibraryMode)
-renderAsset focusedIdx asset' idx =
-  widget Label [#label := label, classes ["clip", focusedClass]]
+renderAsset ::
+  Asset mt
+  -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
+renderAsset asset' =
+  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $
+  widget Label [#label := label]
   where
-    focusedClass :: Text
-    focusedClass =
-      if focusedIdx == idx
-        then "focused"
-        else "blurred"
     label :: Text
     label =
       toS $ (asset' ^. assetMetadata . path) <> " (" <>
       show (asset' ^. assetMetadata . duration) <>
       ")"
 
-libraryView :: SMediaType mt -> [Asset mt] -> Int -> Widget (Event LibraryMode)
-libraryView mediaType assets focusedIdx =
+libraryView :: SMediaType mt -> SelectAssetsModel mt -> Widget (Event LibraryMode)
+libraryView mediaType SelectAssetsModel {..} =
   bin
     Window
     [ #title := "Library"
@@ -52,15 +53,34 @@ libraryView mediaType assets focusedIdx =
     [ #hscrollbarPolicy := PolicyTypeNever
     , #vscrollbarPolicy := PolicyTypeAutomatic
     ]
-    assetList
+    assetSelectList
   where
-    assetList
-      | null assets = widget Label [#label := noAssetsMessage]
-      | otherwise =
-        container Box [#orientation := OrientationVertical, classes ["clips"]] $
-        for_ (zip assets [0 ..]) $ \(asset, i) ->
-          boxChild False False 0 $ renderAsset focusedIdx asset i
-    noAssetsMessage =
-      case mediaType of
-        SVideo -> "You have no video assets imported into your library."
-        SAudio -> "You have no audio assets imported into your library."
+    assetSelectList =
+      container Box [#orientation := OrientationVertical] $ do
+        boxChild True True 0 $
+          container
+            ListBox
+            [ #selectionMode := SelectionModeMultiple
+            , onM #selectedRowsChanged emitAssetsSelected
+            , on #activateCursorRow LibrarySelectionConfirmed
+            , classes ["clips"]
+            ] $
+          for_ allAssets renderAsset
+        boxChild False False 10 $ container Box [] $ do
+          boxChild True True 10 $
+            widget
+              Button
+              [ #label := "Cancel"
+              , on #clicked (CommandKeyMappedEvent Cancel)
+              ]
+          boxChild True True 10 $
+            widget
+              Button
+              [ #label := "Select"
+              , #sensitive := not (null selectedAssets)
+              , on #clicked LibrarySelectionConfirmed
+              ]
+    emitAssetsSelected listBox = do
+      is <- map fromIntegral <$> (#getSelectedRows listBox >>= mapM #getIndex)
+      let selected = (allAssets ^.. traversed . indices (`elem` is))
+      return (LibraryAssetsSelected mediaType selected)

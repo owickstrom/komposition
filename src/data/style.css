@@ -41,9 +41,11 @@
   border-bottom: 2pt solid #aaa;
 }
 .timeline .sequence .video .clip button {
+  background-image: none;
   background-color: #00cd9a;
 }
 .timeline .sequence .audio .clip button {
+  background-image: none;
   background-color: #cdad00;
 }
 .timeline .composition.transitively-focused {
@@ -87,12 +89,6 @@
 
 .library .clip {
   padding: 10px;
-}
-.library .clip.focused {
-  padding: 8px;
-  border-width: 2pt;
-  border-color: #ccc;
-  border-style: solid;
 }
 
 .import-view {

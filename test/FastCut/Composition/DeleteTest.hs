@@ -20,12 +20,10 @@ spec_delete =
     let focus = SequenceFocus 0 (Just (ParallelFocus 0 (Just (ClipFocus Audio 0))))
         before' =
           Timeline
-            ()
             (pure (Sequence () (pure (Parallel () [] [audio1s]))))
         focus' = SequenceFocus 0 (Just (ParallelFocus 0 Nothing))
         after' =
           Timeline
-            ()
             (pure (Sequence () (pure (Parallel () [] []))))
     delete_ focus before' `shouldBe` Right (after', focus')
 

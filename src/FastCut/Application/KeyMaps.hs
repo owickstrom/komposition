@@ -1,15 +1,15 @@
-{-# LANGUAGE OverloadedLabels      #-}
-{-# LANGUAGE OverloadedLists       #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedLabels  #-}
+{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
 module FastCut.Application.KeyMaps where
 
-import FastCut.Application.Base
+import           FastCut.Application.Base
 
-import           FastCut.KeyMap
-import           FastCut.Focus
 import           FastCut.Composition.Insert
+import           FastCut.Focus
+import           FastCut.KeyMap
 
 keymaps :: SMode m -> KeyMap (Command m)
 keymaps = \case
@@ -18,6 +18,10 @@ keymaps = \case
     , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))
     , ([KeyChar 'k'], Mapping (FocusCommand FocusUp))
     , ([KeyChar 'l'], Mapping (FocusCommand FocusRight))
+    , ([KeyUp], Mapping (FocusCommand FocusUp))
+    , ([KeyDown], Mapping (FocusCommand FocusDown))
+    , ([KeyLeft], Mapping (FocusCommand FocusLeft))
+    , ([KeyRight], Mapping (FocusCommand FocusRight))
     , ([KeyChar 'i'], Mapping Import)
     , ([KeyChar 'r'], Mapping Render)
     , ( [KeyChar 'p']
@@ -53,12 +57,8 @@ keymaps = \case
     , ([KeyChar 'q'], Mapping Exit)
     ]
   SLibraryMode ->
-    [ ([KeyChar 'j'], Mapping LibraryDown)
-    , ([KeyChar 'k'], Mapping LibraryUp)
-    , ([KeyChar 'q'], Mapping Cancel)
+    [ ([KeyChar 'q'], Mapping Cancel)
     , ([KeyChar '?'], Mapping Help)
-    , ([KeyEnter]   , Mapping LibrarySelect)
     ]
   SImportMode ->
     [([KeyChar 'q'], Mapping Cancel), ([KeyChar '?'], Mapping Help)]
-

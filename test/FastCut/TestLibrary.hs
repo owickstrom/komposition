@@ -19,4 +19,4 @@ parallel2 = Parallel () [gap3s, video10s] [audio4s, audio10s]
 
 seqWithTwoParallels = Sequence () (parallel1 :| [parallel2])
 
-timelineTwoParallels = Timeline () (pure seqWithTwoParallels)
+timelineTwoParallels = Timeline (pure seqWithTwoParallels)

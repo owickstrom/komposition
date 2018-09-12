@@ -49,17 +49,23 @@ mergeEvents a b = do
 subscribeKeyEvents :: Gtk.Window -> IO (EventListener KeyCombo)
 subscribeKeyEvents w = do
   events <- newChan
-  sid    <- w `Gtk.onWidgetKeyPressEvent` \eventKey -> do
-    keyVal  <- Gdk.getEventKeyKeyval eventKey
-    keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
-    case toKeyCombo (keyChar :: Char, keyVal) of
-      Just keyCombo -> writeChan events (HashSet.fromList keyCombo) $> False
-      _             -> return False
+  sid <-
+    w `Gtk.onWidgetKeyPressEvent` \eventKey -> do
+      keyVal <- Gdk.getEventKeyKeyval eventKey
+      keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
+      case toKeyCombo (keyChar :: Char, keyVal) of
+        Just keyCombo -> writeChan events (HashSet.fromList keyCombo) $> False
+        _ -> return False
   return EventListener {unsubscribe = GObject.signalHandlerDisconnect w sid, ..}
- where
-  toKeyCombo = \case
-    (_, Gdk.KEY_Return) -> Just [KeyEnter]
-    (c, _             ) -> Just [KeyChar c]
+  where
+    toKeyCombo =
+      \case
+        (_, Gdk.KEY_Up) -> Just [KeyUp]
+        (_, Gdk.KEY_Down) -> Just [KeyDown]
+        (_, Gdk.KEY_Left) -> Just [KeyLeft]
+        (_, Gdk.KEY_Right) -> Just [KeyRight]
+        (_, Gdk.KEY_Return) -> Just [KeyEnter]
+        (c, _) -> Just [KeyChar c]
 
 applyKeyMap :: KeyMap a -> EventListener KeyCombo -> IO (EventListener a)
 applyKeyMap topKeyMap keyPresses = do

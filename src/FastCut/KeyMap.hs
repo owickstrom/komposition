@@ -9,17 +9,13 @@
 
 module FastCut.KeyMap where
 
-import           FastCut.Prelude                   hiding ( toList )
+import           FastCut.Prelude     hiding (toList)
 
-import qualified Data.Text                     as Text
-import           Data.HashMap.Strict                      ( HashMap )
-import qualified Data.HashSet                  as HashSet
-import           Data.HashSet                             ( HashSet )
-import           GHC.Exts                                 ( IsList
-                                                          , Item
-                                                          , fromList
-                                                          , toList
-                                                          )
+import           Data.HashMap.Strict (HashMap)
+import           Data.HashSet        (HashSet)
+import qualified Data.HashSet        as HashSet
+import qualified Data.Text           as Text
+import           GHC.Exts            (IsList, Item, fromList, toList)
 
 data Modifier
   = Ctrl
@@ -31,6 +27,10 @@ data Key
   = KeyChar Char
   | KeyModifier Modifier
   | KeyEnter
+  | KeyUp
+  | KeyDown
+  | KeyLeft
+  | KeyRight
   deriving (Show, Eq, Generic, Hashable)
 
 type KeyCombo = HashSet Key
@@ -66,10 +66,15 @@ keyComboToText :: KeyCombo -> Text
 keyComboToText = Text.intercalate "-" . map keyToText . HashSet.toList
 
 keyToText :: Key -> Text
-keyToText   = \case
-  KeyChar     c -> Text.singleton c
-  KeyModifier m -> modifierToText m
-  KeyEnter      -> "<return>"
+keyToText =
+  \case
+    KeyChar c     -> Text.singleton c
+    KeyModifier m -> modifierToText m
+    KeyEnter      -> "<return>"
+    KeyUp         -> "<up>"
+    KeyDown       -> "<down>"
+    KeyLeft       -> "<left>"
+    KeyRight      -> "<right>"
 
 modifierToText :: Modifier -> Text
 modifierToText = \case

@@ -17,21 +17,21 @@ import           FastCut.Library                   hiding ( assetMetadata
                                                           )
 import           FastCut.MediaType
 
-timeline :: MonadGen m => Range Int -> m (Composition () ParallelType) -> m (Composition () TimelineType)
-timeline range genParallel = Timeline () <$> Gen.nonEmpty range (sequence' range genParallel)
+timeline :: MonadGen m => Range Int -> m (Composition ParallelType ()) -> m (Composition TimelineType ())
+timeline range genParallel = Timeline <$> Gen.nonEmpty range (sequence' range genParallel)
 
-sequence' :: MonadGen m => Range Int -> m (Composition () ParallelType) -> m (Composition () SequenceType)
+sequence' :: MonadGen m => Range Int -> m (Composition ParallelType ()) -> m (Composition SequenceType ())
 sequence' range genParallel = Sequence () <$> Gen.nonEmpty range genParallel
 
-parallel :: MonadGen m => m (Composition () ParallelType)
+parallel :: MonadGen m => m (Composition ParallelType ())
 parallel = Gen.filter notEmpty (Parallel () <$> vs <*> as)
  where
   vs = Gen.list (linear 0 10) videoPart
   as = Gen.list (linear 0 10) audioPart
-  notEmpty :: Composition () ParallelType -> Bool
+  notEmpty :: Composition ParallelType () -> Bool
   notEmpty (Parallel _ vs' as') = not (null vs' && null as')
 
-parallelWithClips :: MonadGen m => m (Composition () ParallelType)
+parallelWithClips :: MonadGen m => m (Composition ParallelType ())
 parallelWithClips = Parallel () <$> vs <*> as
  where
   vs = Gen.filter (any isClip) (Gen.list (linear 1 10) videoPart)
@@ -39,11 +39,11 @@ parallelWithClips = Parallel () <$> vs <*> as
   isClip Clip{} = True
   isClip Gap{}  = False
 
-videoPart :: MonadGen m => m (CompositionPart () Video)
+videoPart :: MonadGen m => m (CompositionPart Video ())
 videoPart = Gen.choice
   [Clip () . VideoAsset <$> assetMetadata, Gap () <$> duration (linear 1 10 :: Range Int)]
 
-audioPart :: MonadGen m => m (CompositionPart () Audio)
+audioPart :: MonadGen m => m (CompositionPart Audio ())
 audioPart = Gen.choice
   [Clip () . AudioAsset <$> assetMetadata, Gap () <$> duration (linear 1 10 :: Range Int)]
 
@@ -62,29 +62,29 @@ assetMetadata =
 timelineWithFocus
   :: MonadGen m
   => Range Int
-  -> m (Composition () ParallelType)
-  -> m (Composition () TimelineType, Focus SequenceFocusType)
+  -> m (Composition ParallelType ())
+  -> m (Composition TimelineType (), Focus SequenceFocusType)
 timelineWithFocus r genParallel = do
   t <- timeline r genParallel
   f <- sequenceFocus t
   pure (t, f)
 
 sequenceFocus
-  :: MonadGen m => Composition () TimelineType -> m (Focus SequenceFocusType)
-sequenceFocus (Timeline _ seqs) =
+  :: MonadGen m => Composition TimelineType () -> m (Focus SequenceFocusType)
+sequenceFocus (Timeline seqs) =
   Gen.choice $ flip concatMap (zip [0 ..] (toList seqs)) $ \(i, seq') ->
     [ pure (SequenceFocus i Nothing)
     , SequenceFocus i . Just <$> parallelFocus seq'
     ]
 
 parallelFocus
-  :: MonadGen m => Composition () SequenceType -> m (Focus ParallelFocusType)
+  :: MonadGen m => Composition SequenceType () -> m (Focus ParallelFocusType)
 parallelFocus (Sequence _ pars) =
   Gen.choice $ flip concatMap (zip [0 ..] (toList pars)) $ \(i, par) ->
     [pure (ParallelFocus i Nothing), ParallelFocus i . Just <$> clipFocus par]
 
 clipFocus
-  :: MonadGen m => Composition () ParallelType -> m (Focus ClipFocusType)
+  :: MonadGen m => Composition ParallelType () -> m (Focus ClipFocusType)
 clipFocus (Parallel _ vs as) = Gen.choice (anyOf Video vs <> anyOf Audio as)
  where
   anyOf mediaType xs =

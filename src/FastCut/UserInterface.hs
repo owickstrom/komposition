@@ -68,10 +68,6 @@ data Command (mode :: Mode) where
   Render :: Command TimelineMode
   Exit :: Command TimelineMode
 
-  LibraryUp :: Command LibraryMode
-  LibraryDown :: Command LibraryMode
-  LibrarySelect :: Command LibraryMode
-
 deriving instance Eq (Command mode)
 
 deriving instance Ord (Command mode)
@@ -93,9 +89,6 @@ commandName = \case
   Render        -> "Render"
   Exit          -> "Exit"
 
-  LibraryUp     -> "Navigate Up"
-  LibraryDown   -> "Navigate Down"
-  LibrarySelect -> "Select Asset"
   where
     insertTypeName :: InsertType -> Text
     insertTypeName = \case
@@ -111,10 +104,11 @@ commandName = \case
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
-
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
   ImportClicked :: Event ImportMode
+  LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
+  LibrarySelectionConfirmed :: Event LibraryMode
 
 data ModeKeyMap where
   ModeKeyMap :: forall mode. Ord (Command mode) => SMode mode -> KeyMap (Command mode) -> ModeKeyMap
@@ -137,6 +131,11 @@ data ImportFileModel = ImportFileModel
   , autoSplitAvailable :: Bool
   }
 
+data SelectAssetsModel mt = SelectAssetsModel
+  { allAssets      :: NonEmpty (Asset mt)
+  , selectedAssets :: [Asset mt]
+  }
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
@@ -157,17 +156,16 @@ class MonadFSM m =>
     -> Project
     -> Focus SequenceFocusType
     -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
+
   enterLibrary
     :: Name n
     -> SMediaType mt
-    -> [Asset mt]
-    -> Int
+    -> SelectAssetsModel mt
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
   updateLibrary
     :: Name n
     -> SMediaType mt
-    -> [Asset mt]
-    -> Int
+    -> SelectAssetsModel mt
     -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
   enterImport
     :: Name n
