@@ -58,15 +58,15 @@ instance HasDuration Tracks where
   durationOf (Tracks video audio) =
     max (foldMap durationOf video) (foldMap durationOf audio)
 
-flattenTimeline :: Core.Composition a Core.TimelineType -> Maybe Composition
-flattenTimeline (Core.Timeline _ seqs) = do
+flattenTimeline :: Core.Composition Core.TimelineType a -> Maybe Composition
+flattenTimeline (Core.Timeline seqs) = do
   Tracks vs as <- foldMap flattenSequence seqs
   Composition <$> nonEmpty vs <*> nonEmpty as
 
-flattenSequence :: Core.Composition a Core.SequenceType -> Maybe Tracks
+flattenSequence :: Core.Composition Core.SequenceType a -> Maybe Tracks
 flattenSequence (Core.Sequence _ pars) = foldMap flattenParallel pars
 
-flattenParallel :: Core.Composition a Core.ParallelType -> Maybe Tracks
+flattenParallel :: Core.Composition Core.ParallelType a -> Maybe Tracks
 flattenParallel (Core.Parallel _ vs as) =
   let (video, lastAsset, _) = foldl' foldVideo (mempty, Nothing, mempty) vs
       audio = foldMap toAudio as

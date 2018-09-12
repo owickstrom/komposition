@@ -213,6 +213,7 @@ render newView state =
           return
             (Child topWindow modalWindow, Child oldTopView (AnyDeclarative newModalView), widget)
         Nothing -> fail "ModalView widget was not a window."
+    _ -> fail "Inconsistent render state."
 
 patchIn :: Gtk.Window -> Declarative.Widget e1 -> Declarative.Widget e2 -> IO Gtk.Widget
 patchIn w o1 o2 =

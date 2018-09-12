@@ -8,7 +8,7 @@ module FastCut.Composition.Insert where
 
 import           FastCut.Prelude
 
-import qualified Data.List.NonEmpty            as NonEmpty
+import qualified Data.List.NonEmpty   as NonEmpty
 
 import           FastCut.Composition
 import           FastCut.Focus
@@ -48,10 +48,10 @@ data InsertPosition
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Insertion a
-  = InsertSequence (Composition a SequenceType)
-  | InsertParallel (Composition a ParallelType)
-  | InsertVideoPart (CompositionPart a Video)
-  | InsertAudioPart (CompositionPart a Audio)
+  = InsertSequence (Composition SequenceType a)
+  | InsertParallel (Composition ParallelType a)
+  | InsertVideoPart (CompositionPart Video a)
+  | InsertAudioPart (CompositionPart Audio a)
   deriving (Show, Eq)
 
 -- | Inserts a 'Composition' or 'CompositionPart', wrapped in the
@@ -60,68 +60,71 @@ insert
   :: Focus ft
   -> Insertion a
   -> InsertPosition
-  -> Composition a TimelineType
-  -> Maybe (Composition a TimelineType)
+  -> Composition TimelineType a
+  -> Maybe (Composition TimelineType a)
 insert focus insertion position parent =
   case (insertion, position, focusType focus) of
-    (InsertSequence sequence', _, SequenceFocusType) -> traverseWithParent
-      (parentTraversal
-        { onTimeline =
-          \i (Timeline ann children') ->
-            Timeline ann
-              <$> insertAtPositionInNonEmpty position i children' sequence'
-        }
-      )
-    (InsertParallel parallel, _, _) -> traverseWithParent
-      (parentTraversal
-        { onSequence =
-          \i (Sequence ann children') ->
-            Sequence ann
-              <$> insertAtPositionInNonEmpty position i children' parallel
-        }
-      )
-    (InsertVideoPart part, _, ClipFocusType) -> traverseWithParent
-      (parentTraversal
-        { onVideoParts = \i vs -> insertAtPositionInList position i vs part
-        }
-      )
-    (InsertAudioPart part, _, ClipFocusType) -> traverseWithParent
-      (parentTraversal
-        { onAudioParts = \i as -> insertAtPositionInList position i as part
-        }
-      )
+    (InsertSequence sequence', _, SequenceFocusType) ->
+      traverseWithParent
+        (parentTraversal
+         { onTimeline =
+             \i (Timeline children') ->
+               Timeline <$>
+               insertAtPositionInNonEmpty position i children' sequence'
+         })
+    (InsertParallel parallel, _, _) ->
+      traverseWithParent
+        (parentTraversal
+         { onSequence =
+             \i (Sequence ann children') ->
+               Sequence ann <$>
+               insertAtPositionInNonEmpty position i children' parallel
+         })
+    (InsertVideoPart part, _, ClipFocusType) ->
+      traverseWithParent
+        (parentTraversal
+         {onVideoParts = \i vs -> insertAtPositionInList position i vs part})
+    (InsertAudioPart part, _, ClipFocusType) ->
+      traverseWithParent
+        (parentTraversal
+         {onAudioParts = \i as -> insertAtPositionInList position i as part})
     (InsertVideoPart part, _, ParallelFocusType) ->
-      let
-        traversal = FocusedTraversal
-          { mapSequence        = pure
-          , mapParallel        = \(Parallel ann videoParts audioParts) -> pure
-            (Parallel ann
-                      (insertLeftMostOrRightMost position part videoParts)
-                      audioParts
-            )
-          , mapCompositionPart = const pure
-          }
-      in  mapAtFocus focus traversal parent
+      let traversal =
+            FocusedTraversal
+            { mapSequence = pure
+            , mapParallel =
+                \(Parallel ann videoParts audioParts) ->
+                  pure
+                    (Parallel
+                       ann
+                       (insertLeftMostOrRightMost position part videoParts)
+                       audioParts)
+            , mapCompositionPart = const pure
+            }
+      in mapAtFocus focus traversal parent
     (InsertAudioPart part, _, ParallelFocusType) ->
-      let
-        traversal = FocusedTraversal
-          { mapSequence        = pure
-          , mapParallel        = \(Parallel ann videoParts audioParts) -> pure
-            (Parallel ann
-                      videoParts
-                      (insertLeftMostOrRightMost position part audioParts)
-            )
-          , mapCompositionPart = const pure
-          }
-      in  mapAtFocus focus traversal parent
+      let traversal =
+            FocusedTraversal
+            { mapSequence = pure
+            , mapParallel =
+                \(Parallel ann videoParts audioParts) ->
+                  pure
+                    (Parallel
+                       ann
+                       videoParts
+                       (insertLeftMostOrRightMost position part audioParts))
+            , mapCompositionPart = const pure
+            }
+      in mapAtFocus focus traversal parent
     _ -> mzero
- where
-  traverseWithParent t = withParentOf t focus parent
-  insertLeftMostOrRightMost pos x xs = case pos of
-    LeftOf    -> insertAt 0 x xs
-    LeftMost  -> insertAt 0 x xs
-    RightOf   -> xs <> [x]
-    RightMost -> xs <> [x]
+  where
+    traverseWithParent t = withParentOf t focus parent
+    insertLeftMostOrRightMost pos x xs =
+      case pos of
+        LeftOf    -> insertAt 0 x xs
+        LeftMost  -> insertAt 0 x xs
+        RightOf   -> xs <> [x]
+        RightMost -> xs <> [x]
 
 -- | Same as 'insert', but returns the original 'Composition' if the
 -- insertion failed.
@@ -129,6 +132,6 @@ insert_
   :: Focus ft
   -> Insertion a
   -> InsertPosition
-  -> Composition a TimelineType
-  -> Composition a TimelineType
+  -> Composition TimelineType a
+  -> Composition TimelineType a
 insert_ f i p s = fromMaybe s (insert f i p s)

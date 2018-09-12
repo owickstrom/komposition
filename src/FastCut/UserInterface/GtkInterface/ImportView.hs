@@ -13,7 +13,7 @@ module FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.Prelude       hiding (State, on)
 
 import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
-                                        FileChooserButton (..), Label (..),
+                                        FileChooserButton (..),
                                         Orientation (..), Window (..),
                                         fileChooserGetFilename,
                                         toggleButtonGetActive)

@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RebindableSyntax  #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ConstraintKinds  #-}
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE TypeOperators    #-}
 module FastCut.Application.LibraryMode where
 
 import           FastCut.Application.Base
@@ -14,9 +14,9 @@ import           FastCut.Application.Base
 import           Control.Lens
 import           Data.Row.Records
 
-import           FastCut.Focus
 import           FastCut.Composition
 import           FastCut.Composition.Insert
+import           FastCut.Focus
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
@@ -53,7 +53,7 @@ selectAsset
   :: Application t m
   => Name n
   -> Project
-  -> Focus ft
+  -> Focus SequenceFocusType
   -> SMediaType mt
   -> ThroughMode
        TimelineMode
@@ -77,7 +77,7 @@ selectAssetAndInsert
   :: Application t m
   => Name n
   -> Project
-  -> Focus ft
+  -> Focus SequenceFocusType
   -> SMediaType mt
   -> InsertPosition
   -> ThroughMode TimelineMode LibraryMode (t m) n Project

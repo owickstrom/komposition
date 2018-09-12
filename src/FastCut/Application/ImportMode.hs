@@ -36,7 +36,7 @@ importFile
   :: Application t m
   => Name n
   -> Project
-  -> Focus ft
+  -> Focus SequenceFocusType
   -> ThroughMode TimelineMode ImportMode (t m) n Project
 importFile gui project focus' = do
   let initialModel =

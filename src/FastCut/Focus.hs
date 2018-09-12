@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE ExplicitForAll     #-}
+{-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
@@ -8,14 +9,15 @@
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE TypeOperators      #-}
 module FastCut.Focus where
 
 import           FastCut.Prelude
 
 import           Control.Lens
-import           Control.Monad.Except                     ( throwError )
-import qualified Data.List.NonEmpty            as NonEmpty
+import           Control.Monad.Except (throwError)
+import qualified Data.List.NonEmpty   as NonEmpty
 
 import           FastCut.Composition
 import           FastCut.Duration
@@ -26,6 +28,11 @@ data FocusType
   | ParallelFocusType
   | ClipFocusType
 
+type family ToFocusType (ct :: CompositionType) :: FocusType where
+  ToFocusType TimelineType = SequenceFocusType
+  ToFocusType SequenceType = ParallelFocusType
+  ToFocusType ParallelType = ClipFocusType
+
 data Focus (t :: FocusType) where
   SequenceFocus
     :: Int -> Maybe (Focus ParallelFocusType) -> Focus SequenceFocusType
@@ -34,6 +41,24 @@ data Focus (t :: FocusType) where
 
 deriving instance Eq (Focus t)
 deriving instance Show (Focus t)
+
+instance Ord (Focus SequenceFocusType) where
+  compare (SequenceFocus i1 f1) (SequenceFocus i2 f2) =
+    case compare i1 i2 of
+      EQ -> compare f1 f2
+      o  -> o
+
+instance Ord (Focus ParallelFocusType) where
+  compare (ParallelFocus i1 f1) (ParallelFocus i2 f2) =
+    case compare i1 i2 of
+      EQ -> compare f1 f2
+      o  -> o
+
+instance Ord (Focus ClipFocusType) where
+  compare (ClipFocus Video i1) (ClipFocus Video i2) = compare i1 i2
+  compare (ClipFocus Audio i1) (ClipFocus Audio i2) = compare i1 i2
+  compare (ClipFocus mt1 _) (ClipFocus mt2 _)       = compare mt1 mt2
+
 
 focusType :: Focus t -> FocusType
 focusType = \case
@@ -58,9 +83,9 @@ indicesWithStartPoints clips =
   zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
 
 nearestPartIndexLeftOf
-  :: [CompositionPart ann t]
+  :: [CompositionPart t ann]
   -> Int
-  -> [CompositionPart ann (InverseMediaType t)]
+  -> [CompositionPart (InverseMediaType t) ann]
   -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
@@ -83,7 +108,7 @@ modifyFocus s e f = case (s, e, f) of
 
   (Timeline{}, FocusUp, SequenceFocus _ Nothing) -> throwError CannotMoveUp
 
-  (Timeline _ seqs, FocusUp, SequenceFocus idx (Just parallelFocus)) -> do
+  (Timeline seqs, FocusUp, SequenceFocus idx (Just parallelFocus)) -> do
     sequence' <- seqs `compositionAt` idx
     case modifyFocus sequence' FocusUp parallelFocus of
       Left  CannotMoveUp -> pure (SequenceFocus idx Nothing)
@@ -115,7 +140,7 @@ modifyFocus s e f = case (s, e, f) of
 
   -- Down
 
-  (Timeline _ seqs, FocusDown, SequenceFocus idx pf) -> do
+  (Timeline seqs, FocusDown, SequenceFocus idx pf) -> do
     sequence'@(Sequence _ parallels) <- seqs `compositionAt` idx
     case pf of
       -- Down further within sequence.
@@ -167,7 +192,7 @@ modifyFocus s e f = case (s, e, f) of
     | otherwise -> throwError OutOfBounds
 
   -- Right
-  (Timeline _ sub, FocusRight, SequenceFocus idx Nothing)
+  (Timeline sub, FocusRight, SequenceFocus idx Nothing)
     | idx < (length sub - 1) -> pure (SequenceFocus (succ idx) Nothing)
     | otherwise              -> throwError OutOfBounds
   (Sequence _ sub, FocusRight, ParallelFocus idx Nothing)
@@ -181,7 +206,7 @@ modifyFocus s e f = case (s, e, f) of
     | otherwise -> throwError OutOfBounds
 
   -- Left or right further down within timeline or sequence.
-  (Timeline _ seqs, _, SequenceFocus idx (Just parallelFocus)) -> do
+  (Timeline seqs, _, SequenceFocus idx (Just parallelFocus)) -> do
     seq' <- seqs `compositionAt` idx
     SequenceFocus idx . Just <$> modifyFocus seq' e parallelFocus
   (Sequence _ pars, _, ParallelFocus idx (Just clipFocus)) -> do
@@ -191,22 +216,22 @@ modifyFocus s e f = case (s, e, f) of
   _ -> throwError (UnhandledFocusModification e)
 
 data FocusedTraversal (f :: * -> *) a = FocusedTraversal
-  { mapSequence   :: Composition a SequenceType -> f (Composition a SequenceType)
-  , mapParallel   :: Composition a ParallelType -> f (Composition a ParallelType)
-  , mapCompositionPart :: forall mt. SMediaType mt -> CompositionPart a mt -> f (CompositionPart a mt)
+  { mapSequence   :: Composition SequenceType a -> f (Composition SequenceType a)
+  , mapParallel   :: Composition ParallelType a -> f (Composition ParallelType a)
+  , mapCompositionPart :: forall mt. SMediaType mt -> CompositionPart mt a -> f (CompositionPart mt a)
   }
 
 mapAtFocus
   :: Applicative f
   => Focus ft
   -> FocusedTraversal f a
-  -> Composition a t
-  -> f (Composition a t)
+  -> Composition t a
+  -> f (Composition t a)
 mapAtFocus focus t@FocusedTraversal {..} s = case (focus, s) of
-  (SequenceFocus idx Nothing, Timeline ann sub) ->
-    Timeline ann <$> mapAt idx mapSequence sub
-  (SequenceFocus idx (Just subFocus), Timeline ann sub) ->
-    Timeline ann <$> mapAt idx (mapAtFocus subFocus t) sub
+  (SequenceFocus idx Nothing, Timeline sub) ->
+    Timeline <$> mapAt idx mapSequence sub
+  (SequenceFocus idx (Just subFocus), Timeline sub) ->
+    Timeline <$> mapAt idx (mapAtFocus subFocus t) sub
   (ParallelFocus idx Nothing, Sequence ann sub) ->
     Sequence ann <$> mapAt idx mapParallel sub
   (ParallelFocus idx (Just subFocus), Sequence ann sub) ->
@@ -226,20 +251,20 @@ mapAtFocus focus t@FocusedTraversal {..} s = case (focus, s) of
   mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList
 
 data FocusedAt a
-  = FocusedSequence (Composition a SequenceType)
-  | FocusedParallel (Composition a ParallelType)
-  | FocusedVideoPart (CompositionPart a Video)
-  | FocusedAudioPart (CompositionPart a Audio)
+  = FocusedSequence (Composition SequenceType a)
+  | FocusedParallel (Composition ParallelType a)
+  | FocusedVideoPart (CompositionPart Video a)
+  | FocusedAudioPart (CompositionPart Audio a)
   deriving (Show, Eq)
 
-atFocus :: Focus ft -> Composition a t -> Maybe (FocusedAt a)
+atFocus :: Focus ft -> Composition t a -> Maybe (FocusedAt a)
 atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
  where
   remember
-    :: forall c a (t :: k)
-     . (c a t -> FocusedAt a)
-    -> c a t
-    -> State (Maybe (FocusedAt a)) (c a t)
+    :: forall c (t :: k) a
+     . (c t a -> FocusedAt a)
+    -> c t a
+    -> State (Maybe (FocusedAt a)) (c t a)
   remember focused x = put (Just (focused x)) >> pure x
   traversal = FocusedTraversal
     { mapSequence        = remember FocusedSequence
@@ -250,11 +275,11 @@ atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
     }
 
 data FirstCompositionPart a
-  = FirstVideoPart (CompositionPart a Video)
-  | FirstAudioPart (CompositionPart a Audio)
+  = FirstVideoPart (CompositionPart Video a)
+  | FirstAudioPart (CompositionPart Audio a)
 
 firstCompositionPart
-  :: Focus ft -> Composition a t -> Maybe (FirstCompositionPart a)
+  :: Focus ft -> Composition t a -> Maybe (FirstCompositionPart a)
 firstCompositionPart f s = atFocus f s >>= \case
   FocusedSequence  s' -> firstInSequence s'
   FocusedParallel  p  -> firstInParallel p
@@ -262,10 +287,10 @@ firstCompositionPart f s = atFocus f s >>= \case
   FocusedAudioPart a  -> Just (FirstAudioPart a)
  where
   firstInSequence
-    :: Composition a SequenceType -> Maybe (FirstCompositionPart a)
+    :: Composition SequenceType a -> Maybe (FirstCompositionPart a)
   firstInSequence (Sequence _ ps) = firstInParallel (NonEmpty.head ps)
   firstInParallel
-    :: Composition a ParallelType -> Maybe (FirstCompositionPart a)
+    :: Composition ParallelType a -> Maybe (FirstCompositionPart a)
   firstInParallel = \case
     Parallel _ (v : _) _       -> Just (FirstVideoPart v)
     Parallel _ []      (a : _) -> Just (FirstAudioPart a)

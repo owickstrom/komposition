@@ -7,7 +7,7 @@ module FastCut.MediaType where
 import           FastCut.Prelude
 
 data MediaType = Video | Audio
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data SMediaType (mt :: MediaType) where
   SVideo :: SMediaType Video

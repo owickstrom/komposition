@@ -17,19 +17,19 @@ import           FastCut.Focus
 import           FastCut.MediaType
 
 data ParentAtFocus a where
-  TimelineParent :: Composition a TimelineType -> ParentAtFocus a
-  SequenceParent :: Composition a SequenceType -> ParentAtFocus a
-  ParallelParent :: Composition a ParallelType -> ParentAtFocus a
+  TimelineParent :: Composition TimelineType a -> ParentAtFocus a
+  SequenceParent :: Composition SequenceType a -> ParentAtFocus a
+  ParallelParent :: Composition ParallelType a -> ParentAtFocus a
 
 parentAtFocus ::
   Focus ft
-  -> Composition a t
+  -> Composition t a
   -> Maybe (ParentAtFocus a)
 parentAtFocus f s =
   case (f, s) of
-    (SequenceFocus _ Nothing, Timeline ann sub) ->
-      pure (TimelineParent (Timeline ann sub))
-    (SequenceFocus idx (Just subFocus), Timeline _ sub) ->
+    (SequenceFocus _ Nothing, Timeline sub) ->
+      pure (TimelineParent (Timeline sub))
+    (SequenceFocus idx (Just subFocus), Timeline sub) ->
       parentAtFocus subFocus =<< toList sub `atMay` idx
     (ParallelFocus _ Nothing, Sequence ann sub) ->
       pure (SequenceParent (Sequence ann sub))
@@ -43,10 +43,10 @@ parentAtFocus f s =
 type TraversalFunction m parent = Int -> parent -> m parent
 
 data ParentTraversal (m :: * -> *) a = ParentTraversal
-  { onTimeline   :: TraversalFunction m (Composition a TimelineType)
-  , onSequence   :: TraversalFunction m (Composition a SequenceType)
-  , onVideoParts :: TraversalFunction m [CompositionPart a Video]
-  , onAudioParts :: TraversalFunction m [CompositionPart a Audio]
+  { onTimeline   :: TraversalFunction m (Composition TimelineType a)
+  , onSequence   :: TraversalFunction m (Composition SequenceType a)
+  , onVideoParts :: TraversalFunction m [CompositionPart Video a]
+  , onAudioParts :: TraversalFunction m [CompositionPart Audio a]
   }
 
 parentTraversal :: Applicative f => ParentTraversal f a
@@ -58,16 +58,16 @@ withParentOf ::
   (MonadPlus m, Monad m)
   => ParentTraversal m a
   -> Focus ft
-  -> Composition a t
-  -> m (Composition a t)
+  -> Composition t a
+  -> m (Composition t a)
 withParentOf t@ParentTraversal {..} f s =
   case (f, s) of
-    (SequenceFocus idx Nothing, Timeline ann sub) ->
-      onTimeline idx (Timeline ann sub)
-    (SequenceFocus idx (Just subFocus), Timeline ann sub) ->
+    (SequenceFocus idx Nothing, Timeline sub) ->
+      onTimeline idx (Timeline sub)
+    (SequenceFocus idx (Just subFocus), Timeline sub) ->
       sub
         & ix idx %%~ withParentOf t subFocus
-        & fmap (Timeline ann)
+        & fmap Timeline
     (ParallelFocus i Nothing, Sequence ann sub) ->
       onSequence i (Sequence ann sub)
     (ParallelFocus idx (Just subFocus), Sequence ann sub) ->

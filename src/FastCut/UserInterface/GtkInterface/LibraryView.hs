@@ -45,6 +45,7 @@ libraryView mediaType assets focusedIdx =
     , on #destroy (CommandKeyMappedEvent Cancel)
     , #defaultWidth := 300
     , #defaultHeight := 400
+    , classes ["library"]
     ] $
   bin
     ScrolledWindow

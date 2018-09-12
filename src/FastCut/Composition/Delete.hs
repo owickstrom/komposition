@@ -28,16 +28,16 @@ deleteAt splitAt' i xs =
 -- 'Composition'.
 delete ::
     Focus ft
-  -> Composition a TimelineType
-  -> Maybe (Composition a TimelineType, Maybe FocusCommand)
+  -> Composition TimelineType a
+  -> Maybe (Composition TimelineType a, Maybe FocusCommand)
 delete focus comp = runStateT (withParentOf traversal focus comp) Nothing
   where
     traversal =
       ParentTraversal
       { onTimeline =
-          \i (Timeline ann children') -> do
+          \i (Timeline children') -> do
             moveIfAtEnd children' i
-            maybe mzero (pure . Timeline ann) $
+            maybe mzero (pure . Timeline) $
               NonEmpty.nonEmpty (deleteAt NonEmpty.splitAt i children')
       , onSequence =
         \i (Sequence ann children') -> do
@@ -56,8 +56,8 @@ delete focus comp = runStateT (withParentOf traversal focus comp) Nothing
 -- | Same as 'delete', but trying to apply the returned focus command.
 delete_ ::
     Focus ft
-  -> Composition a TimelineType
-  -> Either (FocusCommand, FocusError) (Composition a TimelineType, Focus ft)
+  -> Composition TimelineType a
+  -> Either (FocusCommand, FocusError) (Composition TimelineType a, Focus ft)
 delete_ f s =
   case delete f s of
     Nothing -> pure (s, f)

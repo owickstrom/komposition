@@ -37,7 +37,7 @@ import           FastCut.Application.LibraryMode
 timelineMode
   :: Application t m
   => Name n
-  -> Focus ft
+  -> Focus SequenceFocusType
   -> Project
   -> t m (n .== State (t m) 'TimelineMode) Empty ()
 timelineMode gui focus' project = do
@@ -50,6 +50,10 @@ timelineMode gui focus' project = do
           printUnexpectedFocusError err cmd
           continue
         Right newFocus -> timelineMode gui newFocus project
+    CommandKeyMappedEvent (JumpFocus newFocus) ->
+      case atFocus newFocus (project ^. timeline) of
+        Just _  -> timelineMode gui newFocus project
+        Nothing -> beep gui >>> continue
     CommandKeyMappedEvent (InsertCommand type' position) ->
       insertIntoTimeline gui project focus' type' position
     CommandKeyMappedEvent Delete -> case delete focus' (project ^. timeline) of
@@ -104,7 +108,7 @@ insertIntoTimeline
   :: Application t m
   => Name n
   -> Project
-  -> Focus ft
+  -> Focus SequenceFocusType
   -> InsertType
   -> InsertPosition
   -> t m (n .== State (t m) 'TimelineMode) Empty ()

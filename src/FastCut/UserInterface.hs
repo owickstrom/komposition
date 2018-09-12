@@ -61,6 +61,7 @@ data Command (mode :: Mode) where
   Help :: Command mode
 
   FocusCommand :: FocusCommand -> Command TimelineMode
+  JumpFocus :: Focus SequenceFocusType -> Command TimelineMode
   InsertCommand :: InsertType -> InsertPosition -> Command TimelineMode
   Delete :: Command TimelineMode
   Import :: Command TimelineMode
@@ -84,6 +85,7 @@ commandName = \case
     FocusDown  -> "Move Focus Down"
     FocusLeft  -> "Move Focus Left"
     FocusRight -> "Move Focus Right"
+  JumpFocus _ -> "Jump Focus To"
   InsertCommand insertType insertPosition -> mconcat
     [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
   Delete        -> "Delete"
@@ -142,18 +144,18 @@ class MonadFSM m =>
        Name n
     -> KeyMaps
     -> Project
-    -> Focus ft
+    -> Focus SequenceFocusType
     -> Actions m '[ n !+ State m TimelineMode] r ()
   updateTimeline
     :: Name n
     -> Project
-    -> Focus ft
+    -> Focus SequenceFocusType
     -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
   returnToTimeline
     :: ReturnsToTimeline mode
     => Name n
     -> Project
-    -> Focus ft
+    -> Focus SequenceFocusType
     -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
   enterLibrary
     :: Name n

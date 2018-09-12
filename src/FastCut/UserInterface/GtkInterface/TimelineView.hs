@@ -16,10 +16,10 @@ import           FastCut.Prelude             hiding (on)
 import           Control.Lens
 import           Data.Int                    (Int32)
 import           Data.Text                   (Text)
-import           GI.Gtk                      (Align (..), Box (..), Image (..),
-                                              Label (..), MenuBar (..),
-                                              MenuItem (..), Orientation (..),
-                                              PolicyType (..),
+import           GI.Gtk                      (Align (..), Box (..), Button (..),
+                                              Image (..), Label (..),
+                                              MenuBar (..), MenuItem (..),
+                                              Orientation (..), PolicyType (..),
                                               ScrolledWindow (..))
 import           GI.Gtk.Declarative
 
@@ -41,38 +41,56 @@ focusedClass = \case
   TransitivelyFocused -> "transitively-focused"
   Blurred             -> "blurred"
 
-renderClipAsset :: Focused -> Asset mt -> Widget (Event TimelineMode)
-renderClipAsset focused asset' = container
-  Box
-  [ classes ["clip", focusedClass focused]
-  , #orientation := OrientationHorizontal
-  , #widthRequest := widthFromDuration (durationOf asset')
-  , #tooltipText := toS (asset' ^. assetMetadata . path)
-  ] $ boxChild False False 0 $ widget Label []
-
-renderPart :: CompositionPart Focused t -> Widget (Event TimelineMode)
-renderPart = \case
-  Clip focused asset'    -> renderClipAsset focused asset'
-  Gap  focused duration' -> container
+renderClipAsset ::
+     Focus SequenceFocusType
+  -> Focused
+  -> Asset mt
+  -> Widget (Event TimelineMode)
+renderClipAsset thisFocus focused asset' =
+  container
     Box
-    [ classes ["gap", focusedClass focused]
+    [ classes ["clip", focusedClass focused]
     , #orientation := OrientationHorizontal
-    , #widthRequest := widthFromDuration duration'
-    ] $ boxChild False False 0 (widget Label [])
+    , #tooltipText := toS (asset' ^. assetMetadata . path)
+    ] $
+  boxChild False False 0 $
+  widget Button [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+                , #widthRequest := widthFromDuration (durationOf asset')
+                ]
 
-renderComposition :: Composition Focused t -> Widget (Event TimelineMode)
+renderPart :: CompositionPart t (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderPart =
+  \case
+    Clip (thisFocus, focused) asset' -> renderClipAsset thisFocus focused asset'
+    Gap (thisFocus, focused) duration' ->
+      container
+        Box
+        [ classes ["gap", focusedClass focused]
+        , #orientation := OrientationHorizontal
+        ] $
+      boxChild
+        False
+        False
+        0
+        (widget
+           Button
+           [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+           , #widthRequest := widthFromDuration duration'
+           ])
+
+renderComposition :: Composition t (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
 renderComposition = \case
-  Timeline _ sub -> container
+  Timeline sub -> container
     Box
     [classes ["composition", "timeline", emptyClass (null sub)]]
     (mapM_ (boxChild False False 0 . renderComposition) (toList sub))
-  Sequence focused sub -> container
+  Sequence (_thisFocus, focused) sub -> container
     Box
     [ classes
         ["composition", "sequence", focusedClass focused, emptyClass (null sub)]
     ]
     (mapM_ (boxChild False False 0 . renderComposition) (toList sub))
-  Parallel focused vs as -> container
+  Parallel (_thisFocus, focused) vs as -> container
     Box
     [ #orientation := OrientationVertical
     , classes
@@ -132,24 +150,25 @@ renderMenu =
       menuItem MenuItem [on #activate (CommandKeyMappedEvent cmd)] $
       widget Label [#label := commandName cmd, #halign := AlignStart]
 
-timelineView :: Project -> Focus ft -> Widget (Event TimelineMode)
-timelineView project focus = container
-  Box
-  [#orientation := OrientationVertical] $ do
-  boxChild
-    False
-    False
-    0
-    renderMenu
-  boxChild
-    True
-    True
-    0
-    (renderPreviewPane (firstCompositionPart focus (project ^. timeline)))
-  boxChild False False 0 $ bin
-    ScrolledWindow
-    [ #hscrollbarPolicy := PolicyTypeAutomatic
-    , #vscrollbarPolicy := PolicyTypeNever
-    , classes ["timeline-container"]
-    ]
-    (renderComposition (applyFocus (project ^. timeline) focus))
+timelineView :: Project -> Focus SequenceFocusType -> Widget (Event TimelineMode)
+timelineView project focus =
+  container Box [#orientation := OrientationVertical] $ do
+    boxChild False False 0 renderMenu
+    boxChild
+      True
+      True
+      0
+      (renderPreviewPane (firstCompositionPart focus (project ^. timeline)))
+    boxChild False False 0 $
+      bin
+        ScrolledWindow
+        [ #hscrollbarPolicy := PolicyTypeAutomatic
+        , #vscrollbarPolicy := PolicyTypeNever
+        , classes ["timeline-container"]
+        ]
+        (renderComposition focusedTimelineWithSetFoci)
+  where
+    focusedTimelineWithSetFoci :: Composition TimelineType (Focus SequenceFocusType, Focused)
+    focusedTimelineWithSetFoci =
+      withAllFoci (project ^. timeline)
+      <&> \f -> (f, focusedState focus f)

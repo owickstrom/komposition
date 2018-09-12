@@ -21,7 +21,6 @@ initialProject workDir = do
     { _projectName = "Test"
     , _timeline =
         Timeline
-          ()
           ( Sequence
               ()
               ( Parallel

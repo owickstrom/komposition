@@ -40,10 +40,10 @@
 .timeline .sequence .video {
   border-bottom: 2pt solid #aaa;
 }
-.timeline .sequence .video .clip {
+.timeline .sequence .video .clip button {
   background-color: #00cd9a;
 }
-.timeline .sequence .audio .clip {
+.timeline .sequence .audio .clip button {
   background-color: #cdad00;
 }
 .timeline .composition.transitively-focused {
@@ -55,33 +55,33 @@
   border-top: 2pt solid #fff;
 }
 
-.timeline .clip,
-.timeline .gap {
+.timeline .clip button,
+.timeline .gap button {
   padding: 2px;
   border: 1pt solid rgba(0, 0, 0, .2);
   margin: 0 2pt;
 }
-.timeline .clip {
+.timeline .clip button {
   box-shadow: inset 1pt 0pt 1pt rgba(255, 255, 255, 0.2);
 }
-.timeline .gap {
+.timeline .gap button {
   background-color: #777;
   background-image: url('stripes.png');
   background-size: 1.5em;
   background-repeat: repeat;
   box-shadow: inset 1pt 0pt 1pt rgba(255, 255, 255, 0.2);
 }
-.timeline .clip.focused,
-.timeline .gap.focused {
+.timeline .clip.focused button,
+.timeline .gap.focused button {
   padding: 1px;
   border-width: 2pt;
   border-color: #eee;
   border-style: solid;
 }
-.timeline .clip.focused {
+.timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);
 }
-.timeline .gap.focused {
+.timeline .gap.focused button {
   background-color: #ccc;
 }
 
@@ -99,6 +99,7 @@
   padding: 1em;
 }
 
+.library,
 .dialog,
 .prompt,
 .progress-bar,
