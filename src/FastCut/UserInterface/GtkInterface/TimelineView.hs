@@ -16,8 +16,10 @@ import           FastCut.Prelude             hiding (on)
 import           Control.Lens
 import           Data.Int                    (Int32)
 import           Data.Text                   (Text)
-import           GI.Gtk                      (Box (..), Image (..), Label (..),
-                                              Orientation (..), PolicyType (..),
+import           GI.Gtk                      (Align (..), Box (..), Image (..),
+                                              Label (..), MenuBar (..),
+                                              MenuItem (..), Orientation (..),
+                                              PolicyType (..),
                                               ScrolledWindow (..))
 import           GI.Gtk.Declarative
 
@@ -110,10 +112,35 @@ renderPreviewPane = \case
       Nothing -> noPreviewAvailable
     noPreviewAvailable = widget Label [#label := "No preview available."]
 
+renderMenu :: Widget (Event TimelineMode)
+renderMenu =
+  container MenuBar [] $ do
+    subMenu "Project" $ do
+      labelledItem Import
+      labelledItem Render
+      labelledItem Exit
+    subMenu "Timeline" $ do
+      subMenu "Insert Clip" $
+        forM_ (enumFrom minBound) (labelledItem . InsertCommand InsertClip)
+      subMenu "Insert Gap" $
+        forM_ (enumFrom minBound) (labelledItem . InsertCommand InsertGap)
+      labelledItem Delete
+    subMenu "Help" $ do
+      labelledItem Help
+  where
+    labelledItem cmd =
+      menuItem MenuItem [on #activate (CommandKeyMappedEvent cmd)] $
+      widget Label [#label := commandName cmd, #halign := AlignStart]
+
 timelineView :: Project -> Focus ft -> Widget (Event TimelineMode)
 timelineView project focus = container
   Box
   [#orientation := OrientationVertical] $ do
+  boxChild
+    False
+    False
+    0
+    renderMenu
   boxChild
     True
     True
