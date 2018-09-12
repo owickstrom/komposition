@@ -109,8 +109,7 @@ unsubscribeView state = do
   unsubscribe (snd (currentView state))
 
 initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> IO Gtk.Window
-initializeWindow Env { cssPath, screen } obj = do
-  w <- newEmptyMVar
+initializeWindow Env { cssPath, screen } obj =
   runUI $ do
     window' <- Gtk.windowNew Gtk.WindowTypeToplevel
     Gtk.windowSetTitle window' "FastCut"
@@ -131,11 +130,9 @@ initializeWindow Env { cssPath, screen } obj = do
 
     windowStyle <- Gtk.widgetGetStyleContext window'
     Gtk.styleContextAddClass windowStyle "fastcut"
-    Gtk.widgetShowAll window'
     Gtk.containerAdd window' =<< Gtk.toWidget =<< Declarative.create obj
     Gtk.widgetShowAll window'
-    putMVar w window'
-  takeMVar w
+    return window'
  where
   cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
   reloadCssProvider var = do
