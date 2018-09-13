@@ -31,7 +31,7 @@ data TestCommand
   deriving (Eq, Show)
 
 changeFocusCommand
-  :: MonadGen m => Composition TimelineType () -> Focus ft -> m TestCommand
+  :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> m TestCommand
 changeFocusCommand composition focus = case atFocus focus composition of
   Just FocusedSequence{} ->
     Gen.element (TestChangeFocus <$> [FocusDown, FocusLeft, FocusRight])
@@ -43,7 +43,7 @@ changeFocusCommand composition focus = case atFocus focus composition of
   Nothing -> Gen.discard
 
 insertCommand
-  :: MonadGen m => Composition TimelineType () -> Focus ft -> m TestCommand
+  :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> m TestCommand
 insertCommand _ focus = case focusType focus of
   SequenceFocusType ->
     TestInsert
@@ -66,7 +66,7 @@ insertCommand _ focus = case focusType focus of
       <*> Gen.enumBounded
 
 deleteCommands
-  :: MonadGen m => Composition TimelineType () -> Focus ft -> [m TestCommand]
+  :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> [m TestCommand]
 deleteCommands composition focus = case parentAtFocus focus composition of
   Just (TimelineParent (Timeline seqs)) | length seqs >= 2 ->
     [pure TestDelete]
@@ -76,7 +76,7 @@ deleteCommands composition focus = case parentAtFocus focus composition of
   _                       -> []
 
 testCommand
-  :: MonadGen m => Composition TimelineType () -> Focus ft -> m TestCommand
+  :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> m TestCommand
 testCommand composition focus = Gen.frequency
   (  [(2, insertCommand composition focus)]
   <> map (1, ) (deleteCommands composition focus)
@@ -85,11 +85,11 @@ testCommand composition focus = Gen.frequency
 applyTestCommand
   :: Monad m
   => TestCommand
-  -> Composition TimelineType ()
+  -> Timeline ()
   -> Focus SequenceFocusType
   -> PropertyT
        m
-       (Composition TimelineType (), Focus SequenceFocusType)
+       (Timeline (), Focus SequenceFocusType)
 applyTestCommand = \case
   TestChangeFocus cmd -> \comp focus -> case modifyFocus comp cmd focus of
     -- We ignore out of bounds movements as the generator isn't smart enough yet.
@@ -108,14 +108,12 @@ applyTestCommand = \case
       pure (comp', focus')
     Just (comp', Nothing) -> pure (comp', focus)
 
-generateAndApplyTestCommands
-  :: Monad m
-  => Composition TimelineType ()
+generateAndApplyTestCommands ::
+     Monad m
+  => Timeline ()
   -> Focus SequenceFocusType
   -> Int
-  -> PropertyT
-       m
-       (Composition TimelineType (), Focus SequenceFocusType)
+  -> PropertyT m (Timeline (), Focus SequenceFocusType)
 generateAndApplyTestCommands timeline focus n
   | n == 0 = pure (timeline, focus)
   | otherwise = do

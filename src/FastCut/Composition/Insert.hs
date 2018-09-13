@@ -50,8 +50,8 @@ data InsertPosition
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 data Insertion a
-  = InsertSequence (Composition SequenceType a)
-  | InsertParallel (Composition ParallelType a)
+  = InsertSequence (Sequence a)
+  | InsertParallel (Parallel a)
   | InsertVideoParts [CompositionPart Video a]
   | InsertAudioParts [CompositionPart Audio a]
   deriving (Show, Eq)
@@ -59,11 +59,11 @@ data Insertion a
 -- | Inserts a 'Composition' or 'CompositionPart', wrapped in the
 -- 'Insertion', relative to 'InsertPosition' and the 'Focus'.
 insert
-  :: Focus ft
+  :: Focus (ToFocusType Timeline)
   -> Insertion a
   -> InsertPosition
-  -> Composition TimelineType a
-  -> Maybe (Composition TimelineType a)
+  -> Timeline a
+  -> Maybe (Timeline a)
 insert focus insertion position parent =
   case (insertion, position, focusType focus) of
     (InsertSequence sequence', _, SequenceFocusType) ->
@@ -131,9 +131,9 @@ insert focus insertion position parent =
 -- | Same as 'insert', but returns the original 'Composition' if the
 -- insertion failed.
 insert_
-  :: Focus ft
+  :: Focus (ToFocusType Timeline)
   -> Insertion a
   -> InsertPosition
-  -> Composition TimelineType a
-  -> Composition TimelineType a
+  -> Timeline a
+  -> Timeline a
 insert_ f i p s = fromMaybe s (insert f i p s)

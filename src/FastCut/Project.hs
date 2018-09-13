@@ -19,7 +19,7 @@ import           FastCut.Library
 
 data Project = Project
   { _projectName      :: Text
-  , _timeline         :: Composition TimelineType ()
+  , _timeline         :: Timeline ()
   , _library          :: Library
   , _workingDirectory :: FilePath
   } deriving (Eq, Show)

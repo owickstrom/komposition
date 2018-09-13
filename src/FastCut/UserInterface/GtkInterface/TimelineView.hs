@@ -78,19 +78,25 @@ renderPart =
            , #widthRequest := widthFromDuration duration'
            ])
 
-renderComposition :: Composition t (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderComposition = \case
-  Timeline sub -> container
+renderTimeline :: Timeline (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderTimeline (Timeline sub) =
+  container
     Box
     [classes ["composition", "timeline", emptyClass (null sub)]]
-    (mapM_ (boxChild False False 0 . renderComposition) (toList sub))
-  Sequence (_thisFocus, focused) sub -> container
+    (mapM_ (boxChild False False 0 . renderSequence) (toList sub))
+
+renderSequence :: Sequence (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderSequence (Sequence (_thisFocus, focused) sub) =
+  container
     Box
     [ classes
         ["composition", "sequence", focusedClass focused, emptyClass (null sub)]
     ]
-    (mapM_ (boxChild False False 0 . renderComposition) (toList sub))
-  Parallel (_thisFocus, focused) vs as -> container
+    (mapM_ (boxChild False False 0 . renderParallel) (toList sub))
+
+renderParallel :: Parallel (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderParallel (Parallel (_thisFocus, focused) vs as) =
+  container
     Box
     [ #orientation := OrientationVertical
     , classes
@@ -110,9 +116,10 @@ renderComposition = \case
           Box
           [classes ["audio", focusedClass focused]]
           (mapM_ (boxChild False False 0 . renderPart) as)
- where
-  emptyClass True  = "empty"
-  emptyClass False = "non-empty"
+
+emptyClass :: Bool -> Text
+emptyClass True  = "empty"
+emptyClass False = "non-empty"
 
 renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
 renderPreviewPane = \case
@@ -166,9 +173,9 @@ timelineView project focus =
         , #vscrollbarPolicy := PolicyTypeNever
         , classes ["timeline-container"]
         ]
-        (renderComposition focusedTimelineWithSetFoci)
+        (renderTimeline focusedTimelineWithSetFoci)
   where
-    focusedTimelineWithSetFoci :: Composition TimelineType (Focus SequenceFocusType, Focused)
+    focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci =
       withAllFoci (project ^. timeline)
       <&> \f -> (f, focusedState focus f)

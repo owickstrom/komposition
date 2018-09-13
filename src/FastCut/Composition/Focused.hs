@@ -50,17 +50,15 @@ focusedState f1 f2 =
 numsFromZero :: (Enum n, Num n) => NonEmpty n
 numsFromZero = 0 :| [1 ..]
 
-withAllFoci ::
-     Composition TimelineType a
-  -> Composition TimelineType (Focus SequenceFocusType)
+withAllFoci :: Timeline a -> Timeline (Focus SequenceFocusType)
 withAllFoci (Timeline sub) =
   Timeline
     (NonEmpty.zipWith (\i -> onSequence (SequenceFocus i)) numsFromZero sub)
   where
     onSequence ::
          (Maybe (Focus ParallelFocusType) -> Focus SequenceFocusType)
-      -> Composition SequenceType a
-      -> Composition SequenceType (Focus SequenceFocusType)
+      -> Sequence a
+      -> Sequence (Focus SequenceFocusType)
     onSequence wrap (Sequence _ pars) =
       Sequence
         (wrap Nothing)
@@ -70,8 +68,8 @@ withAllFoci (Timeline sub) =
            pars)
     onParallel ::
          (Maybe (Focus ClipFocusType) -> Focus SequenceFocusType)
-      -> Composition ParallelType a
-      -> Composition ParallelType (Focus SequenceFocusType)
+      -> Parallel a
+      -> Parallel (Focus SequenceFocusType)
     onParallel wrap (Parallel _ vs as) =
         Parallel
         (wrap Nothing)

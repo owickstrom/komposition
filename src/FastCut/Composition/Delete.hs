@@ -27,9 +27,9 @@ deleteAt splitAt' i xs =
 -- 'FocuCommand' required to obtain a new valid focus into the new
 -- 'Composition'.
 delete ::
-    Focus ft
-  -> Composition TimelineType a
-  -> Maybe (Composition TimelineType a, Maybe FocusCommand)
+     Focus (ToFocusType Timeline)
+  -> Timeline a
+  -> Maybe (Timeline a, Maybe FocusCommand)
 delete focus comp = runStateT (withParentOf traversal focus comp) Nothing
   where
     traversal =
@@ -55,9 +55,10 @@ delete focus comp = runStateT (withParentOf traversal focus comp) Nothing
 
 -- | Same as 'delete', but trying to apply the returned focus command.
 delete_ ::
-    Focus ft
-  -> Composition TimelineType a
-  -> Either (FocusCommand, FocusError) (Composition TimelineType a, Focus ft)
+     ft ~ ToFocusType Timeline
+  => Focus ft
+  -> Timeline a
+  -> Either (FocusCommand, FocusError) (Timeline a, Focus ft)
 delete_ f s =
   case delete f s of
     Nothing -> pure (s, f)

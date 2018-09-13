@@ -168,7 +168,7 @@ insertGap
   :: Application t m
   => Name n
   -> Project
-  -> Focus ft
+  -> Focus (ToFocusType Timeline)
   -> SMediaType mt
   -> InsertPosition
   -> Actions
