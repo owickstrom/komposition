@@ -27,20 +27,19 @@ import           FastCut.Application.KeyMaps
 selectAssetFromList
   :: (UserInterface m, IxMonadIO m, Modify n (State m LibraryMode) r ~ r)
   => Name n
-  -> SMediaType mt
   -> SelectAssetsModel mt
   -> Actions
        m
        '[n := Remain (State m LibraryMode)]
        r
        (Maybe [Asset mt])
-selectAssetFromList gui mediaType model = do
-  updateLibrary gui mediaType model
+selectAssetFromList gui model = do
+  updateLibrary gui model
   nextEvent gui >>>= \case
     (LibraryAssetsSelected selectedMediaType newSelectedAssets) ->
       -- TODO: Can "LibraryMode" be parameterized on its media type to
       -- avoid this?
-      case (mediaType, selectedMediaType) of
+      case (mediaType model, selectedMediaType) of
         (SVideo, SVideo) ->
           continueWith model {selectedAssets = newSelectedAssets}
         (SAudio, SAudio) ->
@@ -52,7 +51,7 @@ selectAssetFromList gui mediaType model = do
       help gui [ModeKeyMap SLibraryMode (keymaps SLibraryMode)] >>>
       continueWith model
   where
-    continueWith = selectAssetFromList gui mediaType
+    continueWith = selectAssetFromList gui
 
 selectAsset ::
      (Application t m, r ~ (n .== State (t m) 'TimelineMode))
@@ -61,22 +60,22 @@ selectAsset ::
   -> Focus SequenceFocusType
   -> SMediaType mt
   -> t m r r (Maybe [Asset mt])
-selectAsset gui project focus' mediaType = case mediaType of
+selectAsset gui project focus' = \case
   SVideo ->
     case NonEmpty.nonEmpty (project ^. library . videoAssets) of
       Just vs -> do
-        let model = SelectAssetsModel vs []
-        enterLibrary gui SVideo model
-        assets <- selectAssetFromList gui SVideo model
+        let model = SelectAssetsModel SVideo vs []
+        enterLibrary gui model
+        assets <- selectAssetFromList gui model
         returnToTimeline gui project focus'
         ireturn assets
       Nothing -> ireturn Nothing
   SAudio ->
     case NonEmpty.nonEmpty (project ^. library . audioAssets) of
       Just as -> do
-        let model = SelectAssetsModel as []
-        enterLibrary gui SAudio model
-        assets <- selectAssetFromList gui SAudio model
+        let model = SelectAssetsModel SAudio as []
+        enterLibrary gui model
+        assets <- selectAssetFromList gui model
         returnToTimeline gui project focus'
         ireturn assets
       Nothing -> ireturn Nothing
@@ -89,8 +88,8 @@ selectAssetAndInsert ::
   -> SMediaType mt
   -> InsertPosition
   -> t m r r Project
-selectAssetAndInsert gui project focus' mediaType position =
-  selectAsset gui project focus' mediaType >>= \case
+selectAssetAndInsert gui project focus' mediaType' position =
+  selectAsset gui project focus' mediaType' >>= \case
     Just assets ->
       project
         &  timeline
@@ -98,6 +97,6 @@ selectAssetAndInsert gui project focus' mediaType position =
         &  ireturn
     Nothing -> beep gui >>> ireturn project
  where
-  insertionOf a = case mediaType of
-    SVideo -> InsertVideoParts (Clip () <$> a)
-    SAudio -> InsertAudioParts (Clip () <$> a)
+  insertionOf a = case mediaType' of
+    SVideo -> InsertVideoParts (VideoClip () <$> a)
+    SAudio -> InsertAudioParts (AudioClip () <$> a)

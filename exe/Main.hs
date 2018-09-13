@@ -14,9 +14,6 @@ import           Paths_fastcut
 
 initialProject :: FilePath -> IO Project
 initialProject workDir = do
-  let
-    gap1s = Gap () 1
-
   return Project
     { _projectName = "Test"
     , _timeline =
@@ -25,8 +22,8 @@ initialProject workDir = do
               ()
               ( Parallel
                   ()
-                  [gap1s]
-                  [gap1s]
+                  [VideoGap () 1]
+                  [AudioGap () 1]
               :| []
               )
           :| []

@@ -36,16 +36,16 @@ parallelWithClips = Parallel () <$> vs <*> as
  where
   vs = Gen.filter (any isClip) (Gen.list (linear 1 10) videoPart)
   as = Gen.list (linear 0 10) audioPart
-  isClip Clip{} = True
-  isClip Gap{}  = False
+  isClip VideoClip{} = True
+  isClip VideoGap{}  = False
 
 videoPart :: MonadGen m => m (CompositionPart Video ())
 videoPart = Gen.choice
-  [Clip () . VideoAsset <$> assetMetadata, Gap () <$> duration (linear 1 10 :: Range Int)]
+  [VideoClip () . VideoAsset <$> assetMetadata, VideoGap () <$> duration (linear 1 10 :: Range Int)]
 
 audioPart :: MonadGen m => m (CompositionPart Audio ())
 audioPart = Gen.choice
-  [Clip () . AudioAsset <$> assetMetadata, Gap () <$> duration (linear 1 10 :: Range Int)]
+  [AudioClip () . AudioAsset <$> assetMetadata, AudioGap () <$> duration (linear 1 10 :: Range Int)]
 
 duration :: Integral n => MonadGen m => Range n -> m Duration
 duration range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)

@@ -28,14 +28,16 @@ data StillFrameMode = FirstFrame | LastFrame
   deriving (Show, Eq)
 
 data CompositionPart mt where
-  Clip :: Asset mt -> CompositionPart mt
+  VideoClip :: VideoAsset -> CompositionPart Video
   StillFrame
-    :: StillFrameMode -> Asset Video -> Duration -> CompositionPart Video
+    :: StillFrameMode -> VideoAsset -> Duration -> CompositionPart Video
+  AudioClip :: AudioAsset -> CompositionPart Audio
   Silence :: Duration -> CompositionPart Audio
 
 instance HasDuration (CompositionPart mt) where
   durationOf = \case
-    Clip a -> durationOf a
+    VideoClip a -> durationOf a
+    AudioClip a -> durationOf a
     StillFrame _ _ d  -> d
     Silence d -> d
 
@@ -74,14 +76,14 @@ flattenParallel (Core.Parallel _ vs as) =
   where
     foldVideo (tracks, lastAsset, precedingGaps) =
       \case
-        Core.Clip _ asset ->
+        Core.VideoClip _ asset ->
           ( tracks <>
             Tracks
-              (map (StillFrame FirstFrame asset) precedingGaps <> [Clip asset])
+              (map (StillFrame FirstFrame asset) precedingGaps <> [VideoClip asset])
               []
           , Just asset
           , [])
-        Core.Gap _ d ->
+        Core.VideoGap _ d ->
           case lastAsset of
             Just asset ->
               ( tracks <> Tracks [StillFrame LastFrame asset d] []
@@ -90,8 +92,8 @@ flattenParallel (Core.Parallel _ vs as) =
             Nothing -> (tracks, lastAsset, precedingGaps <> [d])
     toAudio =
       \case
-        Core.Clip _ asset -> Tracks [] [Clip asset]
-        Core.Gap _ d -> Tracks [] [Silence d]
+        Core.AudioClip _ asset -> Tracks [] [AudioClip asset]
+        Core.AudioGap _ d -> Tracks [] [Silence d]
     matchTrackDurations video audio lastAsset =
       case (durationOf video, durationOf audio) of
         (vd, ad)

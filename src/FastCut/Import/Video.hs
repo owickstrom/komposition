@@ -31,8 +31,7 @@ import           Data.Time.Clock
 import qualified Data.Vector             as V
 import qualified Data.Vector.Generic     as VG
 import           Graphics.ColorSpace     as A
-import           Pipes                   (Consumer, Consumer', Pipe, Producer,
-                                          (>->))
+import           Pipes                   (Consumer', Pipe, Producer, (>->))
 import qualified Pipes
 import qualified Pipes.Lift              as Pipes
 import qualified Pipes.Parse             as Pipes
@@ -44,7 +43,6 @@ import           Text.Printf
 
 import           FastCut.Duration
 import           FastCut.Library
-import           FastCut.MediaType
 import           FastCut.Progress
 
 initialize :: IO ()
@@ -304,8 +302,8 @@ split equalFramesTimeThreshold src outDir = do
       printResult res = do
         putStrLn ("" :: Text)
         case res of
-          Left err -> putStrLn ("Failed." :: Text)
-          Right () -> putStrLn ("Success." :: Text)
+          Left _err -> putStrLn ("Failed." :: Text)
+          Right ()  -> putStrLn ("Success." :: Text)
   Pipes.runEffect (Pipes.runExceptP writeSplitSegments >>= printResult)
 
 writeSplitVideoFiles ::
@@ -350,7 +348,7 @@ filePathToVideoAsset ::
      (MonadError VideoImportError m, MonadIO m)
   => FilePath
   -> FilePath
-  -> m (Asset Video)
+  -> m VideoAsset
 filePathToVideoAsset outDir p = do
   md <-
     AssetMetadata p
@@ -385,7 +383,7 @@ importVideoFile ::
      MonadIO m
   => FilePath
   -> FilePath
-  -> Producer ProgressUpdate m (Either VideoImportError (Asset Video))
+  -> Producer ProgressUpdate m (Either VideoImportError VideoAsset)
 importVideoFile sourceFile outDir = do
   Pipes.yield (ProgressUpdate 0)
   -- Copy asset to working directory
@@ -403,7 +401,7 @@ importVideoFileAutoSplit ::
      MonadIO m
   => FilePath
   -> FilePath
-  -> Producer ProgressUpdate m (Either VideoImportError [Asset Video])
+  -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
 importVideoFileAutoSplit sourceFile outDir = do
   liftIO (createDirectoryIfMissing True outDir)
   fullLength <- liftIO (getVideoFileDuration sourceFile)

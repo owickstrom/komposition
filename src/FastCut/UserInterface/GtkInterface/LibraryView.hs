@@ -26,7 +26,8 @@ import           FastCut.MediaType
 import           FastCut.UserInterface
 
 renderAsset ::
-  Asset mt
+     AssetMetadataLens asset
+  => asset
   -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
 renderAsset asset' =
   bin ListBoxRow [on #activate LibrarySelectionConfirmed] $
@@ -38,8 +39,8 @@ renderAsset asset' =
       show (asset' ^. assetMetadata . duration) <>
       ")"
 
-libraryView :: SMediaType mt -> SelectAssetsModel mt -> Widget (Event LibraryMode)
-libraryView mediaType SelectAssetsModel {..} =
+libraryView ::  SelectAssetsModel mt -> Widget (Event LibraryMode)
+libraryView SelectAssetsModel {..} =
   bin
     Window
     [ #title := "Library"
@@ -65,7 +66,9 @@ libraryView mediaType SelectAssetsModel {..} =
             , on #activateCursorRow LibrarySelectionConfirmed
             , classes ["clips"]
             ] $
-          for_ allAssets renderAsset
+            case mediaType of
+              SVideo -> for_ allAssets renderAsset
+              SAudio -> for_ allAssets renderAsset
         boxChild False False 10 $ container Box [] $ do
           boxChild True True 10 $
             widget

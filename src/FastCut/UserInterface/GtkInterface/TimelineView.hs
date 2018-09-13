@@ -42,9 +42,11 @@ focusedClass = \case
   Blurred             -> "blurred"
 
 renderClipAsset ::
-     Focus SequenceFocusType
+     AssetMetadataLens asset
+  => HasDuration asset
+  => Focus SequenceFocusType
   -> Focused
-  -> Asset mt
+  -> asset
   -> Widget (Event TimelineMode)
 renderClipAsset thisFocus focused asset' =
   container
@@ -58,11 +60,11 @@ renderClipAsset thisFocus focused asset' =
                 , #widthRequest := widthFromDuration (durationOf asset')
                 ]
 
-renderPart :: CompositionPart t (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderPart =
-  \case
-    Clip (thisFocus, focused) asset' -> renderClipAsset thisFocus focused asset'
-    Gap (thisFocus, focused) duration' ->
+renderGap ::
+     (Focus SequenceFocusType, Focused)
+  -> Duration
+  -> Widget (Event TimelineMode)
+renderGap (thisFocus, focused) duration' =
       container
         Box
         [ classes ["gap", focusedClass focused]
@@ -77,6 +79,18 @@ renderPart =
            [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
            , #widthRequest := widthFromDuration duration'
            ])
+
+renderVideoPart :: VideoPart (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderVideoPart =
+  \case
+    VideoClip (thisFocus, focused) asset' -> renderClipAsset thisFocus focused asset'
+    VideoGap ann duration' -> renderGap ann duration'
+
+renderAudioPart :: AudioPart (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderAudioPart =
+  \case
+    AudioClip (thisFocus, focused) asset' -> renderClipAsset thisFocus focused asset'
+    AudioGap ann duration' -> renderGap ann duration'
 
 renderTimeline :: Timeline (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
 renderTimeline (Timeline sub) =
@@ -110,12 +124,12 @@ renderParallel (Parallel (_thisFocus, focused) vs as) =
       $ container
           Box
           [classes ["video", focusedClass focused]]
-          (mapM_ (boxChild False False 0 . renderPart) vs)
+          (mapM_ (boxChild False False 0 . renderVideoPart) vs)
     boxChild False False 0
       $ container
           Box
           [classes ["audio", focusedClass focused]]
-          (mapM_ (boxChild False False 0 . renderPart) as)
+          (mapM_ (boxChild False False 0 . renderAudioPart) as)
 
 emptyClass :: Bool -> Text
 emptyClass True  = "empty"
@@ -123,12 +137,12 @@ emptyClass False = "non-empty"
 
 renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
 renderPreviewPane = \case
-  Just (FirstVideoPart (Clip _ (VideoAsset meta))) ->
+  Just (FirstVideoPart (VideoClip _ (VideoAsset meta))) ->
     thumbnailImageOrPlaceholder (meta ^. thumbnail)
-  Just (FirstAudioPart (Clip _ (AudioAsset meta))) ->
+  Just (FirstAudioPart (AudioClip _ (AudioAsset meta))) ->
     thumbnailImageOrPlaceholder (meta ^. thumbnail)
-  Just (FirstVideoPart Gap{}) -> widget Label [#label := "Video gap."]
-  Just (FirstAudioPart Gap{}) -> widget Label [#label := "Audio gap."]
+  Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
+  Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
   Nothing                     -> noPreviewAvailable
 
   where

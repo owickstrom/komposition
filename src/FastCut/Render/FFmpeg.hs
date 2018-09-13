@@ -106,17 +106,19 @@ toIndexedParts
   -> Int
   -> NonEmpty (Composition.CompositionPart mt)
   -> IO (NonEmpty (IndexedPart mt))
-toIndexedParts tmpDir frameRate startAt = traverse toPart
-  . NonEmpty.zip (startAt :| [succ startAt ..])
+toIndexedParts tmpDir frameRate startAt =
+  traverse toPart . NonEmpty.zip (startAt :| [succ startAt ..])
   where
     toPart :: (Int, Composition.CompositionPart mt) -> IO (IndexedPart mt)
-    toPart = \case
-      (i, Composition.Clip asset                     ) -> return (i, Clip asset)
-      (i, Composition.StillFrame mode asset duration') -> do
-        let frameFile = tmpDir </> show i <> ".png"
-        extractFrameToFile mode asset frameFile
-        return (i, StillFrame frameFile frameRate duration')
-      (i, Composition.Silence duration') -> return (i, Silence duration')
+    toPart =
+      \case
+        (i, Composition.VideoClip asset) -> return (i, Clip asset)
+        (i, Composition.StillFrame mode asset duration') -> do
+          let frameFile = tmpDir </> show i <> ".png"
+          extractFrameToFile mode asset frameFile
+          return (i, StillFrame frameFile frameRate duration')
+        (i, Composition.AudioClip asset) -> return (i, Clip asset)
+        (i, Composition.Silence duration') -> return (i, Silence duration')
 
 parseTimestampFromProgress :: Text -> Maybe Duration
 parseTimestampFromProgress line = parseTimestamp

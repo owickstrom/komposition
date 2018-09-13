@@ -78,15 +78,12 @@ data FocusError
   | UnhandledFocusModification FocusCommand
   deriving (Show, Eq)
 
-indicesWithStartPoints :: [CompositionPart a t] -> [(Int, Duration)]
+indicesWithStartPoints :: HasDuration a => [a] -> [(Int, Duration)]
 indicesWithStartPoints clips =
   zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
 
-nearestPartIndexLeftOf
-  :: [CompositionPart t ann]
-  -> Int
-  -> [CompositionPart (InverseMediaType t) ann]
-  -> Maybe Int
+nearestPartIndexLeftOf ::
+     (HasDuration a, HasDuration b) => [a] -> Int -> [b] -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
   = let cutoffPoint = foldMap durationOf (take i focusedParts)

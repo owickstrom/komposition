@@ -38,6 +38,7 @@ library
                       , FastCut.Prelude
                       , FastCut.Progress
                       , FastCut.Project
+                      , FastCut.Project.Store
                       , FastCut.Library
                       , FastCut.MediaType
                       , FastCut.Render.Composition
@@ -53,8 +54,10 @@ library
                       , FastCut.UserInterface.GtkInterface.TimelineView
   build-depends:        base >=4.10 && <4.12
                       , async
+                      , binary
                       , deepseq
                       , directory
+                      , dhall
                       , exceptions
                       , ffmpeg-light >= 0.12.1 && <0.13
                       , filepath

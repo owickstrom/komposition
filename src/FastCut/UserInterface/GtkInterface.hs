@@ -337,11 +337,11 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   returnToTimeline n project focus =
     switchView' n (TopView (timelineView project focus)) STimelineMode
 
-  enterLibrary n mediaType assets =
-    switchView' n (ModalView (libraryView mediaType assets)) SLibraryMode
+  enterLibrary n model =
+    switchView' n (ModalView (libraryView model)) SLibraryMode
 
-  updateLibrary n mediaType clips =
-    switchView' n (ModalView (libraryView mediaType clips)) SLibraryMode
+  updateLibrary n model =
+    switchView' n (ModalView (libraryView model)) SLibraryMode
 
   enterImport n form =
     switchView' n (ModalView (importView form)) SImportMode

@@ -132,7 +132,8 @@ data ImportFileModel = ImportFileModel
   }
 
 data SelectAssetsModel mt = SelectAssetsModel
-  { allAssets      :: NonEmpty (Asset mt)
+  { mediaType      :: SMediaType mt
+  , allAssets      :: NonEmpty (Asset mt)
   , selectedAssets :: [Asset mt]
   }
 
@@ -159,12 +160,10 @@ class MonadFSM m =>
 
   enterLibrary
     :: Name n
-    -> SMediaType mt
     -> SelectAssetsModel mt
     -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
   updateLibrary
     :: Name n
-    -> SMediaType mt
     -> SelectAssetsModel mt
     -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
   enterImport

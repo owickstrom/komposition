@@ -1,9 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE GADTs              #-}
+{-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE TypeFamilies       #-}
 module FastCut.Library where
 
 import           FastCut.Prelude
@@ -17,32 +20,41 @@ data AssetMetadata = AssetMetadata
   { _path      :: FilePath
   , _duration  :: Duration
   , _thumbnail :: Maybe FilePath
-  } deriving (Eq, Show)
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''AssetMetadata
 
-data Asset t where
-  VideoAsset :: AssetMetadata -> Asset Video
-  AudioAsset :: AssetMetadata -> Asset Audio
+newtype VideoAsset =
+  VideoAsset AssetMetadata
+  deriving (Show, Eq, Generic)
 
-assetMetadata ::
-     Functor f => (AssetMetadata -> f AssetMetadata) -> Asset t -> f (Asset t)
-assetMetadata f = \case
-  VideoAsset meta -> VideoAsset <$> f meta
-  AudioAsset meta -> AudioAsset <$> f meta
+newtype AudioAsset =
+  AudioAsset AssetMetadata
+  deriving (Show, Eq, Generic)
 
-deriving instance Eq (Asset t)
-deriving instance Show (Asset t)
+type family Asset (mt :: MediaType) where
+  Asset Audio = AudioAsset
+  Asset Video = VideoAsset
 
-instance HasDuration (Asset t) where
-  durationOf = \case
-    VideoAsset meta -> meta ^. duration
-    AudioAsset meta -> meta ^. duration
+class AssetMetadataLens a where
+  assetMetadata :: Functor f => (AssetMetadata -> f AssetMetadata) -> a -> f a
+
+instance AssetMetadataLens VideoAsset where
+  assetMetadata f (VideoAsset meta) = VideoAsset <$> f meta
+
+instance AssetMetadataLens AudioAsset where
+  assetMetadata f (AudioAsset meta) = AudioAsset <$> f meta
+
+instance HasDuration VideoAsset where
+  durationOf (VideoAsset meta) = meta ^. duration
+
+instance HasDuration AudioAsset where
+  durationOf (AudioAsset meta) = meta ^. duration
 
 data Library = Library
-  { _videoAssets :: [Asset Video]
-  , _audioAssets :: [Asset Audio]
-  } deriving (Eq, Show)
+  { _videoAssets :: [VideoAsset]
+  , _audioAssets :: [AudioAsset]
+  } deriving (Eq, Show, Generic)
 
 makeLenses ''Library
 

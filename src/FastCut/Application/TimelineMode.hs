@@ -120,7 +120,7 @@ insertIntoTimeline gui project focus' type' position =
           project
             &  timeline
             %~ insert_ focus'
-                       (InsertParallel (Parallel () (Clip () <$> assets) []))
+                       (InsertParallel (Parallel () (VideoClip () <$> assets) []))
                        RightOf
             &  timelineMode gui focus'
         Nothing -> beep gui >>> continue
@@ -176,15 +176,15 @@ insertGap
        '[n := Remain (State (t m) TimelineMode)]
        r
        Project
-insertGap gui project focus' mediaType position = do
+insertGap gui project focus' mediaType' position = do
   gapDuration <- prompt gui
                         "Insert Gap"
                         "Please specify a gap duration in seconds."
                         "Insert Gap"
                         (NumberPrompt (0.1, 10e10))
-  let gapInsertion seconds = case mediaType of
-        SVideo -> (InsertVideoParts [Gap () (durationFromSeconds seconds)])
-        SAudio -> (InsertAudioParts [Gap () (durationFromSeconds seconds)])
+  let gapInsertion seconds = case mediaType' of
+        SVideo -> (InsertVideoParts [VideoGap () (durationFromSeconds seconds)])
+        SAudio -> (InsertAudioParts [AudioGap () (durationFromSeconds seconds)])
   case gapDuration of
     Just seconds ->
       project

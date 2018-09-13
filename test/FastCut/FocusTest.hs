@@ -27,7 +27,7 @@ spec_atFocus = do
     atFocus
       (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Video 0)))))
       timelineTwoParallels `shouldBe`
-    Just (FocusedVideoPart gap3s)
+    Just (FocusedVideoPart videoGap3s)
   it "returns focused audio clip" $
     atFocus
       (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Audio 1)))))
@@ -70,13 +70,13 @@ spec_modifyFocus = do
     modifyFocus timelineTwoParallels FocusUp before' `shouldBe` pure after'
   it "moves the focus up from audio into video with nearest start to the left" $ do
     let sequence' =
-          Sequence () (pure (Parallel () [gap3s, video4s] [gap1s, gap3s, audio1s]))
+          Sequence () (pure (Parallel () [videoGap3s, video4s] [audioGap1s, audioGap3s, audio1s]))
         before' = ParallelFocus 0 (Just (ClipFocus Audio 2))
         after' = ParallelFocus 0 (Just (ClipFocus Video 1))
     modifyFocus sequence' FocusUp before' `shouldBe` pure after'
   it "moves the focus up from audio into video with same starting point" $ do
     let sequence' =
-          Sequence () (pure (Parallel () [gap3s, video10s] [gap3s, audio10s]))
+          Sequence () (pure (Parallel () [videoGap3s, video10s] [audioGap3s, audio10s]))
         before' = ParallelFocus 0 (Just (ClipFocus Audio 1))
         after' = ParallelFocus 0 (Just (ClipFocus Video 1))
     modifyFocus sequence' FocusUp before' `shouldBe` pure after'
@@ -103,13 +103,13 @@ spec_modifyFocus = do
       Left CannotMoveDown
   it "moves the focus down from video into audio with nearest start to the left" $ do
     let sequence' =
-          Sequence () (pure (Parallel () [gap3s, video4s] [gap1s, gap3s, audio1s]))
+          Sequence () (pure (Parallel () [videoGap3s, video4s] [audioGap1s, audioGap3s, audio1s]))
         before' = ParallelFocus 0 (Just (ClipFocus Video 1))
         after' = ParallelFocus 0 (Just (ClipFocus Audio 1))
     modifyFocus sequence' FocusDown before' `shouldBe` pure after'
   it "moves the focus up from audio into video with same starting point" $ do
     let sequence' =
-          Sequence () (pure (Parallel () [gap3s, video10s] [gap3s, audio10s]))
+          Sequence () (pure (Parallel () [videoGap3s, video10s] [audioGap3s, audio10s]))
         before' = ParallelFocus 0 (Just (ClipFocus Video 1))
         after' = ParallelFocus 0 (Just (ClipFocus Audio 1))
     modifyFocus sequence' FocusDown before' `shouldBe` pure after'

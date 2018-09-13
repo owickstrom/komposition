@@ -36,8 +36,8 @@ spec_insertRightOf = do
         after' =
           Timeline
             (pure
-               (Sequence () (pure (Parallel () [video4s, gap3s, video10s] []))))
-    insert focus (InsertVideoParts [gap3s]) RightOf before' `shouldBe` Just after'
+               (Sequence () (pure (Parallel () [video4s, videoGap3s, video10s] []))))
+    insert focus (InsertVideoParts [videoGap3s]) RightOf before' `shouldBe` Just after'
   it "insert a video clip into an empty parallel" $ do
     let focus =
           SequenceFocus 0 (Just (ParallelFocus 0 Nothing))

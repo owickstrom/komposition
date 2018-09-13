@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
@@ -10,6 +9,7 @@
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeFamilies          #-}
 module FastCut.Composition where
 
 import           FastCut.Prelude
@@ -18,19 +18,29 @@ import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.MediaType
 
-data CompositionPart (mt :: MediaType) a where
-  Clip :: a -> Asset mt -> CompositionPart mt a
-  Gap :: a -> Duration -> CompositionPart mt a
+type family CompositionPart (mt :: MediaType) where
+  CompositionPart 'Video = VideoPart
+  CompositionPart 'Audio = AudioPart
 
-deriving instance Eq a => Eq (CompositionPart t a)
-deriving instance Show a => Show (CompositionPart t a)
-deriving instance Functor (CompositionPart t)
-deriving instance Generic (CompositionPart t a)
+data VideoPart a
+  = VideoClip a VideoAsset
+  | VideoGap a Duration
+  deriving (Eq, Show, Functor, Generic)
 
-instance HasDuration (CompositionPart t a) where
+data AudioPart a
+  = AudioClip a AudioAsset
+  | AudioGap a Duration
+  deriving (Eq, Show, Functor, Generic)
+
+instance HasDuration (VideoPart a) where
   durationOf = \case
-    Clip _ a -> durationOf a
-    Gap _ d -> d
+    VideoClip _ a -> durationOf a
+    VideoGap _ d -> d
+
+instance HasDuration (AudioPart a) where
+  durationOf = \case
+    AudioClip _ a -> durationOf a
+    AudioGap _ d -> d
 
 data Timeline a =
   Timeline (NonEmpty (Sequence a))
@@ -43,8 +53,8 @@ data Sequence a =
 
 data Parallel a =
   Parallel a
-           [CompositionPart Video a]
-           [CompositionPart Audio a]
+           [VideoPart a]
+           [AudioPart a]
   deriving (Eq, Show, Functor, Generic)
 
 instance HasDuration (Timeline a) where
@@ -57,7 +67,5 @@ instance HasDuration (Parallel a) where
   durationOf (Parallel _ vs as) =
     max (foldMap durationOf vs) (foldMap durationOf as)
 
-single :: Asset t -> Parallel ()
-single = \case
-  v@VideoAsset{} -> Parallel () [Clip () v] []
-  a@AudioAsset{} -> Parallel () [] [Clip () a]
+singleVideo :: VideoAsset -> Parallel ()
+singleVideo v = Parallel () [VideoClip () v] []
