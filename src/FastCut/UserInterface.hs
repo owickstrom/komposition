@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell    #-}
 {-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE TypeInType         #-}
 {-# LANGUAGE TypeOperators      #-}
@@ -17,6 +18,7 @@ module FastCut.UserInterface where
 
 import           FastCut.Prelude            hiding (State)
 
+import           Control.Lens
 import           Data.Row.Records
 import           Motor.FSM                  hiding (Delete)
 import           Pipes
@@ -118,6 +120,7 @@ commandName =
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
+  ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
   ImportClicked :: Event ImportMode
@@ -140,6 +143,16 @@ data PromptMode ret where
   NumberPrompt :: (Double, Double) -> PromptMode Double
   TextPrompt :: PromptMode Text
 
+newtype ZoomLevel = ZoomLevel Double
+
+data TimelineModel = TimelineModel
+  { _project      :: Project
+  , _currentFocus :: Focus SequenceFocusType
+  , _zoomLevel    :: ZoomLevel
+  }
+
+makeLenses ''TimelineModel
+
 data ImportFileModel = ImportFileModel
   { autoSplitValue     :: Bool
   , autoSplitAvailable :: Bool
@@ -154,22 +167,20 @@ data SelectAssetsModel mt = SelectAssetsModel
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
+
   start ::
        Name n
     -> KeyMaps
-    -> Project
-    -> Focus SequenceFocusType
+    -> TimelineModel
     -> Actions m '[ n !+ State m TimelineMode] r ()
   updateTimeline
     :: Name n
-    -> Project
-    -> Focus SequenceFocusType
+    -> TimelineModel
     -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
   returnToTimeline
     :: ReturnsToTimeline mode
     => Name n
-    -> Project
-    -> Focus SequenceFocusType
+    -> TimelineModel
     -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
 
   enterLibrary

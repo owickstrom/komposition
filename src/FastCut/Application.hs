@@ -30,7 +30,9 @@ import           FastCut.Application.TimelineMode
 
 fastcut
   :: Application t m => UserInterface (t m) => Project -> t m Empty Empty ()
-fastcut project = do
-  start #gui (fmap CommandKeyMappedEvent . keymaps) project initialFocus
-  timelineMode #gui initialFocus project
-  where initialFocus = SequenceFocus 0 Nothing
+fastcut project' = do
+  start #gui (fmap CommandKeyMappedEvent . keymaps) model
+  timelineMode #gui model
+  where
+    initialFocus = SequenceFocus 0 Nothing
+    model = TimelineModel project' initialFocus (ZoomLevel 1)

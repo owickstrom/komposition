@@ -327,16 +327,16 @@ inNewModalDialog n ModalDialog {..} = FSM.get n >>>= \s -> iliftIO $ do
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
-  start n keyMaps project focus =
+  start n keyMaps model =
     ilift ask
-    >>>= iliftIO . renderFirst (timelineView project focus) STimelineMode keyMaps
+    >>>= iliftIO . renderFirst (timelineView model) STimelineMode keyMaps
     >>>= FSM.new n
 
-  updateTimeline n project focus =
-    switchView' n (TopView (timelineView project focus)) STimelineMode
+  updateTimeline n model =
+    switchView' n (TopView (timelineView model)) STimelineMode
 
-  returnToTimeline n project focus =
-    switchView' n (TopView (timelineView project focus)) STimelineMode
+  returnToTimeline n model =
+    switchView' n (TopView (timelineView model)) STimelineMode
 
   enterLibrary n model =
     switchView' n (ModalView (libraryView model)) SLibraryMode

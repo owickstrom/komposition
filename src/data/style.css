@@ -14,6 +14,7 @@
 .timeline-container {
   background-color: #ccc;
   border-top: 1pt solid #aaa;
+  border-bottom: 1pt solid #aaa;
   padding: 2pt;
 }
 .timeline .sequence {
@@ -69,8 +70,9 @@
 
 .timeline .clip button,
 .timeline .gap button {
-  padding: 2pt;
-  box-shadow: inset 0pt 0pt 1pt #000;
+  padding: 0;
+  min-width: 0;
+  box-shadow: inset 0pt 0pt 2pt #000;
   border-radius: 0;
 }
 .timeline .clip button {
@@ -121,4 +123,8 @@
   background: #ddd;
   border-radius: .3em;
   box-shadow: inset 1pt 1pt 1pt #fff;
+}
+
+.zoom-level {
+  background-color: #ddd;
 }

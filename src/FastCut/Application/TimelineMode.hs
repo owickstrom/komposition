@@ -38,45 +38,52 @@ import           FastCut.Application.LibraryMode
 timelineMode
   :: Application t m
   => Name n
-  -> Focus SequenceFocusType
-  -> Project
+  -> TimelineModel
   -> t m (n .== State (t m) 'TimelineMode) Empty ()
-timelineMode gui focus' project = do
-  updateTimeline gui project focus'
+timelineMode gui model = do
+  updateTimeline gui model
   nextEvent gui >>>= \case
     CommandKeyMappedEvent (FocusCommand cmd) ->
-      case modifyFocus (project ^. timeline) cmd focus' of
+      case modifyFocus (model ^. project . timeline) cmd (model ^. currentFocus) of
         Left err -> do
           beep gui
           printUnexpectedFocusError err cmd
           continue
-        Right newFocus -> timelineMode gui newFocus project
+        Right newFocus -> timelineMode gui (model & currentFocus .~ newFocus)
     CommandKeyMappedEvent (JumpFocus newFocus) ->
-      case atFocus newFocus (project ^. timeline) of
-        Just _  -> timelineMode gui newFocus project
+      case atFocus newFocus (model ^. project . timeline) of
+        Just _  -> timelineMode gui (model & currentFocus .~ newFocus)
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent (InsertCommand type' position) ->
-      insertIntoTimeline gui project focus' type' position
-    CommandKeyMappedEvent Delete -> case delete focus' (project ^. timeline) of
+      insertIntoTimeline gui model type' position
+    CommandKeyMappedEvent Delete -> case delete (model ^. currentFocus) (model  ^. project . timeline) of
       Nothing -> beep gui >> continue
       Just (timeline', Just cmd) ->
-        case modifyFocus (project ^. timeline) cmd focus' of
+        case modifyFocus (model ^. project . timeline) cmd (model ^. currentFocus) of
           Left err -> do
             beep gui
             iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
             continue
           Right newFocus ->
-            project & timeline .~ timeline' & timelineMode gui newFocus
+            model
+            & project . timeline .~ timeline'
+            & currentFocus .~ newFocus
+            & timelineMode gui
       Just (timeline', Nothing) ->
-        project & timeline .~ timeline' & timelineMode gui focus'
-    CommandKeyMappedEvent Split -> case split focus' (project ^. timeline) of
+        model
+        & project . timeline .~ timeline'
+        & timelineMode gui
+    CommandKeyMappedEvent Split -> case split (model ^. currentFocus) (model ^. project . timeline) of
       Just (timeline', newFocus) ->
-        project & timeline .~ timeline' & timelineMode gui newFocus
+        model
+        & project . timeline .~ timeline'
+        & currentFocus .~ newFocus
+        & timelineMode gui
       Nothing -> beep gui >> continue
     CommandKeyMappedEvent Import ->
-      importFile gui project focus' >>>= timelineMode gui focus'
+      importFile gui model >>>= timelineMode gui
     CommandKeyMappedEvent Render ->
-      case Render.flattenTimeline (project ^. timeline) of
+      case Render.flattenTimeline (model ^. project . timeline) of
         Just flat -> do
           outDir <- iliftIO getUserDocumentsDirectory
           chooseFile gui Save "Render To File" outDir >>>= \case
@@ -100,8 +107,12 @@ timelineMode gui focus' project = do
                Just Yes -> exit gui
                Just No  -> continue
                Nothing  -> continue
+    ZoomLevelChanged zl ->
+      model
+      & zoomLevel .~ zl
+      & timelineMode gui
   where
-    continue = timelineMode gui focus' project
+    continue = timelineMode gui model
     printUnexpectedFocusError err cmd = case err of
       UnhandledFocusModification{} -> iliftIO
         (printf "Error: could not handle focus modification %s\n"
@@ -112,43 +123,32 @@ timelineMode gui focus' project = do
 insertIntoTimeline
   :: Application t m
   => Name n
-  -> Project
-  -> Focus SequenceFocusType
+  -> TimelineModel
   -> InsertType
   -> InsertPosition
   -> t m (n .== State (t m) 'TimelineMode) Empty ()
-insertIntoTimeline gui project focus' type' position =
-  case (type', atFocus focus' (project ^. timeline)) of
+insertIntoTimeline gui model type' position =
+  case (type', atFocus (model ^. currentFocus) (model ^. project . timeline)) of
     (InsertComposition, Just (FocusedSequence _)) ->
-      project & timeline %~
-      insert_ focus' (InsertParallel (Parallel () [] [])) RightOf &
-      timelineMode gui focus'
+      model
+      & project . timeline %~ insert_ (model ^. currentFocus) (InsertParallel (Parallel () [] [])) RightOf
+      & timelineMode gui
     (InsertClip (Just mt), Just FocusedParallel {}) ->
       case mt of
-        Video ->
-          selectAssetAndInsert gui project focus' SVideo position >>>=
-          timelineMode gui focus'
-        Audio ->
-          selectAssetAndInsert gui project focus' SAudio position >>>=
-          timelineMode gui focus'
+        Video -> selectAssetAndInsert gui model SVideo position >>>= timelineMode gui
+        Audio -> selectAssetAndInsert gui model SAudio position >>>= timelineMode gui
     (InsertClip Nothing, Just FocusedVideoPart {}) ->
-      selectAssetAndInsert gui project focus' SVideo position >>>=
-      timelineMode gui focus'
+      selectAssetAndInsert gui model SVideo position >>>= timelineMode gui
     (InsertClip Nothing, Just FocusedAudioPart {}) ->
-      selectAssetAndInsert gui project focus' SAudio position >>>=
-      timelineMode gui focus'
+      selectAssetAndInsert gui model SAudio position >>>= timelineMode gui
     (InsertGap (Just mt), Just FocusedParallel {}) ->
       case mt of
-        Video ->
-          insertGap gui project focus' SVideo position >>>=
-          timelineMode gui focus'
-        Audio ->
-          insertGap gui project focus' SAudio position >>>=
-          timelineMode gui focus'
+        Video -> insertGap gui model SVideo position >>>= timelineMode gui
+        Audio -> insertGap gui model SAudio position >>>= timelineMode gui
     (InsertGap Nothing, Just FocusedVideoPart {}) ->
-      insertGap gui project focus' SVideo position >>>= timelineMode gui focus'
+      insertGap gui model SVideo position >>>= timelineMode gui
     (InsertGap Nothing, Just FocusedAudioPart {}) ->
-      insertGap gui project focus' SAudio position >>>= timelineMode gui focus'
+      insertGap gui model SAudio position >>>= timelineMode gui
     (c, Just f) -> do
       iliftIO
         (putStrLn
@@ -159,7 +159,7 @@ insertIntoTimeline gui project focus' type' position =
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
   where
-    continue = timelineMode gui focus' project
+    continue = timelineMode gui model
 
 data Confirmation
   = Yes
@@ -174,16 +174,15 @@ instance DialogChoice Confirmation where
 insertGap
   :: Application t m
   => Name n
-  -> Project
-  -> Focus (ToFocusType Timeline)
+  -> TimelineModel
   -> SMediaType mt
   -> InsertPosition
   -> Actions
        (t m)
        '[n := Remain (State (t m) TimelineMode)]
        r
-       Project
-insertGap gui project focus' mediaType' position = do
+       TimelineModel
+insertGap gui model mediaType' position = do
   gapDuration <- prompt gui
                         "Insert Gap"
                         "Please specify a gap duration in seconds."
@@ -194,11 +193,11 @@ insertGap gui project focus' mediaType' position = do
         SAudio -> (InsertAudioParts [AudioGap () (durationFromSeconds seconds)])
   case gapDuration of
     Just seconds ->
-      project
-        &  timeline
-        %~ insert_ focus' (gapInsertion seconds) position
+      model
+        &  project . timeline
+        %~ insert_ (model ^. currentFocus) (gapInsertion seconds) position
         &  ireturn
-    Nothing -> ireturn project
+    Nothing -> ireturn model
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt = \case

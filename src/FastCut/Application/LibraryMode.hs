@@ -17,7 +17,6 @@ import           Data.Row.Records
 
 import           FastCut.Composition
 import           FastCut.Composition.Insert
-import           FastCut.Focus
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
@@ -56,47 +55,46 @@ selectAssetFromList gui model = do
 selectAsset ::
      (Application t m, r ~ (n .== State (t m) 'TimelineMode))
   => Name n
-  -> Project
-  -> Focus SequenceFocusType
+  -> TimelineModel
   -> SMediaType mt
   -> t m r r (Maybe [Asset mt])
-selectAsset gui project focus' = \case
+selectAsset gui model = \case
   SVideo ->
-    case NonEmpty.nonEmpty (project ^. library . videoAssets) of
+    case NonEmpty.nonEmpty (model ^. project . library . videoAssets) of
       Just vs -> do
-        let model = SelectAssetsModel SVideo vs []
-        enterLibrary gui model
-        assets <- selectAssetFromList gui model
-        returnToTimeline gui project focus'
+        let libraryModel = SelectAssetsModel SVideo vs []
+        enterLibrary gui libraryModel
+        assets <- selectAssetFromList gui libraryModel
+        returnToTimeline gui model
         ireturn assets
       Nothing -> ireturn Nothing
   SAudio ->
-    case NonEmpty.nonEmpty (project ^. library . audioAssets) of
+    case NonEmpty.nonEmpty (model ^. project . library . audioAssets) of
       Just as -> do
-        let model = SelectAssetsModel SAudio as []
-        enterLibrary gui model
-        assets <- selectAssetFromList gui model
-        returnToTimeline gui project focus'
+        let libraryModel = SelectAssetsModel SAudio as []
+        enterLibrary gui libraryModel
+        assets <- selectAssetFromList gui libraryModel
+        returnToTimeline gui model
         ireturn assets
       Nothing -> ireturn Nothing
 
 selectAssetAndInsert ::
      (Application t m, r ~ (n .== State (t m) 'TimelineMode))
   => Name n
-  -> Project
-  -> Focus SequenceFocusType
+  -> TimelineModel
   -> SMediaType mt
   -> InsertPosition
-  -> t m r r Project
-selectAssetAndInsert gui project focus' mediaType' position =
-  selectAsset gui project focus' mediaType' >>= \case
+  -> t m r r TimelineModel
+selectAssetAndInsert gui model mediaType' position =
+  selectAsset gui model mediaType' >>= \case
     Just assets ->
-      project
-        &  timeline
-        %~ insert_ focus' (insertionOf assets) position
-        &  ireturn
-    Nothing -> beep gui >>> ireturn project
- where
-  insertionOf a = case mediaType' of
-    SVideo -> InsertVideoParts (VideoClip () <$> a)
-    SAudio -> InsertAudioParts (AudioClip () <$> a)
+      model
+      & project . timeline
+      %~ insert_ (model ^. currentFocus) (insertionOf assets) position
+      & ireturn
+    Nothing -> beep gui >>> ireturn model
+  where
+    insertionOf a =
+      case mediaType' of
+        SVideo -> InsertVideoParts (VideoClip () <$> a)
+        SAudio -> InsertAudioParts (AudioClip () <$> a)

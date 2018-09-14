@@ -18,7 +18,6 @@ import           FastCut.Application.Base
 import           Control.Lens
 import           Data.String                 (fromString)
 
-import           FastCut.Focus
 import           FastCut.Import.Audio
 import           FastCut.Import.Video
 import           FastCut.Library
@@ -35,17 +34,16 @@ data ImportFileForm = ImportFileForm
 importFile
   :: Application t m
   => Name n
-  -> Project
-  -> Focus SequenceFocusType
-  -> ThroughMode TimelineMode ImportMode (t m) n Project
-importFile gui project focus' = do
+  -> TimelineModel
+  -> ThroughMode TimelineMode ImportMode (t m) n TimelineModel
+importFile gui timelineModel = do
   let initialModel =
         ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
   enterImport gui initialModel
   f <- fillForm initialModel
                 ImportFileForm {selectedFile = Nothing, autoSplit = False}
-  returnToTimeline gui project focus'
-  maybe (ireturn project) (importAsset gui project) f
+  returnToTimeline gui timelineModel
+  maybe (ireturn timelineModel) (importAsset gui timelineModel) f
   where
     fillForm model mf = do
       updateImport gui model
@@ -74,28 +72,28 @@ instance DialogChoice Ok where
 importAsset
   :: (UserInterface m, IxMonadIO m)
   => Name n
-  -> Project
+  -> TimelineModel
   -> (FilePath, Bool)
-  -> Actions m '[n := Remain (State m TimelineMode)] r Project
-importAsset gui project (filepath, autoSplit)
+  -> Actions m '[n := Remain (State m TimelineMode)] r TimelineModel
+importAsset gui timelineModel (filepath, autoSplit)
   | isSupportedVideoFile filepath
   = let
       action = case autoSplit of
-        True -> importVideoFileAutoSplit filepath (project ^. workingDirectory)
+        True -> importVideoFileAutoSplit filepath (timelineModel ^. project . workingDirectory)
         False ->
-          fmap (: []) <$> importVideoFile filepath (project ^. workingDirectory)
+          fmap (: []) <$> importVideoFile filepath (timelineModel ^. project . workingDirectory)
     in  progressBar gui "Import Video" action >>>= \case
           Nothing -> do
-            ireturn project
-          Just assets -> handleImportResult gui project SVideo assets
+            ireturn timelineModel
+          Just assets -> handleImportResult gui timelineModel SVideo assets
   | isSupportedAudioFile filepath
   = progressBar gui
                 "Import Video"
-                (importAudioFile filepath (project ^. workingDirectory))
+                (importAudioFile filepath (timelineModel ^. project . workingDirectory))
     >>>= \case
-           Nothing -> ireturn project
+           Nothing -> ireturn timelineModel
            Just asset ->
-             handleImportResult gui project SAudio (fmap pure asset)
+             handleImportResult gui timelineModel SAudio (fmap pure asset)
   | otherwise
   = do
     _ <- dialog
@@ -103,21 +101,21 @@ importAsset gui project (filepath, autoSplit)
       "Unsupported File"
       "The file extension of the file you've selected is not supported."
       [Ok]
-    ireturn project
+    ireturn timelineModel
 
 handleImportResult
   :: (UserInterface m, IxMonadIO m, Show err)
   => Name n
-  -> Project
+  -> TimelineModel
   -> SMediaType mt
   -> Either err [Asset mt]
-  -> Actions m '[n := Remain (State m TimelineMode)] r Project
-handleImportResult gui project mediaType result = case (mediaType, result) of
+  -> Actions m '[n := Remain (State m TimelineMode)] r TimelineModel
+handleImportResult gui model mediaType result = case (mediaType, result) of
   (_, Left err) -> do
     iliftIO (print err)
     _ <- dialog gui "Import Failed!" (show err) [Ok]
-    ireturn project
+    ireturn model
   (SVideo, Right assets) -> do
-    project & library . videoAssets %~ (<> assets) & ireturn
+    model & project . library . videoAssets %~ (<> assets) & ireturn
   (SAudio, Right assets) -> do
-    project & library . audioAssets %~ (<> assets) & ireturn
+    model & project . library . audioAssets %~ (<> assets) & ireturn

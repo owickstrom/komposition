@@ -20,6 +20,7 @@ import           GI.Gtk                      (Align (..), Box (..), Button (..),
                                               Image (..), Label (..),
                                               MenuBar (..), MenuItem (..),
                                               Orientation (..), PolicyType (..),
+                                              Scale (..),
                                               ScrolledWindow (..))
 import           GI.Gtk.Declarative
 
@@ -32,9 +33,9 @@ import           FastCut.Library
 import           FastCut.Project
 import           FastCut.UserInterface
 
-widthFromDuration :: Duration -> Int32
-widthFromDuration duration' =
-  round (durationToSeconds duration' * 50)
+widthFromDuration :: ZoomLevel -> Duration -> Int32
+widthFromDuration (ZoomLevel zl) duration' =
+  round (durationToSeconds duration' * 5 * zl)
 
 focusedClass :: Focused -> Text
 focusedClass = \case
@@ -45,11 +46,12 @@ focusedClass = \case
 renderClipAsset ::
      AssetMetadataLens asset
   => HasDuration asset
-  => Focus SequenceFocusType
+  => ZoomLevel
+  -> Focus SequenceFocusType
   -> Focused
   -> asset
   -> Widget (Event TimelineMode)
-renderClipAsset thisFocus focused asset' =
+renderClipAsset zl thisFocus focused asset' =
   container
     Box
     [ classes ["clip", focusedClass focused]
@@ -58,14 +60,15 @@ renderClipAsset thisFocus focused asset' =
     ] $
   boxChild False False 0 $
   widget Button [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-                , #widthRequest := widthFromDuration (durationOf asset')
+                , #widthRequest := widthFromDuration zl (durationOf asset')
                 ]
 
 renderGap ::
-     (Focus SequenceFocusType, Focused)
+     ZoomLevel
+  -> (Focus SequenceFocusType, Focused)
   -> Duration
   -> Widget (Event TimelineMode)
-renderGap (thisFocus, focused) duration' =
+renderGap zl (thisFocus, focused) duration' =
       container
         Box
         [ classes ["gap", focusedClass focused]
@@ -78,39 +81,45 @@ renderGap (thisFocus, focused) duration' =
         (widget
            Button
            [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-           , #widthRequest := widthFromDuration duration'
+           , #widthRequest := widthFromDuration zl duration'
            ])
 
-renderVideoPart :: VideoPart (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderVideoPart =
+renderVideoPart ::
+     ZoomLevel
+  -> VideoPart (Focus SequenceFocusType, Focused)
+  -> Widget (Event TimelineMode)
+renderVideoPart zl =
   \case
-    VideoClip (thisFocus, focused) asset' -> renderClipAsset thisFocus focused asset'
-    VideoGap ann duration' -> renderGap ann duration'
+    VideoClip (thisFocus, focused) asset' -> renderClipAsset zl thisFocus focused asset'
+    VideoGap ann duration' -> renderGap zl ann duration'
 
-renderAudioPart :: AudioPart (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderAudioPart =
+renderAudioPart ::
+     ZoomLevel
+  -> AudioPart (Focus SequenceFocusType, Focused)
+  -> Widget (Event TimelineMode)
+renderAudioPart zl =
   \case
-    AudioClip (thisFocus, focused) asset' -> renderClipAsset thisFocus focused asset'
-    AudioGap ann duration' -> renderGap ann duration'
+    AudioClip (thisFocus, focused) asset' -> renderClipAsset zl thisFocus focused asset'
+    AudioGap ann duration' -> renderGap zl ann duration'
 
-renderTimeline :: Timeline (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderTimeline (Timeline sub) =
+renderTimeline :: ZoomLevel -> Timeline (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderTimeline zl (Timeline sub) =
   container
     Box
     [classes ["composition", "timeline", emptyClass (null sub)]]
-    (mapM_ (boxChild False False 0 . renderSequence) (toList sub))
+    (mapM_ (boxChild False False 0 . renderSequence zl) (toList sub))
 
-renderSequence :: Sequence (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderSequence (Sequence (_thisFocus, focused) sub) =
+renderSequence :: ZoomLevel -> Sequence (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderSequence zl (Sequence (_thisFocus, focused) sub) =
   container
     Box
     [ classes
         ["composition", "sequence", focusedClass focused, emptyClass (null sub)]
     ]
-    (mapM_ (boxChild False False 0 . renderParallel) (toList sub))
+    (mapM_ (boxChild False False 0 . renderParallel zl) (toList sub))
 
-renderParallel :: Parallel (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
-renderParallel (Parallel (_thisFocus, focused) vs as) =
+renderParallel :: ZoomLevel -> Parallel (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
+renderParallel zl (Parallel (_thisFocus, focused) vs as) =
   container
     Box
     [ #orientation := OrientationVertical
@@ -125,12 +134,12 @@ renderParallel (Parallel (_thisFocus, focused) vs as) =
       $ container
           Box
           [classes ["video", focusedClass focused]]
-          (mapM_ (boxChild False False 0 . renderVideoPart) vs)
+          (mapM_ (boxChild False False 0 . renderVideoPart zl) vs)
     boxChild False False 0
       $ container
           Box
           [classes ["audio", focusedClass focused]]
-          (mapM_ (boxChild False False 0 . renderAudioPart) as)
+          (mapM_ (boxChild False False 0 . renderAudioPart zl) as)
 
 emptyClass :: Bool -> Text
 emptyClass True  = "empty"
@@ -180,15 +189,16 @@ renderMenu =
             (enumFrom minBound)
             (labelledItem . InsertCommand (InsertGap (Just mediaType')))
 
-timelineView :: Project -> Focus SequenceFocusType -> Widget (Event TimelineMode)
-timelineView project focus =
+timelineView :: TimelineModel -> Widget (Event TimelineMode)
+timelineView model =
   container Box [#orientation := OrientationVertical] $ do
     boxChild False False 0 renderMenu
     boxChild
       True
       True
       0
-      (renderPreviewPane (firstCompositionPart focus (project ^. timeline)))
+      (renderPreviewPane
+         (firstCompositionPart (model ^. currentFocus) (model ^. project . timeline)))
     boxChild False False 0 $
       bin
         ScrolledWindow
@@ -196,9 +206,23 @@ timelineView project focus =
         , #vscrollbarPolicy := PolicyTypeNever
         , classes ["timeline-container"]
         ]
-        (renderTimeline focusedTimelineWithSetFoci)
+        (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
+    boxChild False False 0 $
+      widget
+        Scale
+        [ classes ["zoom-level"]
+        , onM #valueChanged onZoomLevelChange
+        , afterCreated afterZoomLevelCreate
+        , #drawValue := False
+        ]
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci =
-      withAllFoci (project ^. timeline)
-      <&> \f -> (f, focusedState focus f)
+      withAllFoci (model ^. project . timeline) <&> \f ->
+        (f, focusedState (model ^. currentFocus) f)
+
+    afterZoomLevelCreate :: Scale -> IO ()
+    afterZoomLevelCreate scale =
+      #setRange scale 1 9
+
+    onZoomLevelChange = fmap (ZoomLevelChanged . ZoomLevel) . #getValue
