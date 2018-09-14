@@ -29,6 +29,7 @@ library
                       , FastCut.Composition.Delete
                       , FastCut.Composition.Focused
                       , FastCut.Composition.Insert
+                      , FastCut.Composition.Split
                       , FastCut.Duration
                       , FastCut.Focus
                       , FastCut.Focus.Parent

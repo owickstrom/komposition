@@ -69,3 +69,6 @@ instance HasDuration (Parallel a) where
 
 singleVideo :: VideoAsset -> Parallel ()
 singleVideo v = Parallel () [VideoClip () v] []
+
+emptyTimeline :: Timeline ()
+emptyTimeline = Timeline (Sequence () (Parallel () [] [] :| []) :| [])

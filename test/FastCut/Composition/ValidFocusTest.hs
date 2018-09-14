@@ -12,21 +12,24 @@ module FastCut.Composition.ValidFocusTest where
 import           FastCut.Prelude
 import qualified Prelude
 
-import           Hedgehog
+import           Hedgehog                       hiding (Parallel)
 import qualified Hedgehog.Gen                   as Gen hiding (parallel)
 import           Hedgehog.Range
 
 import           FastCut.Composition
 import           FastCut.Composition.Delete
 import           FastCut.Composition.Insert
+import           FastCut.Composition.Split
 import           FastCut.Focus
 import           FastCut.Focus.Parent
+import           FastCut.MediaType
 
 import qualified FastCut.Composition.Generators as Gen
 
 data TestCommand
   = TestChangeFocus FocusCommand
   | TestInsert (Insertion ()) InsertPosition
+  | TestSplit
   | TestDelete
   deriving (Eq, Show)
 
@@ -65,6 +68,19 @@ insertCommand _ focus = case focusType focus of
             ]
       <*> Gen.enumBounded
 
+splitCommands :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> [m TestCommand]
+splitCommands timeline focus =
+  case (parentAtFocus focus timeline, focus) of
+    (Just (SequenceParent (Sequence _ pars)), SequenceFocus _ (Just (ParallelFocus pIdx Nothing)))
+      | pars `validToSplitAt` pIdx -> [pure TestSplit]
+    (Just (ParallelParent (Parallel _ vs as)), SequenceFocus _ (Just (ParallelFocus _ (Just (ClipFocus mt cIdx)))))
+      | mt == Video && vs `validToSplitAt` cIdx -> [pure TestSplit]
+      | mt == Audio && as `validToSplitAt` cIdx -> [pure TestSplit]
+    _ -> []
+  where
+    validToSplitAt xs idx =
+      length xs >= 2 && idx > 0 && idx < (length xs - 1)
+
 deleteCommands
   :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> [m TestCommand]
 deleteCommands composition focus = case parentAtFocus focus composition of
@@ -79,6 +95,7 @@ testCommand
   :: MonadGen m => Timeline () -> Focus (ToFocusType Timeline) -> m TestCommand
 testCommand composition focus = Gen.frequency
   (  [(2, insertCommand composition focus)]
+  <> map (1, ) (splitCommands composition focus)
   <> map (1, ) (deleteCommands composition focus)
   )
 
@@ -99,14 +116,19 @@ applyTestCommand = \case
     Right focus'      -> pure (comp, focus')
   TestInsert insertion position -> \comp focus ->
     maybe failure (pure . (, focus)) (insert focus insertion position comp)
-  TestDelete -> \comp focus -> case delete focus comp of
-    Nothing                -> failure
-    Just (comp', Just cmd) -> do
-      focus' <- either (\e -> footnoteShow e >> failure)
-                       pure
-                       (modifyFocus comp cmd focus)
-      pure (comp', focus')
-    Just (comp', Nothing) -> pure (comp', focus)
+  TestSplit -> \comp focus ->
+    maybe failure pure (split focus comp)
+  TestDelete -> \comp focus ->
+    handleDeleteResult focus comp (delete focus comp)
+  where
+    handleDeleteResult focus comp = \case
+      Nothing                -> failure
+      Just (comp', Just cmd) -> do
+        focus' <- either (\e -> footnoteShow e >> failure)
+                         pure
+                         (modifyFocus comp cmd focus)
+        pure (comp', focus')
+      Just (comp', Nothing) -> pure (comp', focus)
 
 generateAndApplyTestCommands ::
      Monad m

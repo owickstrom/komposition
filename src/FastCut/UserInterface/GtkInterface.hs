@@ -109,40 +109,41 @@ unsubscribeView state = do
   unsubscribe (snd (currentView state))
 
 initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> IO Gtk.Window
-initializeWindow Env { cssPath, screen } obj =
+initializeWindow Env {cssPath, screen} obj =
   runUI $ do
     window' <- Gtk.windowNew Gtk.WindowTypeToplevel
     Gtk.windowSetTitle window' "FastCut"
     void $ Gtk.onWidgetDestroy window' Gtk.mainQuit
-
     cssProviderVar <- newMVar Nothing
     reloadCssProvider cssProviderVar
-
-    void $ window' `Gtk.onWidgetKeyPressEvent` \eventKey -> do
-      keyVal <- Gdk.getEventKeyKeyval eventKey
-      case keyVal of
-        Gdk.KEY_F5 ->
-          runUI
-            $       reloadCssProvider cssProviderVar
-            `catch` (\(e :: SomeException) -> print e)
-        _ -> return ()
-      return False
-
+    void $
+      window' `Gtk.onWidgetKeyPressEvent` \eventKey -> do
+        keyVal <- Gdk.getEventKeyKeyval eventKey
+        case keyVal of
+          Gdk.KEY_F5 -> reloadCssProvider cssProviderVar
+          _          -> return ()
+        return False
     windowStyle <- Gtk.widgetGetStyleContext window'
     Gtk.styleContextAddClass windowStyle "fastcut"
     Gtk.containerAdd window' =<< Gtk.toWidget =<< Declarative.create obj
     Gtk.widgetShowAll window'
     return window'
- where
-  cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
-  reloadCssProvider var = do
-    cssProvider <- Gtk.cssProviderNew
-    Gtk.cssProviderLoadFromPath cssProvider (Text.pack cssPath)
-    Gtk.styleContextAddProviderForScreen screen cssProvider cssPriority
-    takeMVar var >>= \case
-      Just p  -> Gtk.styleContextRemoveProviderForScreen screen p
-      Nothing -> return ()
-    putMVar var (Just cssProvider)
+  where
+    cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
+    reloadCssProvider var =
+      void . forkIO . flip catch (\(e :: SomeException) -> print e) $ do
+        putStrLn ("Reloading CSS provider" :: Text)
+        cssProvider <-
+          runUI $ do
+            p <- Gtk.cssProviderNew
+            Gtk.cssProviderLoadFromPath p (Text.pack cssPath)
+            Gtk.styleContextAddProviderForScreen screen p cssPriority
+            return p
+        tryTakeMVar var >>= \case
+          Just (Just p) ->
+            runUI (Gtk.styleContextRemoveProviderForScreen screen p)
+          _ -> return ()
+        putMVar var (Just cssProvider)
 
 getFirstChild :: Gtk.Window -> IO (Maybe Gtk.Widget)
 getFirstChild w =

@@ -162,6 +162,7 @@ renderMenu =
     subMenu "Timeline" $ do
       insertSubMenu Video
       insertSubMenu Audio
+      labelledItem Split
       labelledItem Delete
     subMenu "Help" $ do labelledItem Help
   where

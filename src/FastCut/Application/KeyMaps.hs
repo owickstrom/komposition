@@ -48,6 +48,7 @@ keymaps =
       , ([KeyChar 'a'], insertBindings RightOf)
       , ([KeyChar 'A'], insertBindings RightMost)
       , ([KeyChar 'd'], Mapping Delete)
+      , ([KeyChar 's'], Mapping Split)
       , ([KeyChar '?'], Mapping Help)
       , ([KeyChar 'q'], Mapping Exit)
       ]

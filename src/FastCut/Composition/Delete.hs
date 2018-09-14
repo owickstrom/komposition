@@ -3,7 +3,7 @@
 {-# LANGUAGE GADTs         #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns  #-}
--- | Transform a 'Composition' by deleting children.
+-- | Transform a composition by deleting children.
 
 module FastCut.Composition.Delete where
 
@@ -22,10 +22,10 @@ deleteAt splitAt' i xs =
   let (before, after) = splitAt' i xs
   in before <> drop 1 after
 
--- | Delete a 'Composition' or 'CompositionPart' at the 'Focus',
--- returning a new 'Composition' if the focus is valid, and possibly a
--- 'FocuCommand' required to obtain a new valid focus into the new
--- 'Composition'.
+-- | Delete a composition or part in the 'Timeline', at the 'Focus',
+-- returning a new 'Timeline' if the focus is valid, and possibly a
+-- 'FocusCommand' required to obtain a new valid focus into the new
+-- 'Timeline'.
 delete ::
      Focus (ToFocusType Timeline)
   -> Timeline a

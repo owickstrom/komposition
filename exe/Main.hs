@@ -16,18 +16,7 @@ initialProject :: FilePath -> IO Project
 initialProject workDir = do
   return Project
     { _projectName = "Test"
-    , _timeline =
-        Timeline
-          ( Sequence
-              ()
-              ( Parallel
-                  ()
-                  [VideoGap () 1]
-                  [AudioGap () 1]
-              :| []
-              )
-          :| []
-          )
+    , _timeline = emptyTimeline
     , _library = Library [] []
     , _workingDirectory = workDir
     }

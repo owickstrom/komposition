@@ -63,6 +63,7 @@ data Command (mode :: Mode) where
   FocusCommand :: FocusCommand -> Command TimelineMode
   JumpFocus :: Focus SequenceFocusType -> Command TimelineMode
   InsertCommand :: InsertType -> InsertPosition -> Command TimelineMode
+  Split :: Command TimelineMode
   Delete :: Command TimelineMode
   Import :: Command TimelineMode
   Render :: Command TimelineMode
@@ -84,6 +85,7 @@ commandName = \case
   JumpFocus _ -> "Jump Focus To"
   InsertCommand insertType insertPosition -> mconcat
     [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
+  Split         -> "Split"
   Delete        -> "Delete"
   Import        -> "Import Assets"
   Render        -> "Render"

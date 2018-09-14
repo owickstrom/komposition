@@ -12,16 +12,25 @@
   margin: .25em 0;
 }
 .timeline-container {
-  background-color: #aaa;
-  border-top: 1pt solid #888;
-  padding: 0 2px 2pt 2px;
+  background-color: #ccc;
+  border-top: 1pt solid #aaa;
+  padding: 2pt;
 }
 .timeline .sequence {
-  border-top: 2pt solid #bbb;
-  background-color: #bbb;
+  border: 2pt solid #aaa;
+  margin-left: 5pt;
+  background-color: #aaa;
+}
+.timeline .sequence:first-child {
+  margin-left: 0;
 }
 .timeline .parallel {
-  padding-top: 2pt;
+  border: 2pt solid #888;
+  background-color: #bbb;
+  margin-left: 2pt;
+}
+.timeline .parallel:first-child {
+  margin-left: 0;
 }
 .timeline .empty {
   min-width: 5em;
@@ -30,7 +39,6 @@
 .timeline .empty .audio,
 .timeline .empty .video {
   background-color: #d99;
-  box-shadow: inset 0pt 0pt 2pt rgba(0, 0, 0, 0.5);
 }
 
 .timeline .sequence .video,
@@ -38,7 +46,7 @@
   min-height: 2.5em;
 }
 .timeline .sequence .video {
-  border-bottom: 2pt solid #aaa;
+  border-bottom: 2pt solid #888;
 }
 .timeline .sequence .video .clip button {
   background-image: none;
@@ -52,33 +60,30 @@
   background: #bbb;
 }
 
-.timeline .composition.focused {
-  padding-top: 0;
-  border-top: 2pt solid #fff;
+.timeline .sequence.focused {
+  border-color: #fff;
+}
+.timeline .parallel.focused {
+  border-color: #fff;
 }
 
 .timeline .clip button,
 .timeline .gap button {
-  padding: 2px;
-  border: 1pt solid rgba(0, 0, 0, .2);
-  margin: 0 2pt;
+  padding: 2pt;
+  box-shadow: inset 0pt 0pt 1pt #000;
+  border-radius: 0;
 }
 .timeline .clip button {
-  box-shadow: inset 1pt 0pt 1pt rgba(255, 255, 255, 0.2);
 }
 .timeline .gap button {
   background-color: #777;
   background-image: url('stripes.png');
   background-size: 1.5em;
   background-repeat: repeat;
-  box-shadow: inset 1pt 0pt 1pt rgba(255, 255, 255, 0.2);
 }
 .timeline .clip.focused button,
 .timeline .gap.focused button {
-  padding: 1px;
-  border-width: 2pt;
-  border-color: #eee;
-  border-style: solid;
+  border: 2pt solid #eee;
 }
 .timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);

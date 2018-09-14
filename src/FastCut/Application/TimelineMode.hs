@@ -15,7 +15,7 @@ module FastCut.Application.TimelineMode where
 import           FastCut.Application.Base
 
 import           Control.Lens
-import           Data.Row.Records
+import           Data.Row.Records                hiding (split)
 import           Data.String                     (fromString)
 import           System.Directory
 import           Text.Printf
@@ -23,6 +23,7 @@ import           Text.Printf
 import           FastCut.Composition
 import           FastCut.Composition.Delete
 import           FastCut.Composition.Insert
+import           FastCut.Composition.Split
 import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.MediaType
@@ -68,6 +69,10 @@ timelineMode gui focus' project = do
             project & timeline .~ timeline' & timelineMode gui newFocus
       Just (timeline', Nothing) ->
         project & timeline .~ timeline' & timelineMode gui focus'
+    CommandKeyMappedEvent Split -> case split focus' (project ^. timeline) of
+      Just (timeline', newFocus) ->
+        project & timeline .~ timeline' & timelineMode gui newFocus
+      Nothing -> beep gui >> continue
     CommandKeyMappedEvent Import ->
       importFile gui project focus' >>>= timelineMode gui focus'
     CommandKeyMappedEvent Render ->
