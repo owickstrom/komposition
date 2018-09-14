@@ -172,9 +172,13 @@ renderMenu =
     insertSubMenu mediaType' =
       subMenu ("Insert " <> show mediaType') $ do
         subMenu "Clip" $
-          forM_ (enumFrom minBound) (labelledItem . InsertCommand (InsertClip mediaType'))
+          forM_
+            (enumFrom minBound)
+            (labelledItem . InsertCommand (InsertClip (Just mediaType')))
         subMenu " Gap" $
-          forM_ (enumFrom minBound) (labelledItem . InsertCommand (InsertGap mediaType'))
+          forM_
+            (enumFrom minBound)
+            (labelledItem . InsertCommand (InsertGap (Just mediaType')))
 
 timelineView :: Project -> Focus SequenceFocusType -> Widget (Event TimelineMode)
 timelineView project focus =

@@ -16,8 +16,10 @@ import           FastCut.MediaType
 insertBindings :: InsertPosition -> KeyMapEntry (Command 'TimelineMode)
 insertBindings position =
   SequencedMappings
-    [ ([KeyChar 'v'], mediaTypeBindings Video)
-    , ([KeyChar 'a'], mediaTypeBindings Audio)
+    [ ([KeyChar 'v'], mediaTypeBindings (Just Video))
+    , ([KeyChar 'a'], mediaTypeBindings (Just Audio))
+    , ([KeyChar 'c'], Mapping (InsertCommand (InsertClip Nothing) position))
+    , ([KeyChar 'g'], Mapping (InsertCommand (InsertGap Nothing) position))
     , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftMost))
     ]
   where

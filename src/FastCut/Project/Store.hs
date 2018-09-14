@@ -5,17 +5,18 @@ module FastCut.Project.Store
   , writeProjectFile
   ) where
 
-import           FastCut.Prelude     hiding (Type, list)
+import           FastCut.Prelude       hiding (Type, list)
 
-import           Data.Binary         (Binary)
-import qualified Data.Binary         as Binary
-import           Data.Time.Clock     (diffTimeToPicoseconds,
-                                      picosecondsToDiffTime)
+import           Data.Binary           (Binary)
+import qualified Data.Binary           as Binary
+import           Data.Time.Clock       (diffTimeToPicoseconds,
+                                        picosecondsToDiffTime)
 
 import           FastCut.Composition
 import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.Project
+import           FastCut.VideoSettings
 
 instance Binary AssetMetadata
 instance Binary VideoAsset
@@ -31,6 +32,8 @@ instance Binary a => Binary (Parallel a)
 instance Binary a => Binary (Sequence a)
 instance Binary a => Binary (Timeline a)
 instance Binary Library
+instance Binary Resolution
+instance Binary VideoSettings
 instance Binary Project
 
 readProjectFile :: FilePath -> IO Project

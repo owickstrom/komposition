@@ -120,44 +120,46 @@ insertIntoTimeline
 insertIntoTimeline gui project focus' type' position =
   case (type', atFocus focus' (project ^. timeline)) of
     (InsertComposition, Just (FocusedSequence _)) ->
-      selectAsset gui project focus' SVideo >>= \case
-        Just assets ->
-          project
-            &  timeline
-            %~ insert_ focus'
-                       (InsertParallel (Parallel () (VideoClip () <$> assets) []))
-                       RightOf
-            &  timelineMode gui focus'
-        Nothing -> beep gui >>> continue
-    (InsertClip Video, Just f) | validClipInsertFocus f ->
-      selectAssetAndInsert gui project focus' SVideo position
-        >>>= timelineMode gui focus'
-    (InsertClip Audio, Just f) | validClipInsertFocus f ->
-      selectAssetAndInsert gui project focus' SAudio position
-        >>>= timelineMode gui focus'
-    (InsertGap Video, Just f) | validClipInsertFocus f  ->
+      project & timeline %~
+      insert_ focus' (InsertParallel (Parallel () [] [])) RightOf &
+      timelineMode gui focus'
+    (InsertClip (Just mt), Just FocusedParallel {}) ->
+      case mt of
+        Video ->
+          selectAssetAndInsert gui project focus' SVideo position >>>=
+          timelineMode gui focus'
+        Audio ->
+          selectAssetAndInsert gui project focus' SAudio position >>>=
+          timelineMode gui focus'
+    (InsertClip Nothing, Just FocusedVideoPart {}) ->
+      selectAssetAndInsert gui project focus' SVideo position >>>=
+      timelineMode gui focus'
+    (InsertClip Nothing, Just FocusedAudioPart {}) ->
+      selectAssetAndInsert gui project focus' SAudio position >>>=
+      timelineMode gui focus'
+    (InsertGap (Just mt), Just FocusedParallel {}) ->
+      case mt of
+        Video ->
+          insertGap gui project focus' SVideo position >>>=
+          timelineMode gui focus'
+        Audio ->
+          insertGap gui project focus' SAudio position >>>=
+          timelineMode gui focus'
+    (InsertGap Nothing, Just FocusedVideoPart {}) ->
       insertGap gui project focus' SVideo position >>>= timelineMode gui focus'
-    (InsertGap Audio, Just f) | validClipInsertFocus f  ->
+    (InsertGap Nothing, Just FocusedAudioPart {}) ->
       insertGap gui project focus' SAudio position >>>= timelineMode gui focus'
     (c, Just f) -> do
       iliftIO
         (putStrLn
-          (  "Cannot perform "
-          <> show c
-          <> " when focused at "
-          <> prettyFocusedAt f
-          )
-        )
+           ("Cannot perform " <> show c <> " when focused at " <>
+            prettyFocusedAt f))
       continue
     (_, Nothing) -> do
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
-  where continue = timelineMode gui focus' project
-        validClipInsertFocus = \case
-          FocusedParallel{} -> True
-          FocusedVideoPart{} -> True
-          FocusedAudioPart{} -> True
-          _ -> False
+  where
+    continue = timelineMode gui focus' project
 
 data Confirmation
   = Yes

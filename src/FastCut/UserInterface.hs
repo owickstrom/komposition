@@ -52,8 +52,8 @@ instance ReturnsToTimeline ImportMode
 
 data InsertType
   = InsertComposition
-  | InsertClip MediaType
-  | InsertGap MediaType
+  | InsertClip (Maybe MediaType)
+  | InsertGap (Maybe MediaType)
   deriving (Show, Eq, Ord)
 
 data Command (mode :: Mode) where
@@ -74,37 +74,47 @@ deriving instance Eq (Command mode)
 deriving instance Ord (Command mode)
 
 commandName :: Command mode -> Text
-commandName = \case
-  Cancel           -> "Cancel"
-  Help             -> "Show Help"
-  FocusCommand cmd -> case cmd of
-    FocusUp    -> "Move Focus Up"
-    FocusDown  -> "Move Focus Down"
-    FocusLeft  -> "Move Focus Left"
-    FocusRight -> "Move Focus Right"
-  JumpFocus _ -> "Jump Focus To"
-  InsertCommand insertType insertPosition -> mconcat
-    [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
-  Split         -> "Split"
-  Delete        -> "Delete"
-  Import        -> "Import Assets"
-  Render        -> "Render"
-  Exit          -> "Exit"
-
+commandName =
+  \case
+    Cancel -> "Cancel"
+    Help -> "Show Help"
+    FocusCommand cmd ->
+      case cmd of
+        FocusUp    -> "Move Focus Up"
+        FocusDown  -> "Move Focus Down"
+        FocusLeft  -> "Move Focus Left"
+        FocusRight -> "Move Focus Right"
+    JumpFocus _ -> "Jump Focus To"
+    InsertCommand insertType insertPosition ->
+      mconcat
+        [ insertTypeName insertType
+        , " ("
+        , insertPositionName insertPosition
+        , ")"
+        ]
+    Split -> "Split"
+    Delete -> "Delete"
+    Import -> "Import Assets"
+    Render -> "Render"
+    Exit -> "Exit"
   where
     insertTypeName :: InsertType -> Text
-    insertTypeName = \case
-      InsertClip Video  -> "Insert Video Clip"
-      InsertGap Video   -> "Insert Video Gap"
-      InsertClip Audio  -> "Insert Audio Clip"
-      InsertGap Audio   -> "Insert Audio Gap"
-      InsertComposition -> "Insert Composition"
+    insertTypeName =
+      \case
+        InsertClip Nothing -> "Insert Clip"
+        InsertGap Nothing -> "Insert Gap"
+        InsertClip (Just Video) -> "Insert Video Clip"
+        InsertGap (Just Video) -> "Insert Video Gap"
+        InsertClip (Just Audio) -> "Insert Audio Clip"
+        InsertGap (Just Audio) -> "Insert Audio Gap"
+        InsertComposition -> "Insert Composition"
     insertPositionName :: InsertPosition -> Text
-    insertPositionName = \case
-      LeftMost  -> "Leftmost"
-      LeftOf    -> "Left of"
-      RightOf   -> "Right of"
-      RightMost -> "Rightmost"
+    insertPositionName =
+      \case
+        LeftMost -> "Leftmost"
+        LeftOf -> "Left of"
+        RightOf -> "Right of"
+        RightMost -> "Rightmost"
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode

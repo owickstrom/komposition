@@ -131,13 +131,13 @@ initializeWindow Env {cssPath, screen} obj =
   where
     cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
     reloadCssProvider var =
-      void . forkIO . flip catch (\(e :: SomeException) -> print e) $ do
-        putStrLn ("Reloading CSS provider" :: Text)
+      void . forkIO $ do
         cssProvider <-
           runUI $ do
             p <- Gtk.cssProviderNew
-            Gtk.cssProviderLoadFromPath p (Text.pack cssPath)
-            Gtk.styleContextAddProviderForScreen screen p cssPriority
+            flip catch (\(e :: SomeException) -> print e) $ do
+              Gtk.cssProviderLoadFromPath p (Text.pack cssPath)
+              Gtk.styleContextAddProviderForScreen screen p cssPriority
             return p
         tryTakeMVar var >>= \case
           Just (Just p) ->

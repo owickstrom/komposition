@@ -17,11 +17,12 @@ module FastCut.Import.Video where
 
 import           FastCut.Prelude         hiding (catch)
 
-import           Codec.FFmpeg
+import           Codec.FFmpeg            hiding (resolution)
 import           Codec.FFmpeg.Encode
 import qualified Codec.FFmpeg.Probe      as Probe
 import           Codec.Picture           as CP
 import           Codec.Picture.Types     as CP
+import           Control.Lens
 import           Control.Monad.Catch
 import           Control.Monad.Primitive
 import qualified Data.Massiv.Array       as A
@@ -44,6 +45,7 @@ import           Text.Printf
 import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.Progress
+import           FastCut.VideoSettings
 
 initialize :: IO ()
 initialize = initFFmpeg
@@ -94,14 +96,6 @@ toMassiv =
 
 fromMassiv :: (MonadIO m) => Pipe (Timed RGB8Frame) (Timed Frame) m ()
 fromMassiv = Pipes.map (fmap A.toJPImageRGB8)
-
-
-writeVideoFile :: MonadIO m => FilePath -> Producer Frame m () -> m ()
-writeVideoFile filePath source = do
-  let ep = (defaultH264 800 450) { epFps = 25 }
-  writeFrame <- liftIO (imageWriter ep filePath)
-  Pipes.runEffect $ Pipes.for source (liftIO . writeFrame . Just)
-  liftIO (writeFrame Nothing)
 
 dropTime :: Monad m => Pipe (Timed Frame) Frame m ()
 dropTime = Pipes.map untimed
@@ -261,11 +255,12 @@ printProcessingInfo =
 
 writeSplitSegmentVideoFiles ::
      MonadIO m
-  => FilePath
+  => VideoSettings
+  -> FilePath
   -> Producer (SplitSegment Frame) m ()
   -> Pipes.Effect m ()
-writeSplitSegmentVideoFiles outDir = Pipes.evalStateT $
-  draw' >>= \case
+writeSplitSegmentVideoFiles settings outDir =
+  Pipes.evalStateT $ draw' >>= \case
     Just (SplitSegment firstNr firstFrame) -> do
       writeFrame <- writerFor firstNr
       liftIO (writeFrame (Just firstFrame))
@@ -283,12 +278,16 @@ writeSplitSegmentVideoFiles outDir = Pipes.evalStateT $
             go n writeFrame
         Nothing -> liftIO (writeFrame Nothing)
     writerFor n =
-      let ep = (defaultH264 800 450) {epFps = 25}
+      let ep =
+            (defaultH264
+               (fromIntegral (settings ^. resolution . width))
+               (fromIntegral (settings ^. resolution . height)))
+            {epFps = fromIntegral (settings ^. frameRate)}
           filePath = outDir </> show n ++ ".mp4"
       in liftIO (imageWriter ep filePath)
 
-split :: Time -> FilePath -> FilePath -> IO ()
-split equalFramesTimeThreshold src outDir = do
+split :: VideoSettings -> Time -> FilePath -> FilePath -> IO ()
+split settings equalFramesTimeThreshold src outDir = do
   createDirectoryIfMissing True outDir
   let classified =
         classifyMovement
@@ -298,7 +297,7 @@ split equalFramesTimeThreshold src outDir = do
       padded = splitSegmentsWithPad classified
       writeSplitSegments =
         padded >-> Pipes.map (fmap (A.toJPImageRGB8 . untimed))
-        & writeSplitSegmentVideoFiles outDir
+        & writeSplitSegmentVideoFiles settings outDir
       printResult res = do
         putStrLn ("" :: Text)
         case res of
