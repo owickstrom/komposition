@@ -52,8 +52,8 @@ instance ReturnsToTimeline ImportMode
 
 data InsertType
   = InsertComposition
-  | InsertClip
-  | InsertGap
+  | InsertClip MediaType
+  | InsertGap MediaType
   deriving (Show, Eq, Ord)
 
 data Command (mode :: Mode) where
@@ -92,8 +92,10 @@ commandName = \case
   where
     insertTypeName :: InsertType -> Text
     insertTypeName = \case
-      InsertClip        -> "Insert Clip"
-      InsertGap         -> "Insert Gap"
+      InsertClip Video  -> "Insert Video Clip"
+      InsertGap Video   -> "Insert Video Gap"
+      InsertClip Audio  -> "Insert Audio Clip"
+      InsertGap Audio   -> "Insert Audio Gap"
       InsertComposition -> "Insert Composition"
     insertPositionName :: InsertPosition -> Text
     insertPositionName = \case

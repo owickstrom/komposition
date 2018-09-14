@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
@@ -10,6 +11,23 @@ import           FastCut.Application.Base
 import           FastCut.Composition.Insert
 import           FastCut.Focus
 import           FastCut.KeyMap
+import           FastCut.MediaType
+
+insertBindings :: InsertPosition -> KeyMapEntry (Command 'TimelineMode)
+insertBindings position =
+  SequencedMappings
+    [ ([KeyChar 'v'], mediaTypeBindings Video)
+    , ([KeyChar 'a'], mediaTypeBindings Audio)
+    , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftMost))
+    ]
+  where
+    mediaTypeBindings mediaType' =
+      SequencedMappings
+        [ ( [KeyChar 'c']
+          , Mapping (InsertCommand (InsertClip mediaType') position))
+        , ( [KeyChar 'g']
+          , Mapping (InsertCommand (InsertGap mediaType') position))
+        ]
 
 keymaps :: SMode m -> KeyMap (Command m)
 keymaps =
@@ -25,32 +43,10 @@ keymaps =
       , ([KeyRight], Mapping (FocusCommand FocusRight))
       , ([KeyChar 'i'], Mapping Import)
       , ([KeyChar 'r'], Mapping Render)
-      , ( [KeyChar 'p']
-        , SequencedMappings
-            [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip LeftOf))
-            , ([KeyChar 'g'], Mapping (InsertCommand InsertGap LeftOf))
-            , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftOf))
-            ])
-      , ( [KeyChar 'P']
-        , SequencedMappings
-            [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip LeftMost))
-            , ([KeyChar 'g'], Mapping (InsertCommand InsertGap LeftMost))
-            , ( [KeyChar 'p']
-              , Mapping (InsertCommand InsertComposition LeftMost))
-            ])
-      , ( [KeyChar 'a']
-        , SequencedMappings
-            [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip RightOf))
-            , ([KeyChar 'g'], Mapping (InsertCommand InsertGap RightOf))
-            , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition RightOf))
-            ])
-      , ( [KeyChar 'A']
-        , SequencedMappings
-            [ ([KeyChar 'c'], Mapping (InsertCommand InsertClip RightMost))
-            , ([KeyChar 'g'], Mapping (InsertCommand InsertGap RightMost))
-            , ( [KeyChar 'p']
-              , Mapping (InsertCommand InsertComposition RightMost))
-            ])
+      , ([KeyChar 'p'], insertBindings LeftOf)
+      , ([KeyChar 'P'], insertBindings LeftMost)
+      , ([KeyChar 'a'], insertBindings RightOf)
+      , ([KeyChar 'A'], insertBindings RightMost)
       , ([KeyChar 'd'], Mapping Delete)
       , ([KeyChar '?'], Mapping Help)
       , ([KeyChar 'q'], Mapping Exit)

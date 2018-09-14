@@ -124,20 +124,15 @@ insertIntoTimeline gui project focus' type' position =
                        RightOf
             &  timelineMode gui focus'
         Nothing -> beep gui >>> continue
-    (InsertClip, Just FocusedParallel{}) ->
+    (InsertClip Video, Just f) | validClipInsertFocus f ->
       selectAssetAndInsert gui project focus' SVideo position
         >>>= timelineMode gui focus'
-    (InsertClip, Just FocusedVideoPart{}) ->
-      selectAssetAndInsert gui project focus' SVideo position
-        >>>= timelineMode gui focus'
-    (InsertClip, Just FocusedAudioPart{}) ->
+    (InsertClip Audio, Just f) | validClipInsertFocus f ->
       selectAssetAndInsert gui project focus' SAudio position
         >>>= timelineMode gui focus'
-    (InsertGap, Just FocusedParallel{}) ->
+    (InsertGap Video, Just f) | validClipInsertFocus f  ->
       insertGap gui project focus' SVideo position >>>= timelineMode gui focus'
-    (InsertGap, Just FocusedVideoPart{}) ->
-      insertGap gui project focus' SVideo position >>>= timelineMode gui focus'
-    (InsertGap, Just FocusedAudioPart{}) ->
+    (InsertGap Audio, Just f) | validClipInsertFocus f  ->
       insertGap gui project focus' SAudio position >>>= timelineMode gui focus'
     (c, Just f) -> do
       iliftIO
@@ -153,6 +148,11 @@ insertIntoTimeline gui project focus' type' position =
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
   where continue = timelineMode gui focus' project
+        validClipInsertFocus = \case
+          FocusedParallel{} -> True
+          FocusedVideoPart{} -> True
+          FocusedAudioPart{} -> True
+          _ -> False
 
 data Confirmation
   = Yes

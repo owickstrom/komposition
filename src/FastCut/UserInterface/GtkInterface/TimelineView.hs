@@ -24,6 +24,7 @@ import           GI.Gtk                      (Align (..), Box (..), Button (..),
 import           GI.Gtk.Declarative
 
 import           FastCut.Composition
+import           FastCut.MediaType
 import           FastCut.Composition.Focused
 import           FastCut.Duration
 import           FastCut.Focus
@@ -159,17 +160,20 @@ renderMenu =
       labelledItem Render
       labelledItem Exit
     subMenu "Timeline" $ do
-      subMenu "Insert Clip" $
-        forM_ (enumFrom minBound) (labelledItem . InsertCommand InsertClip)
-      subMenu "Insert Gap" $
-        forM_ (enumFrom minBound) (labelledItem . InsertCommand InsertGap)
+      insertSubMenu Video
+      insertSubMenu Audio
       labelledItem Delete
-    subMenu "Help" $ do
-      labelledItem Help
+    subMenu "Help" $ do labelledItem Help
   where
     labelledItem cmd =
       menuItem MenuItem [on #activate (CommandKeyMappedEvent cmd)] $
       widget Label [#label := commandName cmd, #halign := AlignStart]
+    insertSubMenu mediaType' =
+      subMenu ("Insert " <> show mediaType') $ do
+        subMenu "Clip" $
+          forM_ (enumFrom minBound) (labelledItem . InsertCommand (InsertClip mediaType'))
+        subMenu " Gap" $
+          forM_ (enumFrom minBound) (labelledItem . InsertCommand (InsertGap mediaType'))
 
 timelineView :: Project -> Focus SequenceFocusType -> Widget (Event TimelineMode)
 timelineView project focus =
