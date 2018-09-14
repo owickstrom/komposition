@@ -67,20 +67,21 @@ TODO: instructions.
     - [X] Basic library view
     - [ ] Timeline auto-scroll
     - [X] Consistent single theme
-    - [ ] Video import without auto-splitting
-    - [ ] Audio import without auto-splitting
+    - [X] Video import without auto-splitting
+    - [X] Audio import without auto-splitting
     - [ ] Image (still frame) import
     - [X] Import and auto-split video
     - [ ] Import and auto-split audio
     - [X] Sequence and parallel structure of limited depth
     - [X] Support for key and widget events
-    - [X] Preview area for video clips
-    - [ ] Preview area for gaps
-    - [ ] Preview area for audio clips
+    - [X] Preview for video clips
+    - [ ] Preview for video gaps
+    - [ ] Preview for audio clips
+    - [ ] Preview for audio gaps
     - [X] Help windows showing key bindings
     - Commands
         - [X] Insert (append, prepend)
-        - [ ] Split sequence
+        - [X] Split sequence
         - [X] Delete
         - [X] Insert into empty parallel
         - [ ] Insert composition (sequence, parallel)
