@@ -1,7 +1,3 @@
-.fastcut > * {
-  min-width: 25em;
-  min-height: 20em;
-}
 .heading {
   font-size: 150%;
   font-weight: bold;
@@ -10,6 +6,10 @@
 .subheading {
   font-weight: bold;
   margin: .25em 0;
+}
+.preview-pane {
+  min-width: 25em;
+  min-height: 20em;
 }
 .timeline-container {
   background-color: #ccc;

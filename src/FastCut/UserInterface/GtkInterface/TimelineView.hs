@@ -146,15 +146,16 @@ emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
 renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
-renderPreviewPane = \case
-  Just (FirstVideoPart (VideoClip _ (VideoAsset meta))) ->
-    thumbnailImageOrPlaceholder (meta ^. thumbnail)
-  Just (FirstAudioPart (AudioClip _ (AudioAsset meta))) ->
-    thumbnailImageOrPlaceholder (meta ^. thumbnail)
-  Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
-  Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
-  Nothing                     -> noPreviewAvailable
-
+renderPreviewPane part =
+  container Box [classes ["preview-pane"]] $ boxChild True True 0 $
+    case part of
+      Just (FirstVideoPart (VideoClip _ (VideoAsset meta))) ->
+        thumbnailImageOrPlaceholder (meta ^. thumbnail)
+      Just (FirstAudioPart (AudioClip _ (AudioAsset meta))) ->
+        thumbnailImageOrPlaceholder (meta ^. thumbnail)
+      Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
+      Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
+      Nothing                     -> noPreviewAvailable
   where
     thumbnailImageOrPlaceholder = \case
       Just thumbnailFile -> widget Image [#file := toS thumbnailFile]
