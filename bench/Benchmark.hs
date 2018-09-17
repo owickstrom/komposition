@@ -28,14 +28,14 @@ main :: IO ()
 main = do
   jimg1 <- readJuicyTestImage 1
   jimg2 <- readJuicyTestImage 2
-  -- mimg1 <- readMassivTestImage 1
-  -- mimg2 <- readMassivTestImage 2
+  himg1 <- readMassivTestImage 1
+  himg2 <- readMassivTestImage 2
   defaultMain
     [ bgroup
         "fib"
-        [ bench "equalFrame(1)" $ whnf (equalFrame 1  0.999 jimg1) jimg1
-        , bench "!equalFrame(1)" $ whnf (equalFrame 1  0.999 jimg1) jimg2
-        , bench "equalFrame(32)" $ whnf (equalFrame 32 0.999 jimg1) jimg1
-        , bench "!equalFrame(32)" $ whnf (equalFrame 32  0.999 jimg1) jimg2
+        [ bench "equalFrame(1)" $ whnf (equalFrame 1  0.999 himg1) himg1
+        , bench "!equalFrame(1)" $ whnf (equalFrame 1  0.999 himg1) himg2
+        , bench "equalFrame'(32)" $ whnf (equalFrame' 1 0.99 himg1) himg1
+        , bench "!equalFrame'(32)" $ whnf (equalFrame' 1  0.99 himg1) himg2
         ]
     ]

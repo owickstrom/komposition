@@ -100,14 +100,8 @@ fromMassiv = Pipes.map (fmap A.toJPImageRGB8)
 dropTime :: Monad m => Pipe (Timed Frame) Frame m ()
 dropTime = Pipes.map untimed
 
-data EqCount = EqCount Int Int
-
-instance Semigroup EqCount where
-  EqCount eq neq <> EqCount eq' neq' = EqCount (eq + eq') (neq + neq')
-
-instance Monoid EqCount where
-  mempty = EqCount 0 0
-
+-- Compares all pixels using 'eps', counts the percent of equal ones,
+-- and checks if the count exceeds the 'minEqPct'.
 equalFrame :: Word8 -> Double -> RGB8Frame -> RGB8Frame ->  Bool
 equalFrame eps minEqPct f1 f2 =
   pct > minEqPct
@@ -118,6 +112,26 @@ equalFrame eps minEqPct f1 f2 =
     sumEq = A.sum (A.zipWith cmp f1 f2)
     total = A.totalElem (A.size f1)
     pct = fromIntegral sumEq / fromIntegral total
+
+-- Compares every 8th row of pixels using 'eps', and checks if the
+-- equal pixels in each row exceeds 'minEqPct'. Slightly faster than
+-- 'equalFrame', especially since it can do early return, but also
+-- less accurate (false positives).
+equalFrame' :: HasCallStack => Word8 -> Double -> RGB8Frame -> RGB8Frame ->  Bool
+equalFrame' eps minEqPct f1 f2 =
+  A.size f1 == A.size f2 && cmpRow 0
+  where
+    (A.Ix2 height' width') = min (A.size f1) (A.size f2)
+    step = 8
+    minEqPxs = floor (fromIntegral width' * minEqPct)
+    cmpRow i
+      | i < height' =
+        let sumEq :: Int32
+            sumEq = A.sum (A.zipWith cmp (f1 A.!> i) (f2 A.!> i))
+        in sumEq > minEqPxs && cmpRow (i + step)
+      | otherwise = True
+    cmp px1 px2 = if A.eqTolPx eps px1 px2 then 1 else 0
+    {-# INLINE cmp #-}
 
 data Classified f
   = Moving f
@@ -154,7 +168,7 @@ classifyMovement minStillSegmentTime =
     go state' =
        (state',) <$> draw' >>= \case
         (InMoving {..}, Just frame)
-          | equalFrame 1 0.999 (untimed frame) (untimed (VG.head equalFrames)) ->
+          | equalFrame' 1 0.99 (untimed frame) (untimed (VG.head equalFrames)) ->
             if time frame - time (VG.head equalFrames) > minEqualTimeForStill
               then do
                 VG.mapM_ (yield' . Moving) equalFrames
@@ -165,7 +179,7 @@ classifyMovement minStillSegmentTime =
             go (InMoving (VG.singleton frame))
         (InMoving {..}, Nothing) -> VG.mapM_ (yield' . Moving) equalFrames
         (InStill {..}, Just frame)
-          | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> do
+          | equalFrame' 1 0.99 (untimed (VG.head stillFrames)) (untimed frame) -> do
             go (InStill (VG.snoc stillFrames frame))
           | otherwise -> do
             let yieldFrame =
@@ -215,32 +229,6 @@ data PaddedSplitterState a
   = PaddedSplitterInStill Int !a
   | PaddedSplitterInMoving Int
 
-splitSegmentsWithPad :: Monad m => Producer (Classified (Timed a)) m () -> Producer (SplitSegment (Timed a)) m ()
-splitSegmentsWithPad =
-  Pipes.evalStateT $
-  draw' >>= \case
-    Just (Moving f) -> yield' (SplitSegment 1 f) >> go (PaddedSplitterInMoving 1)
-    Just (Still f) -> go (PaddedSplitterInStill 0 f)
-    Nothing -> return ()
-  where
-    go state' = do
-      cf <- draw'
-      case (state', cf) of
-        (PaddedSplitterInStill n _, Just (Still f)) ->
-          go (PaddedSplitterInStill n f)
-        (PaddedSplitterInMoving n, Just (Still f)) -> do
-          yield' (SplitSegment n f)
-          go (PaddedSplitterInStill n f)
-        (PaddedSplitterInStill n sf, Just (Moving f)) -> do
-          let n' = succ n
-          yield' (SplitSegment n' sf)
-          yield' (SplitSegment n' f)
-          go (PaddedSplitterInMoving n')
-        (PaddedSplitterInMoving n, Just (Moving f)) -> do
-          yield' (SplitSegment n f)
-          go (PaddedSplitterInMoving n)
-        (_, Nothing) -> return ()
-
 printProcessingInfo :: MonadIO m => Consumer' (Timed f) m ()
 printProcessingInfo =
   Pipes.mapM_ $ \(Timed _ n) ->
@@ -253,64 +241,13 @@ printProcessingInfo =
         (s `mod` 60)
       hFlush stdout
 
-writeSplitSegmentVideoFiles ::
+writeSplitVideoFiles ::
      MonadIO m
   => VideoSettings
   -> FilePath
-  -> Producer (SplitSegment Frame) m ()
-  -> Pipes.Effect m ()
-writeSplitSegmentVideoFiles settings outDir =
-  Pipes.evalStateT $ draw' >>= \case
-    Just (SplitSegment firstNr firstFrame) -> do
-      writeFrame <- writerFor firstNr
-      liftIO (writeFrame (Just firstFrame))
-      go firstNr writeFrame
-    Nothing -> return ()
-  where
-    go n writeFrame =
-      draw' >>= \case
-        Just (SplitSegment segmentNr frame)
-          | segmentNr > n -> do
-            liftIO (writeFrame Nothing)
-            go segmentNr =<< writerFor segmentNr
-          | otherwise -> do
-            liftIO (writeFrame (Just frame))
-            go n writeFrame
-        Nothing -> liftIO (writeFrame Nothing)
-    writerFor n =
-      let ep =
-            (defaultH264
-               (fromIntegral (settings ^. resolution . width))
-               (fromIntegral (settings ^. resolution . height)))
-            {epFps = fromIntegral (settings ^. frameRate)}
-          filePath = outDir </> show n ++ ".mp4"
-      in liftIO (imageWriter ep filePath)
-
-split :: VideoSettings -> Time -> FilePath -> FilePath -> IO ()
-split settings equalFramesTimeThreshold src outDir = do
-  createDirectoryIfMissing True outDir
-  let classified =
-        classifyMovement
-          equalFramesTimeThreshold
-          (readVideoFile src >-> toMassiv) >->
-        Pipes.tee (Pipes.map unClassified >-> printProcessingInfo)
-      padded = splitSegmentsWithPad classified
-      writeSplitSegments =
-        padded >-> Pipes.map (fmap (A.toJPImageRGB8 . untimed))
-        & writeSplitSegmentVideoFiles settings outDir
-      printResult res = do
-        putStrLn ("" :: Text)
-        case res of
-          Left _err -> putStrLn ("Failed." :: Text)
-          Right ()  -> putStrLn ("Success." :: Text)
-  Pipes.runEffect (Pipes.runExceptP writeSplitSegments >>= printResult)
-
-writeSplitVideoFiles ::
-     MonadIO m
-  => FilePath
   -> Producer (Classified (Timed Frame)) m ()
   -> Producer (Classified (Timed Frame)) m [FilePath]
-writeSplitVideoFiles outDir = Pipes.evalStateT (go (Left (), 1 :: Int, []))
+writeSplitVideoFiles settings outDir = Pipes.evalStateT (go (Left (), 1 :: Int, []))
   where
     go state' =
       draw' >>= \case
@@ -319,7 +256,10 @@ writeSplitVideoFiles outDir = Pipes.evalStateT (go (Left (), 1 :: Int, []))
           case (state', frame) of
             ((Left (), n, files), Still _) -> go (Left (), n, files)
             ((Left (), n, files), Moving f) -> do
-              let ep = (defaultH264 800 450) {epFps = 25}
+              let ep = (defaultH264
+                          (fromIntegral (settings ^. resolution . width))
+                          (fromIntegral (settings ^. resolution . height)))
+                       {epFps = fromIntegral (settings ^. frameRate)}
                   filePath = outDir </> show n ++ ".mp4"
               writeFrame <- liftIO (imageWriter ep filePath)
               liftIO (writeFrame (Just (untimed f)))
@@ -398,16 +338,17 @@ importVideoFile sourceFile outDir = do
 
 importVideoFileAutoSplit ::
      MonadIO m
-  => FilePath
+  => VideoSettings
+  -> FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
-importVideoFileAutoSplit sourceFile outDir = do
+importVideoFileAutoSplit settings sourceFile outDir = do
   liftIO (createDirectoryIfMissing True outDir)
   fullLength <- liftIO (getVideoFileDuration sourceFile)
   let classifiedFrames =
         classifyMovement 1.0 (readVideoFile sourceFile >-> toMassiv) >->
         Pipes.map (fmap (fmap A.toJPImageRGB8))
-  writeSplitVideoFiles outDir classifiedFrames >->
+  writeSplitVideoFiles settings outDir classifiedFrames >->
     Pipes.map (toProgress fullLength . unClassified) &
     (>>= mapM (filePathToVideoAsset outDir)) &
     Pipes.runExceptP
@@ -417,3 +358,24 @@ importVideoFileAutoSplit sourceFile outDir = do
 
 isSupportedVideoFile :: FilePath -> Bool
 isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv"]
+
+split :: VideoSettings -> Time -> FilePath -> FilePath -> IO ()
+split settings equalFramesTimeThreshold src outDir = do
+  createDirectoryIfMissing True outDir
+  let classified =
+        classifyMovement
+          equalFramesTimeThreshold
+          (readVideoFile src >-> toMassiv) >->
+        Pipes.tee (Pipes.map unClassified >-> printProcessingInfo)
+      writeSplitSegments =
+        classified >-> Pipes.map (fmap (fmap A.toJPImageRGB8)) &
+        writeSplitVideoFiles settings outDir
+      discardUpdates = forever Pipes.await
+      printResult res = do
+        putStrLn ("" :: Text)
+        case res of
+          Left _err -> putStrLn ("Failed." :: Text)
+          Right files ->
+            putStrLn ("Wrote " <> show (length files) <> " files." :: Text)
+  Pipes.runEffect
+    (Pipes.runExceptP writeSplitSegments >-> discardUpdates >>= printResult)

@@ -6,7 +6,6 @@ import           FastCut.Prelude
 
 import           Data.Time.Clock (DiffTime, diffTimeToPicoseconds,
                                   picosecondsToDiffTime)
-import           Dhall
 
 newtype Duration = Duration DiffTime
   deriving (Show, Eq, Ord, Num, Generic)
@@ -16,9 +15,6 @@ instance Semigroup Duration where
 
 instance Monoid Duration where
   mempty = 0
-
-instance Interpret Duration where
-  autoWith _ = durationFromSeconds <$> double
 
 durationFromSeconds :: Double -> Duration
 durationFromSeconds =

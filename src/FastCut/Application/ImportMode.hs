@@ -76,31 +76,38 @@ importAsset
   -> (FilePath, Bool)
   -> Actions m '[n := Remain (State m TimelineMode)] r TimelineModel
 importAsset gui timelineModel (filepath, autoSplit)
-  | isSupportedVideoFile filepath
-  = let
-      action = case autoSplit of
-        True -> importVideoFileAutoSplit filepath (timelineModel ^. project . workingDirectory)
-        False ->
-          fmap (: []) <$> importVideoFile filepath (timelineModel ^. project . workingDirectory)
-    in  progressBar gui "Import Video" action >>>= \case
-          Nothing -> do
-            ireturn timelineModel
-          Just assets -> handleImportResult gui timelineModel SVideo assets
-  | isSupportedAudioFile filepath
-  = progressBar gui
-                "Import Video"
-                (importAudioFile filepath (timelineModel ^. project . workingDirectory))
-    >>>= \case
-           Nothing -> ireturn timelineModel
-           Just asset ->
-             handleImportResult gui timelineModel SAudio (fmap pure asset)
-  | otherwise
-  = do
-    _ <- dialog
+  | isSupportedVideoFile filepath =
+    let action =
+          case autoSplit of
+            True ->
+              importVideoFileAutoSplit
+                (timelineModel ^. project . videoSettings)
+                filepath
+                (timelineModel ^. project . workingDirectory)
+            False ->
+              fmap (: []) <$>
+              importVideoFile
+                filepath
+                (timelineModel ^. project . workingDirectory)
+    in progressBar gui "Import Video" action >>>= \case
+         Nothing -> do
+           ireturn timelineModel
+         Just assets -> handleImportResult gui timelineModel SVideo assets
+  | isSupportedAudioFile filepath =
+    progressBar
       gui
-      "Unsupported File"
-      "The file extension of the file you've selected is not supported."
-      [Ok]
+      "Import Video"
+      (importAudioFile filepath (timelineModel ^. project . workingDirectory)) >>>= \case
+      Nothing -> ireturn timelineModel
+      Just asset ->
+        handleImportResult gui timelineModel SAudio (fmap pure asset)
+  | otherwise = do
+    _ <-
+      dialog
+        gui
+        "Unsupported File"
+        "The file extension of the file you've selected is not supported."
+        [Ok]
     ireturn timelineModel
 
 handleImportResult
