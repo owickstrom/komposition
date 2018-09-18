@@ -75,6 +75,7 @@ TODO: instructions.
     - [X] Support for key and widget events
     - [X] Preview for video clips
     - [X] Help windows showing key bindings
+    - [ ] Rescale video clips when rendering
     - Commands
         - [X] Insert (append, prepend)
         - [X] Split sequence
@@ -82,7 +83,7 @@ TODO: instructions.
         - [X] Insert into empty parallel
         - [ ] Insert composition (sequence, parallel)
     - [X] Offline video rendering, including hold-frame
-    - [ ] Offline rendering including audio
+    - [X] Offline rendering including audio
 * 0.2.0
     - [ ] Image (still frame) import
     - [ ] Save/open project
