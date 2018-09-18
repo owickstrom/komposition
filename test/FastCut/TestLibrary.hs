@@ -8,8 +8,13 @@ import           FastCut.Composition
 import           FastCut.Duration
 import           FastCut.Library
 
-video4s = VideoClip () (VideoAsset (AssetMetadata "1.mp4" 4) Nothing (Just "thumb.png")) (TimeSpan 0 4)
-video10s = VideoClip () (VideoAsset (AssetMetadata "2.mp4" 10) Nothing (Just "thumb.png")) (TimeSpan 0 10)
+video4s = VideoClip () (VideoAsset (AssetMetadata "1.mp4" 4) Nothing) (TimeSpan 0 4) "thumb.png"
+video10s =
+  VideoClip
+    ()
+    (VideoAsset (AssetMetadata "2.mp4" 10) Nothing)
+    (TimeSpan 0 10)
+    "thumb.png"
 audio1s = AudioClip () $ AudioAsset (AssetMetadata "1.m4a" 1)
 audio4s = AudioClip () $ AudioAsset (AssetMetadata "2.m4a" 4)
 audio10s = AudioClip () $ AudioAsset (AssetMetadata "3.m4a" 10)

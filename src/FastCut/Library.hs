@@ -26,7 +26,6 @@ makeLenses ''AssetMetadata
 data VideoAsset =
   VideoAsset { _videoAssetMetadata   :: AssetMetadata
              , _videoClassifiedScene :: Maybe (Integer, TimeSpan)
-             , _videoThumbnail       :: Maybe FilePath
              }
   deriving (Show, Eq, Generic)
 

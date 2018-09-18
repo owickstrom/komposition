@@ -326,12 +326,11 @@ getVideoFileDuration f =
 filePathToVideoAsset ::
      (MonadError VideoImportError m, MonadIO m)
   => FilePath
-  -> FilePath
   -> m VideoAsset
-filePathToVideoAsset outDir p = do
+filePathToVideoAsset p = do
   d <- liftIO (getVideoFileDuration p)
   let meta = AssetMetadata p d
-  VideoAsset meta Nothing <$> generateVideoThumbnail p outDir
+  pure (VideoAsset meta Nothing)
 
 generateVideoThumbnail ::
      (MonadError VideoImportError m, MonadIO m)
@@ -371,7 +370,7 @@ importVideoFile sourceFile outDir = do
     return assetPath
   -- Generate thumbnail and return asset
   Pipes.yield (ProgressUpdate 0.5) *>
-    (filePathToVideoAsset outDir assetPath & runExceptT)
+    (filePathToVideoAsset assetPath & runExceptT)
     <* Pipes.yield (ProgressUpdate 1)
 
 importVideoFileAutoSplit ::
@@ -393,9 +392,7 @@ importVideoFileAutoSplit _settings sourceFile _outDir = do
       ProgressUpdate (time / fullLength)
     toSceneAsset fullLength n timeSpan = do
       let meta = AssetMetadata sourceFile fullLength
-      liftIO (FastCut.Prelude.print (n, timeSpan))
-      -- TODO: Generate thumbnail at time span start.
-      return (VideoAsset meta (Just (n, timeSpan)) Nothing)
+      return (VideoAsset meta (Just (n, timeSpan)))
 
 isSupportedVideoFile :: FilePath -> Bool
 isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov"]

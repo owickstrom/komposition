@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
@@ -91,7 +92,7 @@ renderVideoPart ::
   -> Widget (Event TimelineMode)
 renderVideoPart zl =
   \case
-    VideoClip (thisFocus, focused) asset' ts -> renderClipAsset zl thisFocus focused asset' (durationOf ts)
+    VideoClip (thisFocus, focused) asset' ts _ -> renderClipAsset zl thisFocus focused asset' (durationOf ts)
     VideoGap ann duration' -> renderGap zl ann duration'
 
 renderAudioPart ::
@@ -150,17 +151,16 @@ renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMod
 renderPreviewPane part =
   container Box [classes ["preview-pane"]] $ boxChild True True 0 $
     case part of
-      Just (FirstVideoPart (VideoClip _ videoAsset _)) ->
-        thumbnailImageOrPlaceholder (videoAsset ^. videoThumbnail)
+      Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
+        thumbnailImage (toS thumbnail)
       Just (FirstAudioPart AudioClip{}) ->
         noPreviewAvailable
       Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
       Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
       Nothing                     -> noPreviewAvailable
   where
-    thumbnailImageOrPlaceholder = \case
-      Just thumbnailFile -> widget Image [#file := toS thumbnailFile]
-      Nothing -> noPreviewAvailable
+    thumbnailImage thumbnailFile =
+       widget Image [#file := thumbnailFile]
     noPreviewAvailable = widget Label [#label := "No preview available."]
 
 renderMenu :: Widget (Event TimelineMode)

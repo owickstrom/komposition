@@ -69,15 +69,11 @@ TODO: instructions.
     - [X] Consistent single theme
     - [X] Video import without auto-splitting
     - [X] Audio import without auto-splitting
-    - [ ] Image (still frame) import
     - [X] Import and auto-split video
     - [ ] Import and auto-split audio
     - [X] Sequence and parallel structure of limited depth
     - [X] Support for key and widget events
     - [X] Preview for video clips
-    - [ ] Preview for video gaps
-    - [ ] Preview for audio clips
-    - [ ] Preview for audio gaps
     - [X] Help windows showing key bindings
     - Commands
         - [X] Insert (append, prepend)
@@ -88,12 +84,16 @@ TODO: instructions.
     - [X] Offline video rendering, including hold-frame
     - [ ] Offline rendering including audio
 * 0.2.0
+    - [ ] Image (still frame) import
     - [ ] Save/open project
     - [ ] Script/subtitle split
     - [ ] Subtitle editing
     - [ ] Command fuzzy completion
     - [ ] Undo
     - [ ] Yank/paste
+    - [ ] Preview for video gaps
+    - [ ] Preview for audio clips
+    - [ ] Preview for audio gaps
 
 ## License
 

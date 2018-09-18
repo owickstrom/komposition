@@ -48,11 +48,8 @@ videoPart = Gen.choice [clip, gap]
       spanEnd' <-
         duration'
           (linear (ceiling (durationToSeconds spanStart') + 1) maxDuration)
-      pure
-        (VideoClip
-           ()
-           (VideoAsset meta Nothing Nothing)
-           (TimeSpan spanStart' spanEnd'))
+      VideoClip () (VideoAsset meta Nothing) (TimeSpan spanStart' spanEnd') <$>
+        Gen.string (linear 1 50) Gen.unicode
     gap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
 
 audioPart :: MonadGen m => m (CompositionPart Audio ())

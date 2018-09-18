@@ -2,6 +2,7 @@
 
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE RankNTypes       #-}
@@ -21,6 +22,9 @@ import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
+import qualified FastCut.Render.Composition  as Composition
+import           FastCut.Render.FFmpeg
+import           FastCut.VideoSettings
 
 import           FastCut.Application.KeyMaps
 
@@ -88,19 +92,27 @@ selectAssetAndInsert ::
   -> t m r r TimelineModel
 selectAssetAndInsert gui model mediaType' position =
   selectAsset gui model mediaType' >>= \case
-    Just assets ->
-      model & project . timeline %~
-      insert_ (model ^. currentFocus) (insertionOf assets) position &
-      ireturn
+    Just assets -> do
+      i <- insertionOf assets
+      model & project . timeline %~ insert_ (model ^. currentFocus) i position &
+        ireturn
     Nothing -> beep gui >>> ireturn model
   where
     insertionOf a =
       case mediaType' of
-        SVideo -> InsertVideoParts (toVideoClip <$> a)
-        SAudio -> InsertAudioParts (AudioClip () <$> a)
+        SVideo -> iliftIO (InsertVideoParts <$> mapM toVideoClip a)
+        SAudio -> ireturn (InsertAudioParts (AudioClip () <$> a))
+    toVideoClip :: VideoAsset -> IO (VideoPart ())
     toVideoClip videoAsset =
-      VideoClip () videoAsset $
-      maybe
-        (TimeSpan 0 (durationOf videoAsset))
-        snd
-        (videoAsset ^. videoClassifiedScene)
+      let ts =
+            maybe
+              (TimeSpan 0 (durationOf videoAsset))
+              snd
+              (videoAsset ^. videoClassifiedScene)
+      in VideoClip () videoAsset ts <$>
+         extractFrameToFile
+           (fromIntegral (model ^. project . videoSettings . frameRate))
+           Composition.FirstFrame
+           videoAsset
+           ts
+           (model ^. project . workingDirectory)

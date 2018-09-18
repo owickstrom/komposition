@@ -8,7 +8,8 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
 module FastCut.Render.FFmpeg
-  ( toRenderCommand
+  ( extractFrameToFile
+  , toRenderCommand
   , RenderResult(..)
   , renderComposition
   )
@@ -23,11 +24,14 @@ import qualified Data.Text                     as Text
 import           Data.Vector                   (Vector)
 import qualified Data.Vector                   as Vector
 import           Pipes
+import           System.Directory
 import           System.FilePath
 import qualified System.IO                     as IO
+import           System.IO.Error               (isDoesNotExistError)
 import           System.IO.Temp
 import           System.Process
 import           Text.Printf
+
 
 import           FastCut.Duration
 import           FastCut.Library
@@ -64,38 +68,27 @@ data CommandInput mt = CommandInput
   , inputStreams :: NonEmpty (PartStreamName, PartStream mt)
   }
 
-extractNumberOfFrames :: FilePath -> IO Integer
-extractNumberOfFrames videoFile = do
-  let probeCommand = proc "ffprobe" ["-show_streams", videoFile]
-  (exit, sout, _) <- readCreateProcessWithExitCode probeCommand ""
-  when
-    (exit /= ExitSuccess)
-    (Prelude.fail
-      ("Couldn't read number of frames in video file: " <> videoFile)
-    )
-  Text.pack sout
-    & Text.lines
-    & mapMaybe parseKeyValue
-    & find ((== "nb_frames") . fst)
-    & map snd
-    & (>>= readDecimal)
-    & maybe
-        (Prelude.fail ("Couldn't parse number of frames from ffprobe output: " <> sout))
-        return
-  where
-    parseKeyValue t = case Text.splitOn "=" t of
-      [key, value] -> Just (key, value)
-      _            -> Nothing
-
 extractFrameToFile
-  :: FrameRate -> Composition.StillFrameMode -> Asset Video -> TimeSpan -> FilePath -> IO ()
-extractFrameToFile frameRate mode videoAsset ts frameFile = do
+  :: FrameRate -> Composition.StillFrameMode -> Asset Video -> TimeSpan -> FilePath -> IO FilePath
+extractFrameToFile frameRate mode videoAsset ts frameDir = do
   let sourcePath = videoAsset ^. assetMetadata . path
+      -- Not the best hash...
+      frameHash =
+        hash
+          ( mode
+          , sourcePath
+          , durationToSeconds (spanStart ts)
+          , durationToSeconds (spanEnd ts))
+      frameFilePath = frameDir </> show (abs frameHash) <> ".png"
+  removeFile frameFilePath `catch` \case
+    e | isDoesNotExistError e -> return ()
+      | otherwise -> throwIO e
   case mode of
-    Composition.FirstFrame -> extractFrame sourcePath (spanStart ts) frameFile
+    Composition.FirstFrame -> extractFrame sourcePath (spanStart ts) frameFilePath
     Composition.LastFrame ->
       let frameDuration = durationFromSeconds (1 / fromIntegral frameRate)
-      in extractFrame sourcePath (spanEnd ts - frameDuration) frameFile
+      in extractFrame sourcePath (spanEnd ts - frameDuration) frameFilePath
+  return frameFilePath
   where
     extractFrame :: FilePath -> Duration -> FilePath -> IO ()
     extractFrame sourcePath startAfter frameFileName = do
@@ -103,20 +96,20 @@ extractFrameToFile frameRate mode videoAsset ts frameFile = do
         ("Extracting frame at " <> printTimestamp startAfter <> " from " <>
          toS sourcePath <>
          ".")
-      runFFmpeg $
-        proc
-          "ffmpeg"
-          [ "-nostdin"
-          , "-ss"
-          , printf "%f" (durationToSeconds startAfter)
-          , "-i"
-          , sourcePath
-          , "-t"
-          , "1"
-          , "-vframes"
-          , "1"
-          , frameFileName
-          ]
+      let allArgs =
+            [ "-nostdin"
+            , "-ss"
+            , printf "%f" (durationToSeconds startAfter)
+            , "-i"
+            , sourcePath
+            , "-t"
+            , "1"
+            , "-vframes"
+            , "1"
+            , frameFileName
+            ]
+      putStrLn $ Text.unwords ("ffmpeg" : map toS allArgs)
+      runFFmpeg $ proc "ffmpeg" allArgs
     runFFmpeg cmd = do
       (exit, _, err) <- readCreateProcessWithExitCode cmd ""
       when
@@ -155,15 +148,7 @@ toCommandInput tmpDir frameRate startAt parts' =
           ii <- addUniqueInput (VideoAssetInput asset)
           return ("v" <> show vi, VideoClipStream ii ts)
         (vi, Composition.StillFrame mode asset ts duration') -> do
-          let frameHash =
-                -- Not the best hash...
-                hash
-                  ( mode
-                  , asset ^. assetMetadata . path
-                  , durationToSeconds (spanStart ts)
-                  , durationToSeconds (spanEnd ts))
-              frameFile = tmpDir </> show frameHash <> ".png"
-          lift (extractFrameToFile frameRate mode asset ts frameFile)
+          frameFile <- lift (extractFrameToFile frameRate mode asset ts tmpDir)
           ii <- addUniqueInput (StillFrameInput frameFile frameRate duration')
           return ("v" <> show vi, StillFrameStream ii)
         (ai, Composition.AudioClip asset) -> do
