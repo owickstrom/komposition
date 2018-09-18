@@ -26,6 +26,8 @@ instance Binary Duration where
   get = Duration . picosecondsToDiffTime <$> Binary.get
   put (Duration d) = Binary.put (diffTimeToPicoseconds d)
 
+instance Binary TimeSpan
+
 instance Binary a => Binary (VideoPart a)
 instance Binary a => Binary (AudioPart a)
 instance Binary a => Binary (Parallel a)

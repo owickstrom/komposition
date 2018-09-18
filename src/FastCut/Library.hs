@@ -17,20 +17,26 @@ import           FastCut.Duration
 import           FastCut.MediaType
 
 data AssetMetadata = AssetMetadata
-  { _path      :: FilePath
-  , _duration  :: Duration
-  , _thumbnail :: Maybe FilePath
+  { _path     :: FilePath
+  , _duration :: Duration
   } deriving (Eq, Show, Generic)
 
 makeLenses ''AssetMetadata
 
-newtype VideoAsset =
-  VideoAsset AssetMetadata
+data VideoAsset =
+  VideoAsset { _videoAssetMetadata   :: AssetMetadata
+             , _videoClassifiedScene :: Maybe (Integer, TimeSpan)
+             , _videoThumbnail       :: Maybe FilePath
+             }
   deriving (Show, Eq, Generic)
 
-newtype AudioAsset =
-  AudioAsset AssetMetadata
+makeLenses ''VideoAsset
+
+data AudioAsset =
+  AudioAsset { _audioAssetMetadata :: AssetMetadata }
   deriving (Show, Eq, Generic)
+
+makeLenses ''AudioAsset
 
 type family Asset (mt :: MediaType) where
   Asset Audio = AudioAsset
@@ -40,16 +46,16 @@ class AssetMetadataLens a where
   assetMetadata :: Functor f => (AssetMetadata -> f AssetMetadata) -> a -> f a
 
 instance AssetMetadataLens VideoAsset where
-  assetMetadata f (VideoAsset meta) = VideoAsset <$> f meta
+  assetMetadata = videoAssetMetadata
 
 instance AssetMetadataLens AudioAsset where
-  assetMetadata f (AudioAsset meta) = AudioAsset <$> f meta
+  assetMetadata = audioAssetMetadata
 
 instance HasDuration VideoAsset where
-  durationOf (VideoAsset meta) = meta ^. duration
+  durationOf va = va ^. videoAssetMetadata . duration
 
 instance HasDuration AudioAsset where
-  durationOf (AudioAsset meta) = meta ^. duration
+  durationOf aa = aa ^. audioAssetMetadata . duration
 
 data Library = Library
   { _videoAssets :: [VideoAsset]

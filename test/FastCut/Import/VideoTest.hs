@@ -168,5 +168,3 @@ hprop_classifiesStillSegmentsOfMinLength =
           Just (middle, _last) -> mapM_ (assertStillLengthAtLeast 2.0) middle
   where
     resolution = 20 :. 20
-
-hprop_padsMovingSegmentsWithStillFrames = property $ True === True

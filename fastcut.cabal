@@ -158,6 +158,7 @@ test-suite fastcut-tests
                  , fastcut
                  , hedgehog
                  , JuicyPixels
+                 , lens
                  , pipes
                  , pipes-parse
                  , massiv

@@ -168,7 +168,7 @@ classifyMovement minStillSegmentTime =
     go state' =
        (state',) <$> draw' >>= \case
         (InMoving {..}, Just frame)
-          | equalFrame' 1 0.99 (untimed frame) (untimed (VG.head equalFrames)) ->
+          | equalFrame 1 0.999 (untimed frame) (untimed (VG.head equalFrames)) ->
             if time frame - time (VG.head equalFrames) > minEqualTimeForStill
               then do
                 VG.mapM_ (yield' . Moving) equalFrames
@@ -179,7 +179,7 @@ classifyMovement minStillSegmentTime =
             go (InMoving (VG.singleton frame))
         (InMoving {..}, Nothing) -> VG.mapM_ (yield' . Moving) equalFrames
         (InStill {..}, Just frame)
-          | equalFrame' 1 0.99 (untimed (VG.head stillFrames)) (untimed frame) -> do
+          | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> do
             go (InStill (VG.snoc stillFrames frame))
           | otherwise -> do
             let yieldFrame =
@@ -278,6 +278,46 @@ writeSplitVideoFiles settings outDir = Pipes.evalStateT (go (Left (), 1 :: Int, 
               liftIO (writeFrame Nothing)
               return (reverse files)
 
+classifyMovingScenes ::
+     Monad m
+  => Duration
+  -> Producer (Classified (Timed Frame)) m ()
+  -> Producer Time m [TimeSpan]
+classifyMovingScenes fullLength =
+  Pipes.evalStateT $
+  draw' >>= \case
+    Just (Still _) -> go (Left (), [])
+    Just (Moving _) -> go (Right (0, 0), [])
+    Nothing -> return []
+  where
+    go state' =
+      draw' >>= \case
+        Just frame -> do
+          yield' (time (unClassified frame))
+          case (state', frame) of
+            ((Left (), spans), Still _) -> go (Left (), spans)
+            ((Left (), spans), Moving f) -> go (Right (time f, time f), spans)
+            ((Right (firstTime, _), spans), Still f) ->
+              go
+                ( Left ()
+                , spans <>
+                  [ TimeSpan
+                      (durationFromSeconds firstTime)
+                      (durationFromSeconds (time f))
+                  ])
+            ((Right (firstTime, _), spans), Moving f) ->
+              go (Right (firstTime, time f), spans)
+        Nothing ->
+          case state' of
+            (Left (), spans) -> return spans
+            (Right (startTime, _), spans) ->
+              return $
+              spans <>
+              [ TimeSpan
+                  (durationFromSeconds startTime)
+                  fullLength
+              ]
+
 getVideoFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m Duration
 getVideoFileDuration f =
   Duration . picosecondsToDiffTime . (* 1000000) . fromIntegral <$>
@@ -289,11 +329,9 @@ filePathToVideoAsset ::
   -> FilePath
   -> m VideoAsset
 filePathToVideoAsset outDir p = do
-  md <-
-    AssetMetadata p
-    <$> liftIO (getVideoFileDuration p)
-    <*> generateVideoThumbnail p outDir
-  pure (VideoAsset md)
+  d <- liftIO (getVideoFileDuration p)
+  let meta = AssetMetadata p d
+  VideoAsset meta Nothing <$> generateVideoThumbnail p outDir
 
 generateVideoThumbnail ::
      (MonadError VideoImportError m, MonadIO m)
@@ -342,22 +380,25 @@ importVideoFileAutoSplit ::
   -> FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
-importVideoFileAutoSplit settings sourceFile outDir = do
-  liftIO (createDirectoryIfMissing True outDir)
+importVideoFileAutoSplit _settings sourceFile _outDir = do
   fullLength <- liftIO (getVideoFileDuration sourceFile)
   let classifiedFrames =
         classifyMovement 1.0 (readVideoFile sourceFile >-> toMassiv) >->
         Pipes.map (fmap (fmap A.toJPImageRGB8))
-  writeSplitVideoFiles settings outDir classifiedFrames >->
-    Pipes.map (toProgress fullLength . unClassified) &
-    (>>= mapM (filePathToVideoAsset outDir)) &
+  classifyMovingScenes fullLength classifiedFrames >-> Pipes.map (toProgress fullLength) &
+    (>>= zipWithM (toSceneAsset fullLength) [1..]) &
     Pipes.runExceptP
   where
-    toProgress (durationToSeconds -> fullLength) Timed {..} =
+    toProgress (durationToSeconds -> fullLength) time =
       ProgressUpdate (time / fullLength)
+    toSceneAsset fullLength n timeSpan = do
+      let meta = AssetMetadata sourceFile fullLength
+      liftIO (FastCut.Prelude.print (n, timeSpan))
+      -- TODO: Generate thumbnail at time span start.
+      return (VideoAsset meta (Just (n, timeSpan)) Nothing)
 
 isSupportedVideoFile :: FilePath -> Bool
-isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv"]
+isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov"]
 
 split :: VideoSettings -> Time -> FilePath -> FilePath -> IO ()
 split settings equalFramesTimeThreshold src outDir = do

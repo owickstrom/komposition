@@ -62,6 +62,9 @@ data Filter
   = Concat { concatSegments     :: Integer
            , concatVideoStreams :: Integer
            , concatAudioStreams :: Integer }
+  | Trim { trimStart    :: Duration
+         , trimDuration :: Duration
+         }
   | SetPTSStart
   | AudioSetPTSStart
 
@@ -84,20 +87,25 @@ printCommandLineArgs Command {..} =
     <> [toS output]
 
 printSourceArgs :: Source -> [Text]
-printSourceArgs = \case
-  FileSource path -> ["-i", toS path]
-  StillFrameSource path frameRate duration ->
-    [ "-loop"
-    , "1"
-    , "-framerate"
-    , show frameRate
-    , "-t"
-    , printTimestamp duration
-    , "-i"
-    , toS path
-    ]
-  AudioNullSource d ->
-    ["-f", "lavfi", "-i", "aevalsrc=0:duration=" <> show (durationToSeconds d)]
+printSourceArgs =
+  \case
+    FileSource path -> ["-i", toS path]
+    StillFrameSource path frameRate duration ->
+      [ "-loop"
+      , "1"
+      , "-framerate"
+      , show frameRate
+      , "-t"
+      , printTimestamp duration
+      , "-i"
+      , toS path
+      ]
+    AudioNullSource d ->
+      [ "-f"
+      , "lavfi"
+      , "-i"
+      , "aevalsrc=0:duration=" <> show (durationToSeconds d)
+      ]
 
 printMapping :: StreamSelector -> [Text]
 printMapping sel = ["-map", encloseInBrackets (printStreamSelector sel)]
@@ -116,15 +124,26 @@ printFilterGraph (FilterGraph chains) = Text.intercalate
         <> foldMap (encloseInBrackets . printStreamSelector) filterOutputs
 
 printFilter :: Filter -> Text
-printFilter = \case
-  Concat {..} -> toS
-    (printf "concat=n=%d:v=%d:a=%d"
-            concatSegments
-            concatVideoStreams
-            concatAudioStreams :: Prelude.String
-    )
-  SetPTSStart      -> "setpts=PTS-STARTPTS"
-  AudioSetPTSStart -> "asetpts=PTS-STARTPTS"
+printFilter =
+  \case
+    Concat {..} ->
+      toS
+        (printf
+           "concat=n=%d:v=%d:a=%d"
+           concatSegments
+           concatVideoStreams
+           concatAudioStreams :: Prelude.String)
+    Trim {..} ->
+      toS
+        (printf
+           "trim=start=%f:duration=%f"
+           -- NOTE: the trim filter appearantly doesn't handle
+           -- timestamp format well, so we format as seconds with
+           -- decimal numbers
+           (durationToSeconds trimStart)
+           (durationToSeconds trimDuration) :: Prelude.String)
+    SetPTSStart -> "setpts=PTS-STARTPTS"
+    AudioSetPTSStart -> "asetpts=PTS-STARTPTS"
 
 printStreamSelector :: StreamSelector -> Text
 printStreamSelector StreamSelector {..} =

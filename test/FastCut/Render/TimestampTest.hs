@@ -8,20 +8,29 @@ import qualified Prelude
 import           Hedgehog
 import           Hedgehog.Range
 
+import           FastCut.Duration
 import           FastCut.Render.Timestamp
 
 import qualified FastCut.Composition.Generators as Gen
 
+equalishTo d1 d2 =
+  when (abs (durationToSeconds d1 - durationToSeconds d2) > eps) $ do
+    footnoteShow d1
+    footnoteShow d2
+    failure
+  where
+    eps = 0.01
+
 hprop_roundtripTimestamp =
   property $ do
-    d <- forAll $ Gen.duration (exponential 1 (2 ^ 16))
+    d <- forAll $ Gen.duration' (exponential 1 (2 ^ 16))
 
     let printed = printTimestamp d
     annotate (toS printed)
 
-    let parsed = parseTimestamp printed
+    let Just parsed = parseTimestamp printed
     annotateShow parsed
 
-    parsed === Just d
+    parsed `equalishTo` d
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}

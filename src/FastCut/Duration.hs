@@ -28,6 +28,9 @@ class HasDuration t where
   durationOf :: t -> Duration
 
 data TimeSpan = TimeSpan
-  { spanStart :: DiffTime
-  , spanEnd   :: DiffTime
-  } deriving (Eq, Show)
+  { spanStart :: Duration
+  , spanEnd   :: Duration
+  } deriving (Eq, Show, Ord, Generic)
+
+instance HasDuration TimeSpan where
+  durationOf (TimeSpan start end) = end - start

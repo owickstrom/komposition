@@ -17,6 +17,7 @@ import           Data.Row.Records
 
 import           FastCut.Composition
 import           FastCut.Composition.Insert
+import           FastCut.Duration
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Project
@@ -88,13 +89,18 @@ selectAssetAndInsert ::
 selectAssetAndInsert gui model mediaType' position =
   selectAsset gui model mediaType' >>= \case
     Just assets ->
-      model
-      & project . timeline
-      %~ insert_ (model ^. currentFocus) (insertionOf assets) position
-      & ireturn
+      model & project . timeline %~
+      insert_ (model ^. currentFocus) (insertionOf assets) position &
+      ireturn
     Nothing -> beep gui >>> ireturn model
   where
     insertionOf a =
       case mediaType' of
-        SVideo -> InsertVideoParts (VideoClip () <$> a)
+        SVideo -> InsertVideoParts (toVideoClip <$> a)
         SAudio -> InsertAudioParts (AudioClip () <$> a)
+    toVideoClip videoAsset =
+      VideoClip () videoAsset $
+      maybe
+        (TimeSpan 0 (durationOf videoAsset))
+        snd
+        (videoAsset ^. videoClassifiedScene)

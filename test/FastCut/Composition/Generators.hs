@@ -5,6 +5,7 @@ module FastCut.Composition.Generators where
 
 import           FastCut.Prelude                   hiding ( nonEmpty )
 
+import           Control.Lens
 import           Hedgehog                          hiding ( Parallel(..) )
 import qualified Hedgehog.Gen                  as Gen
 import           Hedgehog.Range
@@ -12,9 +13,7 @@ import           Hedgehog.Range
 import           FastCut.Composition
 import           FastCut.Focus
 import           FastCut.Duration
-import           FastCut.Library                   hiding ( assetMetadata
-                                                          , duration
-                                                          )
+import           FastCut.Library                   hiding (assetMetadata)
 import           FastCut.MediaType
 
 timeline :: MonadGen m => Range Int -> m (Parallel ()) -> m (Timeline ())
@@ -40,22 +39,38 @@ parallelWithClips = Parallel () <$> vs <*> as
   isClip VideoGap{}  = False
 
 videoPart :: MonadGen m => m (CompositionPart Video ())
-videoPart = Gen.choice
-  [VideoClip () . VideoAsset <$> assetMetadata, VideoGap () <$> duration (linear 1 10 :: Range Int)]
+videoPart = Gen.choice [clip, gap]
+  where
+    clip = do
+      meta <- assetMetadata
+      let maxDuration = floor (durationToSeconds (meta ^. duration)) :: Int
+      spanStart' <- duration' (linear 0 maxDuration)
+      spanEnd' <-
+        duration'
+          (linear (ceiling (durationToSeconds spanStart') + 1) maxDuration)
+      pure
+        (VideoClip
+           ()
+           (VideoAsset meta Nothing Nothing)
+           (TimeSpan spanStart' spanEnd'))
+    gap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
 
 audioPart :: MonadGen m => m (CompositionPart Audio ())
-audioPart = Gen.choice
-  [AudioClip () . AudioAsset <$> assetMetadata, AudioGap () <$> duration (linear 1 10 :: Range Int)]
+audioPart = Gen.choice [clip, gap]
+  where
+    clip = do
+      meta <- assetMetadata
+      pure (AudioClip () (AudioAsset meta))
+    gap = AudioGap () <$> duration' (linear 1 10 :: Range Int)
 
-duration :: Integral n => MonadGen m => Range n -> m Duration
-duration range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)
+duration' :: Integral n => MonadGen m => Range n -> m Duration
+duration' range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)
 
 assetMetadata :: MonadGen m => m AssetMetadata
 assetMetadata =
   AssetMetadata
     <$> Gen.string (linear 1 50) Gen.unicode
-    <*> duration (linear 1 10 :: Range Int)
-    <*> Gen.choice [pure Nothing, Just <$> Gen.string (linear 1 50) Gen.unicode]
+    <*> duration' (linear 1 10 :: Range Int)
 
 -- With Focus
 
@@ -85,7 +100,7 @@ parallelFocus (Sequence _ pars) =
 
 clipFocus
   :: MonadGen m => Parallel () -> m (Focus ClipFocusType)
-clipFocus (Parallel _ vs as) = Gen.choice (anyOf Video vs <> anyOf Audio as)
+clipFocus (Parallel _ vs as) = Gen.choice (anyOf' Video vs <> anyOf' Audio as)
  where
-  anyOf mediaType xs =
+  anyOf' mediaType xs =
     [ pure (ClipFocus mediaType i) | i <- [0 .. pred (length xs)] ]

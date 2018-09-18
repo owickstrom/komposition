@@ -50,8 +50,9 @@ renderClipAsset ::
   -> Focus SequenceFocusType
   -> Focused
   -> asset
+  -> Duration
   -> Widget (Event TimelineMode)
-renderClipAsset zl thisFocus focused asset' =
+renderClipAsset zl thisFocus focused asset' duration' =
   container
     Box
     [ classes ["clip", focusedClass focused]
@@ -60,7 +61,7 @@ renderClipAsset zl thisFocus focused asset' =
     ] $
   boxChild False False 0 $
   widget Button [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-                , #widthRequest := widthFromDuration zl (durationOf asset')
+                , #widthRequest := widthFromDuration zl duration'
                 ]
 
 renderGap ::
@@ -90,7 +91,7 @@ renderVideoPart ::
   -> Widget (Event TimelineMode)
 renderVideoPart zl =
   \case
-    VideoClip (thisFocus, focused) asset' -> renderClipAsset zl thisFocus focused asset'
+    VideoClip (thisFocus, focused) asset' ts -> renderClipAsset zl thisFocus focused asset' (durationOf ts)
     VideoGap ann duration' -> renderGap zl ann duration'
 
 renderAudioPart ::
@@ -99,7 +100,7 @@ renderAudioPart ::
   -> Widget (Event TimelineMode)
 renderAudioPart zl =
   \case
-    AudioClip (thisFocus, focused) asset' -> renderClipAsset zl thisFocus focused asset'
+    AudioClip (thisFocus, focused) asset' -> renderClipAsset zl thisFocus focused asset' (durationOf asset')
     AudioGap ann duration' -> renderGap zl ann duration'
 
 renderTimeline :: ZoomLevel -> Timeline (Focus SequenceFocusType, Focused) -> Widget (Event TimelineMode)
@@ -149,10 +150,10 @@ renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMod
 renderPreviewPane part =
   container Box [classes ["preview-pane"]] $ boxChild True True 0 $
     case part of
-      Just (FirstVideoPart (VideoClip _ (VideoAsset meta))) ->
-        thumbnailImageOrPlaceholder (meta ^. thumbnail)
-      Just (FirstAudioPart (AudioClip _ (AudioAsset meta))) ->
-        thumbnailImageOrPlaceholder (meta ^. thumbnail)
+      Just (FirstVideoPart (VideoClip _ videoAsset _)) ->
+        thumbnailImageOrPlaceholder (videoAsset ^. videoThumbnail)
+      Just (FirstAudioPart AudioClip{}) ->
+        noPreviewAvailable
       Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
       Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
       Nothing                     -> noPreviewAvailable

@@ -26,38 +26,37 @@ data AudioImportError
   deriving (Show, Eq)
 
 importAudioFile ::
-     MonadIO m
+     (MonadIO m, MonadMask m)
   => FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either AudioImportError (Asset Audio))
 importAudioFile audioFile outDir = do
   Pipes.yield (ProgressUpdate 0)
   -- Copy asset to working directory
-  assetPath <- liftIO $ do
-    createDirectoryIfMissing True outDir
-    let assetPath = outDir </> takeFileName audioFile
-    copyFile audioFile assetPath
-    return assetPath
+  assetPath <-
+    liftIO $ do
+      createDirectoryIfMissing True outDir
+      let assetPath = outDir </> takeFileName audioFile
+      copyFile audioFile assetPath
+      return assetPath
   -- Generate thumbnail and return asset
   Pipes.yield (ProgressUpdate 0.5) *>
-    (filePathToAudioAsset outDir assetPath & runExceptT)
-    <* Pipes.yield (ProgressUpdate 1)
+    (lift (filePathToAudioAsset outDir assetPath & runExceptT)) <*
+    Pipes.yield (ProgressUpdate 1)
 
 isSupportedAudioFile :: FilePath -> Bool
 isSupportedAudioFile p = takeExtension p `elem` [".wav", ".mp3", ".m4a", ".aiff", ".aac"]
 
 filePathToAudioAsset ::
-     (MonadError AudioImportError m, MonadIO m)
+     (MonadError AudioImportError m, MonadMask m, MonadIO m)
   => FilePath
   -> FilePath
   -> m (Asset Audio)
 filePathToAudioAsset _outDir audioFilePath = do
+  d <- getAudioFileDuration audioFilePath
+  let meta = AssetMetadata audioFilePath d
   -- TODO: Generate waveform thumbnail
-  meta <-
-    AssetMetadata audioFilePath
-    <$> liftIO (getAudioFileDuration audioFilePath)
-    <*> pure Nothing
-  pure (AudioAsset meta)
+  return (AudioAsset meta)
 
 getAudioFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m Duration
 getAudioFileDuration f =

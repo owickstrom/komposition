@@ -23,7 +23,7 @@ type family CompositionPart (mt :: MediaType) where
   CompositionPart 'Audio = AudioPart
 
 data VideoPart a
-  = VideoClip a VideoAsset
+  = VideoClip a VideoAsset TimeSpan
   | VideoGap a Duration
   deriving (Eq, Show, Functor, Generic)
 
@@ -34,7 +34,7 @@ data AudioPart a
 
 instance HasDuration (VideoPart a) where
   durationOf = \case
-    VideoClip _ a -> durationOf a
+    VideoClip _ _ ts -> durationOf ts
     VideoGap _ d -> d
 
 instance HasDuration (AudioPart a) where
@@ -66,9 +66,6 @@ instance HasDuration (Sequence a) where
 instance HasDuration (Parallel a) where
   durationOf (Parallel _ vs as) =
     max (foldMap durationOf vs) (foldMap durationOf as)
-
-singleVideo :: VideoAsset -> Parallel ()
-singleVideo v = Parallel () [VideoClip () v] []
 
 emptyTimeline :: Timeline ()
 emptyTimeline = Timeline (Sequence () (Parallel () [] [] :| []) :| [])

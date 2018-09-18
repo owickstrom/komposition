@@ -43,16 +43,42 @@ printTimestamp d =
   in
     toS (printf "%02d:%02d:%s" hours minutes secondsStr :: Prelude.String)
 
-renderAsset ::
-     AssetMetadataLens asset
-  => asset
-  -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
-renderAsset asset' =
-  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $ container Box [] $ do
+renderVideoAsset ::
+     VideoAsset -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
+renderVideoAsset asset' =
+  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $
+  case asset' ^. videoClassifiedScene of
+    Just (n, timeSpan) ->
+      container Box [classes ["video", "classified-scene"]] $ do
+        let lbl :: Prelude.String
+            lbl = printf "%s (%d)" (takeFileName (asset' ^. assetMetadata . path)) n
+        boxChild True False 0 $ widget Label [#label := toS lbl]
+        boxChild False False 10 $
+          widget Label [#label := printTimestamp (durationOf timeSpan)]
+    Nothing ->
+      container Box [classes ["video"]] $ do
+        boxChild True False 0 $
+          widget
+            Label
+            [#label := toS (takeFileName (asset' ^. assetMetadata . path))]
+        boxChild False False 10 $
+          widget
+            Label
+            [#label := printTimestamp (asset' ^. assetMetadata . duration)]
+
+renderAudioAsset ::
+     AudioAsset -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
+renderAudioAsset asset' =
+  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $
+  container Box [classes ["audio"]] $ do
     boxChild True False 0 $
-      widget Label [#label := toS (takeFileName (asset' ^. assetMetadata . path))]
+      widget
+        Label
+        [#label := toS (takeFileName (asset' ^. assetMetadata . path))]
     boxChild False False 10 $
-      widget Label [#label := printTimestamp (asset' ^. assetMetadata . duration)]
+      widget
+        Label
+        [#label := printTimestamp (asset' ^. assetMetadata . duration)]
 
 libraryView ::  SelectAssetsModel mt -> Widget (Event LibraryMode)
 libraryView SelectAssetsModel {..} =
@@ -94,8 +120,8 @@ libraryView SelectAssetsModel {..} =
         , classes ["clips"]
         ] $
       case mediaType of
-        SVideo -> for_ allAssets renderAsset
-        SAudio -> for_ allAssets renderAsset
+        SVideo -> for_ allAssets renderVideoAsset
+        SAudio -> for_ allAssets renderAudioAsset
     emitAssetsSelected listBox = do
       is <- map fromIntegral <$> (#getSelectedRows listBox >>= mapM #getIndex)
       let selected = (allAssets ^.. traversed . indices (`elem` is))

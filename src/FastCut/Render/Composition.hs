@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveAnyClass     #-}
+{-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -22,23 +24,23 @@ import           FastCut.MediaType
 data Composition =
   Composition (NonEmpty (CompositionPart Video))
               (NonEmpty (CompositionPart Audio))
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 data StillFrameMode = FirstFrame | LastFrame
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Hashable)
 
 data CompositionPart mt where
-  VideoClip :: VideoAsset -> CompositionPart Video
+  VideoClip :: VideoAsset -> TimeSpan -> CompositionPart Video
   StillFrame
-    :: StillFrameMode -> VideoAsset -> Duration -> CompositionPart Video
+    :: StillFrameMode -> VideoAsset -> TimeSpan -> Duration -> CompositionPart Video
   AudioClip :: AudioAsset -> CompositionPart Audio
   Silence :: Duration -> CompositionPart Audio
 
 instance HasDuration (CompositionPart mt) where
   durationOf = \case
-    VideoClip a -> durationOf a
+    VideoClip _ ts -> durationOf ts
     AudioClip a -> durationOf a
-    StillFrame _ _ d  -> d
+    StillFrame _ _ _ d  -> d
     Silence d -> d
 
 deriving instance Eq (CompositionPart t)
@@ -70,37 +72,36 @@ flattenSequence (Core.Sequence _ pars) = foldMap flattenParallel pars
 
 flattenParallel :: Core.Parallel a -> Maybe Tracks
 flattenParallel (Core.Parallel _ vs as) =
-  let (video, lastAsset, _) = foldl' foldVideo (mempty, Nothing, mempty) vs
+  let (video, lastAsset, lastGaps) =
+        foldl' foldVideo (mempty, Nothing, mempty) vs
       audio = foldMap toAudio as
-  in matchTrackDurations video audio <$> lastAsset
+  in matchTrackDurations <$> addGapsWithLastFrame video lastAsset lastGaps <*>
+     return audio <*>
+     lastAsset
   where
     foldVideo (tracks, lastAsset, precedingGaps) =
       \case
-        Core.VideoClip _ asset ->
+        Core.VideoClip _ asset ts ->
           ( tracks <>
             Tracks
-              (map (StillFrame FirstFrame asset) precedingGaps <> [VideoClip asset])
+              (map (StillFrame FirstFrame asset ts) precedingGaps <>
+               [VideoClip asset ts])
               []
-          , Just asset
+          , Just (asset, ts)
           , [])
-        Core.VideoGap _ d ->
-          case lastAsset of
-            Just asset ->
-              ( tracks <> Tracks [StillFrame LastFrame asset d] []
-              , lastAsset
-              , precedingGaps)
-            Nothing -> (tracks, lastAsset, precedingGaps <> [d])
+        Core.VideoGap _ d -> (tracks, lastAsset, precedingGaps <> [d])
     toAudio =
       \case
         Core.AudioClip _ asset -> Tracks [] [AudioClip asset]
         Core.AudioGap _ d -> Tracks [] [Silence d]
-    matchTrackDurations video audio lastAsset =
+    matchTrackDurations video audio (lastAsset, ts) =
       case (durationOf video, durationOf audio) of
         (vd, ad)
           | vd < ad ->
-            video <> Tracks [StillFrame LastFrame lastAsset (ad - vd)] [] <>
+            video <> Tracks [StillFrame LastFrame lastAsset ts (ad - vd)] [] <>
             audio
-          | vd > ad ->
-            video <> audio <> Tracks [] [Silence (vd - ad)]
-          | otherwise ->
-            video <> audio
+          | vd > ad -> video <> audio <> Tracks [] [Silence (vd - ad)]
+          | otherwise -> video <> audio
+    addGapsWithLastFrame videoTrack mLastAsset gaps =
+      mLastAsset >>= \(lastAsset, ts) ->
+        pure (videoTrack <> Tracks (map (StillFrame LastFrame lastAsset ts) gaps) [])

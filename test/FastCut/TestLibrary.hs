@@ -5,13 +5,14 @@ module FastCut.TestLibrary where
 import           FastCut.Prelude
 
 import           FastCut.Composition
+import           FastCut.Duration
 import           FastCut.Library
 
-video4s = VideoClip () $ VideoAsset (AssetMetadata "1.mp4" 4 (Just "thumb.png"))
-video10s = VideoClip () $ VideoAsset (AssetMetadata "2.mp4" 10 (Just "thumb.png"))
-audio1s = AudioClip () $ AudioAsset (AssetMetadata "1.m4a" 1 (Just "thumb.png"))
-audio4s = AudioClip () $ AudioAsset (AssetMetadata "2.m4a" 4 (Just "thumb.png"))
-audio10s = AudioClip () $ AudioAsset (AssetMetadata "3.m4a" 10 (Just "thumb.png"))
+video4s = VideoClip () (VideoAsset (AssetMetadata "1.mp4" 4) Nothing (Just "thumb.png")) (TimeSpan 0 4)
+video10s = VideoClip () (VideoAsset (AssetMetadata "2.mp4" 10) Nothing (Just "thumb.png")) (TimeSpan 0 10)
+audio1s = AudioClip () $ AudioAsset (AssetMetadata "1.m4a" 1)
+audio4s = AudioClip () $ AudioAsset (AssetMetadata "2.m4a" 4)
+audio10s = AudioClip () $ AudioAsset (AssetMetadata "3.m4a" 10)
 videoGap1s = VideoGap () 1
 videoGap3s = VideoGap () 3
 audioGap1s = AudioGap () 1
