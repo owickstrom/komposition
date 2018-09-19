@@ -65,7 +65,7 @@ TODO: instructions.
 * 0.1.0
     - [X] Timeline UI
     - [X] Basic library view
-    - [ ] Timeline auto-scroll
+    - [X] Timeline auto-scroll
     - [X] Consistent single theme
     - [X] Video import without auto-splitting
     - [X] Audio import without auto-splitting
@@ -75,7 +75,7 @@ TODO: instructions.
     - [X] Support for key and widget events
     - [X] Preview for video clips
     - [X] Help windows showing key bindings
-    - [ ] Rescale video clips when rendering
+    - [X] Rescale video clips when rendering
     - Commands
         - [X] Insert (append, prepend)
         - [X] Split sequence
