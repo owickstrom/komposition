@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-
 {-# LANGUAGE ConstraintKinds   #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
@@ -81,13 +79,13 @@ importAsset gui timelineModel (filepath, autoSplit)
           case autoSplit of
             True ->
               importVideoFileAutoSplit
-                (timelineModel ^. project . videoSettings)
+                (timelineModel ^. project . proxyVideoSettings)
                 filepath
                 (timelineModel ^. project . workingDirectory)
             False ->
               fmap (: []) <$>
               importVideoFile
-                (timelineModel ^. project . videoSettings)
+                (timelineModel ^. project . proxyVideoSettings)
                 filepath
                 (timelineModel ^. project . workingDirectory)
     in progressBar gui "Import Video" action >>>= \case

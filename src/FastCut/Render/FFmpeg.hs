@@ -1,6 +1,6 @@
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
@@ -26,13 +26,12 @@ import qualified Data.List.NonEmpty         as NonEmpty
 import qualified Data.Text                  as Text
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as Vector
-import           Pipes
+import           Pipes (Producer)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
 import           System.Process
 import           Text.Printf
-
 
 import           FastCut.Duration
 import           FastCut.FFmpeg.Command     (Command (Command))
@@ -50,6 +49,12 @@ data Source (mt :: MediaType) where
   VideoOriginal :: Source Video
   VideoProxy :: Source Video
   AudioOriginal :: Source Audio
+
+instance Hashable (Source mt) where
+  hashWithSalt s = \case
+    VideoOriginal -> s
+    VideoProxy    -> s + 1
+    AudioOriginal -> s + 2
 
 data Input mt where
   VideoAssetInput :: OriginalPath -> Input Video
@@ -91,7 +96,9 @@ extractFrameToFile videoSettings mode videoSource videoAsset ts frameDir = do
       frameHash =
         hash
           ( mode
+          , videoSource
           , sourcePath
+          , videoSettings ^. resolution
           , durationToSeconds (spanStart ts)
           , durationToSeconds (spanEnd ts))
       frameFilePath = frameDir </> show (abs frameHash) <> ".png"
@@ -117,6 +124,8 @@ extractFrameToFile videoSettings mode videoSource videoAsset ts frameDir = do
               , printf "%f" (durationToSeconds startAfter)
               , "-i"
               , sourcePath
+              , "-vf"
+              , "scale=" <> show (videoSettings ^. resolution . width) <> ":" <> show (videoSettings ^. resolution . height)
               , "-t"
               , "1"
               , "-vframes"
@@ -181,13 +190,13 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
 
 toRenderCommand
   :: VideoSettings
-  -> FilePath
+  -> Command.Output
   -> CommandInput Video
   -> CommandInput Audio
   -> Command
-toRenderCommand videoSettings outFile videoInput audioInput =
+toRenderCommand videoSettings output videoInput audioInput =
   Command
-  { output = outFile
+  { output = output
   , inputs =
       NonEmpty.map toVideoInput (inputs videoInput) <>
       NonEmpty.map toAudioInput (inputs audioInput)
@@ -195,7 +204,11 @@ toRenderCommand videoSettings outFile videoInput audioInput =
       Command.FilterGraph
         (videoInputChains <> audioInputChains <> (videoChain :| [audioChain]))
   , mappings = [videoStream, audioStream]
-  , format = "mp4"
+  , format =
+      case output of
+        Command.HttpStreamingOutput{} -> "matroska"
+        Command.UdpStreamingOutput{} -> "matroska"
+        Command.FileOutput{} -> "mp4"
   , vcodec = Just "h264"
   , acodec = Just "aac"
   , frameRate = Just (videoSettings ^. frameRate)
@@ -311,16 +324,16 @@ toRenderCommand videoSettings outFile videoInput audioInput =
 renderComposition
   :: VideoSettings
   -> Source Video
-  -> FilePath
+  -> Command.Output
   -> Composition
   -> Producer ProgressUpdate IO RenderResult
-renderComposition videoSettings videoSource outFile c@(Composition video audio) = do
-  canonical <- lift getCanonicalTemporaryDirectory
-  tmpDir <- lift (createTempDirectory canonical "fastcut.render")
+renderComposition videoSettings videoSource target c@(Composition video audio) = do
+  canonical <- liftIO getCanonicalTemporaryDirectory
+  tmpDir <- liftIO (createTempDirectory canonical "fastcut.render")
   videoInput <-
-    lift (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
+    liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
   audioInput <-
-    lift
+    liftIO
       (toCommandInput
          SAudio
          tmpDir
@@ -328,5 +341,5 @@ renderComposition videoSettings videoSource outFile c@(Composition video audio) 
          AudioOriginal
          (length (inputs videoInput))
          audio)
-  let renderCmd = toRenderCommand videoSettings outFile videoInput audioInput
+  let renderCmd = toRenderCommand videoSettings target videoInput audioInput
   runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd

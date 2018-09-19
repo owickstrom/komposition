@@ -23,6 +23,8 @@ initialProject workDir = do
     , _workingDirectory = workDir
     , _videoSettings =
         VideoSettings {_frameRate = 25, _resolution = Resolution 1920 1080}
+    , _proxyVideoSettings =
+        VideoSettings {_frameRate = 25, _resolution = Resolution 1280 720}
     }
 
 main :: IO ()

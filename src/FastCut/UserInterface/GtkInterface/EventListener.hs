@@ -29,7 +29,8 @@ subscribeToDeclarativeWidget
 subscribeToDeclarativeWidget declWidget gtkWidget = do
   events       <- newChan
   subscription <- Declarative.subscribe declWidget gtkWidget (writeChan events)
-  pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
+  -- pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
+  pure EventListener { unsubscribe = return (), .. }
 
 mergeEvents :: EventListener e -> EventListener e -> IO (EventListener e)
 mergeEvents a b = do
@@ -66,6 +67,7 @@ subscribeKeyEvents w = do
         (_, Gdk.KEY_Right) -> Just [KeyRight]
         (_, Gdk.KEY_Escape) -> Just [KeyEscape]
         (_, Gdk.KEY_Return) -> Just [KeyEnter]
+        (_, Gdk.KEY_space) -> Just [KeySpace]
         (c, _) -> Just [KeyChar c]
 
 applyKeyMap :: KeyMap a -> EventListener KeyCombo -> IO (EventListener a)

@@ -4,6 +4,8 @@ packages:
 - .
 
 extra-deps:
+ - gi-gstbase-1.0.16
+ - gi-gst-1.0.16
  - ffmpeg-light-0.12.2.2
  - indexed-0.1.3
  - git: git@github.com:owickstrom/gi-gtk-declarative.git

@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
@@ -151,15 +150,16 @@ emptyClass False = "non-empty"
 
 renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
 renderPreviewPane part =
-  container Box [classes ["preview-pane"]] $ boxChild True True 0 $
-    case part of
-      Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
-        thumbnailImage (toS thumbnail)
-      Just (FirstAudioPart AudioClip{}) ->
-        noPreviewAvailable
-      Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
-      Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
-      Nothing                     -> noPreviewAvailable
+  container Box [classes ["preview-pane"]] $ do
+    boxChild True True 0 $
+      case part of
+        Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
+          thumbnailImage (toS thumbnail)
+        Just (FirstAudioPart AudioClip{}) ->
+          noPreviewAvailable
+        Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
+        Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
+        Nothing                     -> noPreviewAvailable
   where
     thumbnailImage thumbnailFile =
        widget Image [#file := thumbnailFile]

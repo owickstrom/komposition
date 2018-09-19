@@ -1,5 +1,9 @@
+{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 module FastCut.FFmpeg.Process where
 
 import           FastCut.Prelude
@@ -21,36 +25,41 @@ data RenderResult
   = Success
   | ProcessFailed Text
 
-runFFmpegCommand :: MonadIO m
-  => (Double -> ProgressUpdate) -> Duration -> Command -> Producer ProgressUpdate m RenderResult
+runFFmpegCommand
+  :: (Double -> ProgressUpdate)
+  -> Duration
+  -> Command
+  -> Producer ProgressUpdate IO RenderResult
 runFFmpegCommand toProgress totalDuration cmd = do
   yield (toProgress 0)
-  liftIO $
-    removeFile (output cmd) `catch` \case
-      e
-        | isDoesNotExistError e -> return ()
-        | otherwise -> throwIO e
-  let allArgs =
-        "-v" :
-        "quiet" : "-stats" : "-nostdin" : map toS (printCommandLineArgs cmd)
+  -- If it's rendering to a file, try removing any existing file first.
+  case output cmd of
+    FileOutput path -> liftIO $ removeFile path `catch` \case
+      e | isDoesNotExistError e -> return ()
+        | otherwise             -> throwIO e
+    _ -> return ()
+  let verbosityArgs = ["-v", "quiet"]
+      allArgs = verbosityArgs <> ["-stats", "-nostdin"] <> map toS (printCommandLineArgs cmd)
       process = proc "ffmpeg" allArgs
-  lift (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
-  (_, _, Just progressOut, ph) <-
-    liftIO (createProcess_ "" process {std_err = CreatePipe})
+  liftIO (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
+  (_, _, Just progressOut, ph) <- liftIO
+    (createProcess_ "" process { std_err = CreatePipe })
   liftIO (IO.hSetBuffering progressOut IO.NoBuffering)
-  Pipes.for (fromCarriageReturnSplit progressOut) $ \line -> do
-    lift (putStrLn line)
-    case parseTimestampFromProgress line of
-      Just currentDuration ->
-        yield
+  fromCarriageReturnSplit progressOut >-> yieldLines
+  waitForExit ph
+  where
+    yieldLines :: MonadIO m => Pipe Text ProgressUpdate m ()
+    yieldLines = forever $ do
+      line <- await
+      case parseTimestampFromProgress line of
+        Just currentDuration -> yield
           (toProgress
-             (durationToSeconds currentDuration /
-              durationToSeconds totalDuration))
-      Nothing -> return ()
-  liftIO (waitForProcess ph) >>= \case
-    ExitSuccess -> return Success
-    ExitFailure e ->
-      return
+            (durationToSeconds currentDuration / durationToSeconds totalDuration)
+          )
+        Nothing -> return ()
+    waitForExit ph = liftIO (waitForProcess ph) >>= \case
+      ExitSuccess   -> return Success
+      ExitFailure e -> return
         (ProcessFailed ("FFmpeg command failed with exit code: " <> show e))
 
 fromCarriageReturnSplit :: MonadIO m => Handle -> Producer Text m ()

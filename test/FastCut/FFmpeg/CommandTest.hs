@@ -2,14 +2,14 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Render.FFmpeg.CommandTest where
+module FastCut.FFmpeg.CommandTest where
 
 import           FastCut.Prelude
 
 import           Test.Tasty.Hspec
 
 import           FastCut.Duration
-import           FastCut.Render.FFmpeg.Command
+import           FastCut.FFmpeg.Command
 
 spec_printCommandLineArgs = do
   it "prints command-line args for a multi-chain concat command" $
@@ -40,6 +40,10 @@ spec_printCommandLineArgs = do
         mappings = [videoStream, audioStream]
         format = "mp4"
         output = "bar.mp4"
+        frameRate = Nothing
+        vcodec = Nothing
+        acodec = Nothing
+        listen = True
         command = Command {..}
     in printCommandLineArgs command `shouldBe`
        [ "-i"
@@ -64,5 +68,7 @@ spec_printCommandLineArgs = do
        , "[audio]"
        , "-f"
        , "mp4"
+       , "-listen"
+       , "1"
        , "bar.mp4"
        ]

@@ -45,6 +45,7 @@ keymaps =
       , ([KeyRight], Mapping (FocusCommand FocusRight))
       , ([KeyChar 'i'], Mapping Import)
       , ([KeyChar 'r'], Mapping Render)
+      , ([KeySpace], Mapping Preview)
       , ([KeyChar 'p'], insertBindings LeftOf)
       , ([KeyChar 'P'], insertBindings LeftMost)
       , ([KeyChar 'a'], insertBindings RightOf)

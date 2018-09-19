@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-
 {-# LANGUAGE ConstraintKinds    #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
@@ -30,6 +28,7 @@ import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Progress
 import           FastCut.Project
+import           FastCut.VideoSettings
 
 data Mode
   = TimelineMode
@@ -69,6 +68,7 @@ data Command (mode :: Mode) where
   Delete :: Command TimelineMode
   Import :: Command TimelineMode
   Render :: Command TimelineMode
+  Preview :: Command TimelineMode
   Exit :: Command TimelineMode
 
 deriving instance Eq (Command mode)
@@ -98,6 +98,7 @@ commandName =
     Delete -> "Delete"
     Import -> "Import Assets"
     Render -> "Render"
+    Preview -> "Preview"
     Exit -> "Exit"
   where
     insertTypeName :: InsertType -> Text
@@ -228,6 +229,12 @@ class MonadFSM m =>
     -> Text -- ^ Progress window title.
     -> Producer ProgressUpdate IO a -- ^ Progress updates producer.
     -> Actions m '[ n := Remain (State m t)] r (Maybe a)
+  previewStream
+    :: Name n
+    -> Text -- ^ URI to stream
+    -> Producer ProgressUpdate IO () -- ^ Streaming process
+    -> VideoSettings
+    -> Actions m '[ n := Remain (State m t)] r (Maybe ())
   help
     :: Name n
     -> [ModeKeyMap]

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE DeriveAnyClass  #-}
 {-# LANGUAGE TemplateHaskell #-}
 module FastCut.VideoSettings where
 
@@ -11,13 +12,13 @@ type FrameRate = Word
 data Resolution = Resolution
   { _width  :: Word
   , _height :: Word
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Show, Generic, Hashable)
 
 makeLenses ''Resolution
 
 data VideoSettings = VideoSettings
   { _frameRate  :: FrameRate
   , _resolution :: Resolution
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Show, Generic, Hashable)
 
 makeLenses ''VideoSettings

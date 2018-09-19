@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-
 {-# LANGUAGE ConstraintKinds   #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
@@ -28,6 +26,7 @@ import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.MediaType
 import           FastCut.Project
+import qualified FastCut.FFmpeg.Command          as FFmpeg
 import qualified FastCut.Render.Composition      as Render
 import qualified FastCut.Render.FFmpeg           as Render
 
@@ -92,13 +91,26 @@ timelineMode gui model = do
                 (Render.renderComposition
                    (model ^. project . videoSettings)
                    Render.VideoOriginal
-                   outFile
+                   (FFmpeg.FileOutput outFile)
                    flat) >>= \case
                 Just Render.Success -> continue
                 Just (Render.ProcessFailed err) ->
                   iliftIO (putStrLn err) >>> continue
                 Nothing -> continue
             Nothing -> continue
+        Nothing -> beep gui >>> continue
+    CommandKeyMappedEvent Preview ->
+      case Render.flattenTimeline (model ^. project . timeline) of
+        Just flat -> do
+          let streamingProcess =
+                void $
+                Render.renderComposition
+                  (model ^. project . proxyVideoSettings)
+                  Render.VideoProxy
+                  (FFmpeg.HttpStreamingOutput "localhost" 12345)
+                  flat
+          _ <- previewStream gui "http://localhost:12345" streamingProcess (model ^. project . proxyVideoSettings)
+          continue
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Help ->

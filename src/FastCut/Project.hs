@@ -19,11 +19,12 @@ import           FastCut.Library
 import           FastCut.VideoSettings
 
 data Project = Project
-  { _projectName      :: Text
-  , _timeline         :: Timeline ()
-  , _library          :: Library
-  , _workingDirectory :: FilePath
-  , _videoSettings    :: VideoSettings
+  { _projectName        :: Text
+  , _timeline           :: Timeline ()
+  , _library            :: Library
+  , _workingDirectory   :: FilePath
+  , _videoSettings      :: VideoSettings
+  , _proxyVideoSettings :: VideoSettings
   } deriving (Eq, Show, Generic)
 
 makeLenses ''Project

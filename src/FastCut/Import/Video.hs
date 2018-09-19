@@ -1,6 +1,4 @@
 {-# LANGUAGE RankNTypes            #-}
-{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -358,7 +356,7 @@ generateProxy videoSettings (view unOriginalPath -> sourceFile) fullLength outDi
   let proxyPath = outDir </> takeBaseName sourceFile <> ".proxy.mp4"
       cmd =
         Command
-        { output = proxyPath
+        { output = Command.FileOutput proxyPath
         , inputs = pure (Command.FileSource sourceFile)
         , filterGraph =
             Command.FilterGraph
@@ -378,7 +376,7 @@ generateProxy videoSettings (view unOriginalPath -> sourceFile) fullLength outDi
         , acodec = Nothing
         , format = "mp4"
         }
-  result <- runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd
+  result <- Pipes.hoist liftIO (runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd)
   case result of
     Success           -> return (ProxyPath proxyPath)
     ProcessFailed err -> throwError (ProxyGenerationFailed sourceFile err)

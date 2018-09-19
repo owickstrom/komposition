@@ -64,6 +64,7 @@ library
                       , filepath
                       , gi-gobject
                       , gi-glib
+                      , gi-gst
                       , gi-gtk
                       , gi-gtk-declarative
                       , gi-gdk
@@ -93,7 +94,7 @@ library
                       , vector
   hs-source-dirs:       src
   default-language:     Haskell2010
-  ghc-options:        -Wall
+  ghc-options:        -Wall -fno-warn-unticked-promoted-constructors
   default-extensions: NoImplicitPrelude
 
 executable fastcut
@@ -115,7 +116,7 @@ executable fastcut
                       , time
   hs-source-dirs:       exe
   default-language:     Haskell2010
-  ghc-options:        -Wall -threaded
+  ghc-options:        -Wall -threaded -O -with-rtsopts=-N
   default-extensions: NoImplicitPrelude
 
 executable fastcut-split
@@ -171,7 +172,7 @@ test-suite fastcut-tests
                  , tasty-discover
   default-language:     Haskell2010
   default-extensions:   NoImplicitPrelude
-  ghc-options:     -Wall
+  ghc-options:     -Wall -fno-warn-unticked-promoted-constructors
 
 benchmark fastcut-benchmark
   type:            exitcode-stdio-1.0

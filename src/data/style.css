@@ -106,6 +106,10 @@
   padding: 1em;
 }
 
+.preview.dialog {
+  padding: 0;
+}
+
 .help {
   min-width: 25em;
   min-height: 50em;

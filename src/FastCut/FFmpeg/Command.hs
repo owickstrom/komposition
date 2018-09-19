@@ -1,8 +1,11 @@
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module FastCut.FFmpeg.Command
-  ( Command(..)
+  ( Output(..)
+  , Command(..)
   , Source(..)
   , Name
   , FrameRate
@@ -28,6 +31,14 @@ import           Text.Printf
 import           FastCut.Duration
 import           FastCut.Timestamp
 
+type Host = Text
+type Port = Word
+
+data Output
+  = FileOutput FilePath
+  | UdpStreamingOutput Host Port
+  | HttpStreamingOutput Host Port
+
 data Command = Command
   { inputs      :: NonEmpty Source
   , filterGraph :: FilterGraph
@@ -36,7 +47,7 @@ data Command = Command
   , format      :: Text
   , vcodec      :: Maybe Text
   , acodec      :: Maybe Text
-  , output      :: FilePath
+  , output      :: Output
   }
 
 data Source
@@ -98,7 +109,14 @@ printCommandLineArgs Command {..} =
     <> printOptionalPair "-framerate" show frameRate
     <> printOptionalPair "-vcodec" identity vcodec
     <> printOptionalPair "-acodec" identity acodec
-    <> [toS output]
+    <> printOutputArgs output
+
+printOutputArgs :: Output -> [Text]
+printOutputArgs =
+  \case
+    FileOutput path -> [toS path]
+    HttpStreamingOutput host port -> ["-listen", "1", "http://" <> host <> ":" <> show port]
+    UdpStreamingOutput host port -> ["-listen", "1", "udp://" <> host <> ":" <> show port]
 
 printOptionalPair :: Text -> (a -> Text) -> Maybe a -> [Text]
 printOptionalPair flag printValue = \case

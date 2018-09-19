@@ -5,7 +5,6 @@ import           FastCut.Prelude
 
 import           Control.Lens
 import           Pipes           (Producer, (>->))
-import qualified Pipes
 import qualified Pipes.Prelude   as Pipes hiding (show)
 
 data ProgressUpdate = ProgressUpdate

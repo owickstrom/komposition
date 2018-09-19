@@ -34,12 +34,16 @@ import           Control.Monad                                    (void)
 import           Control.Monad.Indexed                            ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
+import qualified Data.GI.Base.Properties                          as GI
 import qualified Data.HashSet                                     as HashSet
+import           Control.Lens
 import           Data.Row.Records                                 (Empty)
 import           Data.String
 import qualified Data.Text                                        as Text
 import qualified GI.Gdk                                           as Gdk
+import qualified GI.GLib
 import qualified GI.GLib.Constants                                as GLib
+import qualified GI.Gst                                           as Gst
 import           GI.Gtk                                           (AttrOp (..))
 import qualified GI.Gtk                                           as Gtk
 import qualified GI.Gtk.Declarative                               as Declarative
@@ -56,6 +60,7 @@ import           FastCut.UserInterface.GtkInterface.HelpView
 import           FastCut.UserInterface.GtkInterface.ImportView
 import           FastCut.UserInterface.GtkInterface.LibraryView
 import           FastCut.UserInterface.GtkInterface.TimelineView
+import           FastCut.VideoSettings
 
 data Env = Env
   { cssPath :: FilePath
@@ -445,6 +450,65 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
         classes = HashSet.fromList ["progress-bar"]
     in inNewModalDialog n ModalDialog { message = Nothing, .. }
 
+  previewStream n uri streamingProcess videoSettings =
+    let setUp d content = do
+          playbin <-
+            Gst.elementFactoryMake "playbin" Nothing `orFailCreateWith` "playbin"
+          playbinBus <- Gst.elementGetBus playbin `orFailCreateWith` "playbin bus"
+          void . Gst.busAddWatch playbinBus GI.GLib.PRIORITY_DEFAULT $ \_bus msg -> do
+            msgType <- Gst.getMessageType msg
+            case msgType of
+              [Gst.MessageTypeError] -> do
+                (gError, _) <- Gst.messageParseError msg
+                gErrorText     <- Gst.gerrorMessage gError
+                liftIO . putStrLn $ show gError <> ": " <> gErrorText
+              [Gst.MessageTypeStateChanged] -> do
+                (oldState, newState, _) <- Gst.messageParseStateChanged msg
+                putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+              [Gst.MessageTypeEos] ->
+                #destroy d
+              _ -> return ()
+            return True
+          gtkSink <-
+            Gst.elementFactoryMake "gtksink" Nothing `orFailCreateWith` "GTK sink"
+          GI.setObjectPropertyObject playbin "video-sink" (Just gtkSink)
+          GI.setObjectPropertyBool playbin "force-aspect-ratio" True
+
+          videoWidget <-
+            GI.getObjectPropertyObject gtkSink "widget" Gtk.Widget `orFailCreateWith`
+            "sink widget"
+          GI.setObjectPropertyBool playbin "force-aspect-ratio" True
+          void $ GI.setObjectPropertyString playbin "uri" (Just uri)
+
+          let updateProgress = forever $ do
+                ProgressUpdate _msg fraction <- await
+                print fraction
+          ffmpegThread <- forkIO $ Pipes.runEffect (streamingProcess >-> updateProgress)
+
+          void . Gtk.onWidgetRealize content $ do
+            #add content videoWidget
+            #show videoWidget
+            #setSizeRequest
+              videoWidget
+              (fromIntegral (videoSettings ^. resolution . width))
+              (fromIntegral (videoSettings ^. resolution . width))
+            void $ Gst.elementSetState playbin Gst.StatePlaying
+
+          void . Gtk.onWidgetDestroy d $ do
+            void $ Gst.elementSetState playbin Gst.StateNull
+            killThread ffmpegThread
+
+        toResponse _ _ = const (return Nothing)
+        tearDown d _ = #destroy d
+        classes = HashSet.fromList ["preview"]
+        orFailCreateWith :: IO (Maybe t) -> Prelude.String -> IO t
+        orFailCreateWith action what =
+          action >>=
+          maybe
+            (Prelude.fail ("Couldn't create GStreamer " <> what <> "."))
+            return
+    in inNewModalDialog n ModalDialog { title = "Preview", message = Nothing, .. }
+
   help n keymaps =
     let setUp _ content = do
           w <- oneOffWidget (helpView keymaps) STimelineMode
@@ -462,6 +526,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
 runGtkUserInterface
   :: FilePath -> GtkInterface (ReaderT Env IO) Empty Empty () -> IO ()
 runGtkUserInterface cssPath ui = do
+  void $ Gst.init Nothing
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
