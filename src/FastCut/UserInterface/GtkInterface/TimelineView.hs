@@ -63,6 +63,7 @@ renderClipAsset zl thisFocus focused asset' duration' =
   boxChild False False 0 $
   widget Button [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
                 , #widthRequest := widthFromDuration zl duration'
+                , #hasFocus := (focused == Focused)
                 ]
 
 renderGap ::
@@ -84,6 +85,7 @@ renderGap zl (thisFocus, focused) duration' =
            Button
            [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
            , #widthRequest := widthFromDuration zl duration'
+           , #hasFocus := (focused == Focused)
            ])
 
 renderVideoPart ::
