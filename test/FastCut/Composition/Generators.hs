@@ -48,7 +48,8 @@ videoPart = Gen.choice [clip, gap]
       spanEnd' <-
         duration'
           (linear (ceiling (durationToSeconds spanStart') + 1) maxDuration)
-      VideoClip () (VideoAsset meta Nothing) (TimeSpan spanStart' spanEnd') <$>
+      proxyPath <- ProxyPath <$> Gen.string (linear 1 50) Gen.unicode
+      VideoClip () (VideoAsset meta proxyPath Nothing) (TimeSpan spanStart' spanEnd') <$>
         Gen.string (linear 1 50) Gen.unicode
     gap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
 

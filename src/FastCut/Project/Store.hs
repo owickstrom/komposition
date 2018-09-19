@@ -21,6 +21,7 @@ import           FastCut.VideoSettings
 instance Binary AssetMetadata
 instance Binary VideoAsset
 instance Binary AudioAsset
+instance Binary ProxyPath
 
 instance Binary Duration where
   get = Duration . picosecondsToDiffTime <$> Binary.get

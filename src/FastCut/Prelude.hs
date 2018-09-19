@@ -1,6 +1,6 @@
 module FastCut.Prelude (module X, readOne, readDecimal, readDouble) where
 
-import           Protolude      as X
+import           Protolude      as X hiding (Proxy (..))
 
 import qualified Data.Text.Read as Text
 

@@ -113,6 +113,7 @@ selectAssetAndInsert gui model mediaType' position =
          extractFrameToFile
            (fromIntegral (model ^. project . videoSettings . frameRate))
            Composition.FirstFrame
+           VideoProxy
            videoAsset
            ts
            (model ^. project . workingDirectory)

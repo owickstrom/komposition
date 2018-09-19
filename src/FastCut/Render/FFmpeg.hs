@@ -2,13 +2,16 @@
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE GADTs              #-}
+{-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies       #-}
 module FastCut.Render.FFmpeg
-  ( extractFrameToFile
+  ( Source(..)
+  , extractFrameToFile
   , toRenderCommand
   , RenderResult(..)
   , renderComposition
@@ -43,6 +46,11 @@ import           FastCut.Render.FFmpeg.Command (Command (Command))
 import qualified FastCut.Render.FFmpeg.Command as Command
 import           FastCut.Render.Timestamp
 
+data Source (mt :: MediaType) where
+  VideoOriginal :: Source Video
+  VideoProxy :: Source Video
+  AudioOriginal :: Source Audio
+
 type FrameRate = Word
 
 data Input mt where
@@ -69,9 +77,12 @@ data CommandInput mt = CommandInput
   }
 
 extractFrameToFile
-  :: FrameRate -> Composition.StillFrameMode -> Asset Video -> TimeSpan -> FilePath -> IO FilePath
-extractFrameToFile frameRate mode videoAsset ts frameDir = do
-  let sourcePath = videoAsset ^. assetMetadata . path
+  :: FrameRate -> Composition.StillFrameMode -> Source Video -> Asset Video -> TimeSpan -> FilePath -> IO FilePath
+extractFrameToFile frameRate mode videoSource videoAsset ts frameDir = do
+  let sourcePath =
+        case videoSource of
+          VideoOriginal -> videoAsset ^. assetMetadata . path
+          VideoProxy    -> videoAsset ^. videoAssetProxy . unProxyPath
       -- Not the best hash...
       frameHash =
         hash
@@ -81,10 +92,12 @@ extractFrameToFile frameRate mode videoAsset ts frameDir = do
           , durationToSeconds (spanEnd ts))
       frameFilePath = frameDir </> show (abs frameHash) <> ".png"
   removeFile frameFilePath `catch` \case
-    e | isDoesNotExistError e -> return ()
+    e
+      | isDoesNotExistError e -> return ()
       | otherwise -> throwIO e
   case mode of
-    Composition.FirstFrame -> extractFrame sourcePath (spanStart ts) frameFilePath
+    Composition.FirstFrame ->
+      extractFrame sourcePath (spanStart ts) frameFilePath
     Composition.LastFrame ->
       let frameDuration = durationFromSeconds (1 / fromIntegral frameRate)
       in extractFrame sourcePath (spanEnd ts - frameDuration) frameFilePath
@@ -117,12 +130,14 @@ extractFrameToFile frameRate mode videoAsset ts frameDir = do
         (Prelude.fail ("Couldn't extract frame from video file: " <> err))
 
 toCommandInput
-  :: FilePath
+  :: SMediaType mt
+  -> FilePath
   -> FrameRate
+  -> Source mt
   -> Int
   -> NonEmpty (Composition.CompositionPart mt)
   -> IO (CommandInput mt)
-toCommandInput tmpDir frameRate startAt parts' =
+toCommandInput mediaType tmpDir frameRate source startAt parts' =
   parts'
   & NonEmpty.zip (startAt :| [succ startAt ..])
   & traverse toPartStream
@@ -139,23 +154,20 @@ toCommandInput tmpDir frameRate startAt parts' =
         Nothing -> do
           put (inputs `Vector.snoc` input)
           return (toInputIndex (Vector.length inputs))
-    toPartStream ::
-         (Int, Composition.CompositionPart mt)
-      -> StateT (Vector (Input mt)) IO (PartStreamName, PartStream mt)
-    toPartStream =
-      \case
-        (vi, Composition.VideoClip asset ts) -> do
+    toPartStream (i, p) =
+      case (mediaType, i, p) of
+        (SVideo, vi, Composition.VideoClip asset ts) -> do
           ii <- addUniqueInput (VideoAssetInput asset)
           return ("v" <> show vi, VideoClipStream ii ts)
-        (vi, Composition.StillFrame mode asset ts duration') -> do
-          frameFile <- lift (extractFrameToFile frameRate mode asset ts tmpDir)
+        (SVideo, vi, Composition.StillFrame mode asset ts duration') -> do
+          frameFile <- lift (extractFrameToFile frameRate mode source asset ts tmpDir)
           ii <- addUniqueInput (StillFrameInput frameFile frameRate duration')
           return ("v" <> show vi, StillFrameStream ii)
-        (ai, Composition.AudioClip asset) -> do
+        (SAudio, ai, Composition.AudioClip asset) -> do
           ii <- addUniqueInput (AudioAssetInput asset)
           return
             ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf asset)))
-        (ai, Composition.Silence duration') -> do
+        (SAudio, ai, Composition.Silence duration') -> do
           ii <- addUniqueInput (SilenceInput duration')
           return ("a" <> show ai, SilenceStream ii)
     toCommandInputOrPanic (streams, inputs) = do
@@ -307,32 +319,44 @@ data RenderResult
 
 renderComposition
   :: FrameRate
+  -> Source Video
   -> FilePath
   -> Composition
   -> Producer ProgressUpdate IO RenderResult
-renderComposition frameRate outFile c@(Composition video audio) = do
-  canonical     <- lift getCanonicalTemporaryDirectory
-  tmpDir        <- lift (createTempDirectory canonical "fastcut.render")
-  videoInput <- lift (toCommandInput tmpDir frameRate 0 video)
-  audioInput <- lift (toCommandInput tmpDir frameRate (length (inputs videoInput)) audio)
-
+renderComposition frameRate videoSource outFile c@(Composition video audio) = do
+  canonical <- lift getCanonicalTemporaryDirectory
+  tmpDir <- lift (createTempDirectory canonical "fastcut.render")
+  videoInput <-
+    lift (toCommandInput SVideo tmpDir frameRate videoSource 0 video)
+  audioInput <-
+    lift
+      (toCommandInput
+         SAudio
+         tmpDir
+         frameRate
+         AudioOriginal
+         (length (inputs videoInput))
+         audio)
   let renderCmd = toRenderCommand outFile videoInput audioInput
-      allArgs   = "-v" : "quiet" : "-stats" : "-nostdin" : map
-        toS
-        (Command.printCommandLineArgs renderCmd)
+      allArgs =
+        "-v" :
+        "quiet" :
+        "-stats" : "-nostdin" : map toS (Command.printCommandLineArgs renderCmd)
       process = proc "ffmpeg" allArgs
   lift (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
-  (_, _, Just progressOut, ph) <- lift
-    (createProcess_ "" process { std_err = CreatePipe })
+  (_, _, Just progressOut, ph) <-
+    lift (createProcess_ "" process {std_err = CreatePipe})
   lift (IO.hSetBuffering progressOut IO.NoBuffering)
   let totalDuration = durationToSeconds (durationOf c)
   Pipes.for (fromCarriageReturnSplit progressOut) $ \line -> do
     lift (putStrLn line)
     case parseTimestampFromProgress line of
-      Just currentDuration -> yield
-        (ProgressUpdate (durationToSeconds currentDuration / totalDuration))
+      Just currentDuration ->
+        yield
+          (ProgressUpdate (durationToSeconds currentDuration / totalDuration))
       Nothing -> return ()
   lift (waitForProcess ph) >>= \case
-    ExitSuccess   -> return Success
-    ExitFailure e -> return
-      (ProcessFailed ("FFmpeg command failed with exit code: " <> show e))
+    ExitSuccess -> return Success
+    ExitFailure e ->
+      return
+        (ProcessFailed ("FFmpeg command failed with exit code: " <> show e))

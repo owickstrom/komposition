@@ -56,69 +56,65 @@ timelineMode gui model = do
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent (InsertCommand type' position) ->
       insertIntoTimeline gui model type' position
-    CommandKeyMappedEvent Delete -> case delete (model ^. currentFocus) (model  ^. project . timeline) of
-      Nothing -> beep gui >> continue
-      Just (timeline', Just cmd) ->
-        case modifyFocus (model ^. project . timeline) cmd (model ^. currentFocus) of
-          Left err -> do
-            beep gui
-            iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
-            continue
-          Right newFocus ->
-            model
-            & project . timeline .~ timeline'
-            & currentFocus .~ newFocus
-            & timelineMode gui
-      Just (timeline', Nothing) ->
-        model
-        & project . timeline .~ timeline'
-        & timelineMode gui
-    CommandKeyMappedEvent Split -> case split (model ^. currentFocus) (model ^. project . timeline) of
-      Just (timeline', newFocus) ->
-        model
-        & project . timeline .~ timeline'
-        & currentFocus .~ newFocus
-        & timelineMode gui
-      Nothing -> beep gui >> continue
-    CommandKeyMappedEvent Import ->
-      importFile gui model >>>= timelineMode gui
+    CommandKeyMappedEvent Delete ->
+      case delete (model ^. currentFocus) (model ^. project . timeline) of
+        Nothing -> beep gui >> continue
+        Just (timeline', Just cmd) ->
+          case modifyFocus
+                 (model ^. project . timeline)
+                 cmd
+                 (model ^. currentFocus) of
+            Left err -> do
+              beep gui
+              iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
+              continue
+            Right newFocus ->
+              model & project . timeline .~ timeline' & currentFocus .~ newFocus &
+              timelineMode gui
+        Just (timeline', Nothing) ->
+          model & project . timeline .~ timeline' & timelineMode gui
+    CommandKeyMappedEvent Split ->
+      case split (model ^. currentFocus) (model ^. project . timeline) of
+        Just (timeline', newFocus) ->
+          model & project . timeline .~ timeline' & currentFocus .~ newFocus &
+          timelineMode gui
+        Nothing -> beep gui >> continue
+    CommandKeyMappedEvent Import -> importFile gui model >>>= timelineMode gui
     CommandKeyMappedEvent Render ->
       case Render.flattenTimeline (model ^. project . timeline) of
         Just flat -> do
           outDir <- iliftIO getUserDocumentsDirectory
           chooseFile gui Save "Render To File" outDir >>>= \case
             Just outFile -> do
-              progressBar gui
-                          "Rendering"
-                          (Render.renderComposition 25 outFile flat)
-                >>= \case
-                      Just Render.Success -> continue
-                      Just (Render.ProcessFailed err) ->
-                        iliftIO (putStrLn err) >>> continue
-                      Nothing -> continue
+              progressBar
+                gui
+                "Rendering"
+                (Render.renderComposition 25 Render.VideoOriginal outFile flat) >>= \case
+                Just Render.Success -> continue
+                Just (Render.ProcessFailed err) ->
+                  iliftIO (putStrLn err) >>> continue
+                Nothing -> continue
             Nothing -> continue
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Help ->
       help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
     CommandKeyMappedEvent Exit ->
-      dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes]
-        >>>= \case
-               Just Yes -> exit gui
-               Just No  -> continue
-               Nothing  -> continue
-    ZoomLevelChanged zl ->
-      model
-      & zoomLevel .~ zl
-      & timelineMode gui
+      dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
+        Just Yes -> exit gui
+        Just No -> continue
+        Nothing -> continue
+    ZoomLevelChanged zl -> model & zoomLevel .~ zl & timelineMode gui
   where
     continue = timelineMode gui model
-    printUnexpectedFocusError err cmd = case err of
-      UnhandledFocusModification{} -> iliftIO
-        (printf "Error: could not handle focus modification %s\n"
-                (show cmd :: Text)
-        )
-      _ -> ireturn ()
+    printUnexpectedFocusError err cmd =
+      case err of
+        UnhandledFocusModification {} ->
+          iliftIO
+            (printf
+               "Error: could not handle focus modification %s\n"
+               (show cmd :: Text))
+        _ -> ireturn ()
 
 insertIntoTimeline
   :: Application t m

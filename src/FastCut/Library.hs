@@ -23,8 +23,15 @@ data AssetMetadata = AssetMetadata
 
 makeLenses ''AssetMetadata
 
+newtype ProxyPath = ProxyPath
+  { _unProxyPath :: FilePath
+  } deriving (Show, Eq, Generic)
+
+makeLenses ''ProxyPath
+
 data VideoAsset =
   VideoAsset { _videoAssetMetadata   :: AssetMetadata
+             , _videoAssetProxy      :: ProxyPath
              , _videoClassifiedScene :: Maybe (Integer, TimeSpan)
              }
   deriving (Show, Eq, Generic)

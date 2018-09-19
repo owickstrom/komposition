@@ -28,6 +28,7 @@ import           Control.Monad.Primitive
 import qualified Data.Massiv.Array       as A
 import           Data.Massiv.Array.IO    as A hiding (Image)
 import           Data.Maybe              (fromMaybe)
+import qualified Data.Text               as Text
 import           Data.Time.Clock
 import qualified Data.Vector             as V
 import qualified Data.Vector.Generic     as VG
@@ -40,6 +41,7 @@ import qualified Pipes.Prelude           as Pipes hiding (show)
 import           System.Directory
 import           System.FilePath
 import           System.IO               hiding (putStrLn)
+import           System.Process
 import           Text.Printf
 
 import           FastCut.Duration
@@ -326,11 +328,13 @@ getVideoFileDuration f =
 filePathToVideoAsset ::
      (MonadError VideoImportError m, MonadIO m)
   => FilePath
+  -> FilePath
   -> m VideoAsset
-filePathToVideoAsset p = do
+filePathToVideoAsset outDir p = do
   d <- liftIO (getVideoFileDuration p)
+  proxyPath <- liftIO (generateProxy p (outDir </> "proxies"))
   let meta = AssetMetadata p d
-  pure (VideoAsset meta Nothing)
+  pure (VideoAsset meta proxyPath Nothing)
 
 generateVideoThumbnail ::
      (MonadError VideoImportError m, MonadIO m)
@@ -370,8 +374,31 @@ importVideoFile sourceFile outDir = do
     return assetPath
   -- Generate thumbnail and return asset
   Pipes.yield (ProgressUpdate 0.5) *>
-    (filePathToVideoAsset assetPath & runExceptT)
+    (filePathToVideoAsset outDir assetPath & runExceptT)
     <* Pipes.yield (ProgressUpdate 1)
+
+generateProxy :: FilePath -> FilePath -> IO ProxyPath
+generateProxy sourceFile outDir = do
+  createDirectoryIfMissing True outDir
+  let proxyPath = outDir </> takeBaseName sourceFile <> ".proxy.mp4"
+      allArgs =
+        [ "-nostdin"
+        , "-i"
+        , sourceFile
+        , "-vf"
+        , "scale=640:-1"
+        , "-vcodec"
+        , "h264"
+        , "-crf"
+        , "18"
+        , proxyPath
+        ]
+  putStrLn $ Text.unwords ("ffmpeg" : map toS allArgs)
+  (exit, _, err) <- readCreateProcessWithExitCode (proc "ffmpeg" allArgs) ""
+  when
+    (exit /= ExitSuccess)
+    (panic ("Couldn't generate proxy video from file: " <> toS err))
+  return (ProxyPath proxyPath)
 
 importVideoFileAutoSplit ::
      MonadIO m
@@ -379,20 +406,24 @@ importVideoFileAutoSplit ::
   -> FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
-importVideoFileAutoSplit _settings sourceFile _outDir = do
+importVideoFileAutoSplit _settings sourceFile outDir = do
   fullLength <- liftIO (getVideoFileDuration sourceFile)
+  proxyPath <- liftIO (generateProxy sourceFile (outDir </> "proxies"))
   let classifiedFrames =
-        classifyMovement 1.0 (readVideoFile sourceFile >-> toMassiv) >->
+        classifyMovement
+          1.0
+          (readVideoFile (proxyPath ^. unProxyPath) >-> toMassiv) >->
         Pipes.map (fmap (fmap A.toJPImageRGB8))
-  classifyMovingScenes fullLength classifiedFrames >-> Pipes.map (toProgress fullLength) &
-    (>>= zipWithM (toSceneAsset fullLength) [1..]) &
+  classifyMovingScenes fullLength classifiedFrames >->
+    Pipes.map (toProgress fullLength) &
+    (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..]) &
     Pipes.runExceptP
   where
     toProgress (durationToSeconds -> fullLength) time =
       ProgressUpdate (time / fullLength)
-    toSceneAsset fullLength n timeSpan = do
+    toSceneAsset proxyPath fullLength n timeSpan = do
       let meta = AssetMetadata sourceFile fullLength
-      return (VideoAsset meta (Just (n, timeSpan)))
+      return (VideoAsset meta proxyPath (Just (n, timeSpan)))
 
 isSupportedVideoFile :: FilePath -> Bool
 isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov"]
