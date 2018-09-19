@@ -6,15 +6,17 @@ import           FastCut.Prelude
 
 import           Control.Lens
 
+type FrameRate = Word
+
 data Resolution = Resolution
-  { _width  :: Integer
-  , _height :: Integer
+  { _width  :: Word
+  , _height :: Word
   } deriving (Eq, Show, Generic)
 
 makeLenses ''Resolution
 
 data VideoSettings = VideoSettings
-  { _frameRate  :: Integer
+  { _frameRate  :: FrameRate
   , _resolution :: Resolution
   } deriving (Eq, Show, Generic)
 

@@ -9,6 +9,7 @@ module FastCut.Render.FFmpeg.Command
   , StreamType(..)
   , StreamIdentifier(..)
   , StreamSelector(..)
+  , ForceOriginalAspectRatio(..)
   , Filter(..)
   , RoutedFilter(..)
   , FilterChain(..)
@@ -58,13 +59,20 @@ data StreamSelector = StreamSelector
   , streamIndex      :: Maybe Index
   }
 
+data ForceOriginalAspectRatio
+  = ForceOriginalAspectRatioDisable
+  | ForceOriginalAspectRatioDecrease
+  | ForceOriginalAspectRatioIncrease
+
 data Filter
   = Concat { concatSegments     :: Integer
            , concatVideoStreams :: Integer
            , concatAudioStreams :: Integer }
+  | Scale { scaleWidth                    :: Word
+          , scaleHeight                   :: Word
+          , scaleForceOriginalAspectRatio :: ForceOriginalAspectRatio }
   | Trim { trimStart    :: Duration
-         , trimDuration :: Duration
-         }
+         , trimDuration :: Duration }
   | SetPTSStart
   | AudioSetPTSStart
 
@@ -123,6 +131,12 @@ printFilterGraph (FilterGraph chains) = Text.intercalate
         <> printFilter routedFilter
         <> foldMap (encloseInBrackets . printStreamSelector) filterOutputs
 
+printForceOriginalAspectRatio :: ForceOriginalAspectRatio -> Text
+printForceOriginalAspectRatio = \case
+  ForceOriginalAspectRatioDisable -> "disable"
+  ForceOriginalAspectRatioDecrease -> "decrease"
+  ForceOriginalAspectRatioIncrease -> "increase"
+
 printFilter :: Filter -> Text
 printFilter =
   \case
@@ -133,6 +147,13 @@ printFilter =
            concatSegments
            concatVideoStreams
            concatAudioStreams :: Prelude.String)
+    Scale {..} ->
+      toS
+        (printf
+           "scale=width=%d:height=%d:force_original_aspect_ratio=%s"
+           scaleWidth
+           scaleHeight
+           (printForceOriginalAspectRatio scaleForceOriginalAspectRatio) :: Prelude.String)
     Trim {..} ->
       toS
         (printf

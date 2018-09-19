@@ -24,7 +24,6 @@ import           FastCut.MediaType
 import           FastCut.Project
 import qualified FastCut.Render.Composition  as Composition
 import           FastCut.Render.FFmpeg
-import           FastCut.VideoSettings
 
 import           FastCut.Application.KeyMaps
 
@@ -111,7 +110,7 @@ selectAssetAndInsert gui model mediaType' position =
               (videoAsset ^. videoClassifiedScene)
       in VideoClip () videoAsset ts <$>
          extractFrameToFile
-           (fromIntegral (model ^. project . videoSettings . frameRate))
+           (model ^. project . videoSettings)
            Composition.FirstFrame
            VideoProxy
            videoAsset

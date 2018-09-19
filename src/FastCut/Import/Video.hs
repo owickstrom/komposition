@@ -15,32 +15,30 @@
 {-# LANGUAGE ViewPatterns          #-}
 module FastCut.Import.Video where
 
-import           FastCut.Prelude         hiding (catch)
+import           FastCut.Prelude       hiding (catch)
 
-import           Codec.FFmpeg            hiding (resolution)
+import           Codec.FFmpeg          hiding (resolution)
 import           Codec.FFmpeg.Encode
-import qualified Codec.FFmpeg.Probe      as Probe
-import           Codec.Picture           as CP
-import           Codec.Picture.Types     as CP
+import qualified Codec.FFmpeg.Probe    as Probe
+import           Codec.Picture         as CP
 import           Control.Lens
 import           Control.Monad.Catch
-import           Control.Monad.Primitive
-import qualified Data.Massiv.Array       as A
-import           Data.Massiv.Array.IO    as A hiding (Image)
-import           Data.Maybe              (fromMaybe)
-import qualified Data.Text               as Text
+import qualified Data.Massiv.Array     as A
+import           Data.Massiv.Array.IO  as A hiding (Image)
+import           Data.Maybe            (fromMaybe)
+import qualified Data.Text             as Text
 import           Data.Time.Clock
-import qualified Data.Vector             as V
-import qualified Data.Vector.Generic     as VG
-import           Graphics.ColorSpace     as A
-import           Pipes                   (Consumer', Pipe, Producer, (>->))
+import qualified Data.Vector           as V
+import qualified Data.Vector.Generic   as VG
+import           Graphics.ColorSpace   as A
+import           Pipes                 (Consumer', Pipe, Producer, (>->))
 import qualified Pipes
-import qualified Pipes.Lift              as Pipes
-import qualified Pipes.Parse             as Pipes
-import qualified Pipes.Prelude           as Pipes hiding (show)
+import qualified Pipes.Lift            as Pipes
+import qualified Pipes.Parse           as Pipes
+import qualified Pipes.Prelude         as Pipes hiding (show)
 import           System.Directory
 import           System.FilePath
-import           System.IO               hiding (putStrLn)
+import           System.IO             hiding (putStrLn)
 import           System.Process
 import           Text.Printf
 
@@ -193,35 +191,6 @@ classifyMovement minStillSegmentTime =
         (InStill {..}, Nothing) ->
             VG.mapM_ (yield' . Still) stillFrames
 
-
-colorClassifiedMovement :: (PrimMonad m, MonadIO m) => Pipe (Classified (Timed RGB8Frame)) (Timed RGB8Frame) m ()
-colorClassifiedMovement =
-  Pipes.mapM $ \case
-    Moving frame -> tint' green frame
-    Still frame -> tint' red frame
-  where
-    tint' color frame =
-      pure $ A.compute . A.map (\px -> meanWord8 <$> color <*> px) <$> frame
-    red = PixelRGB 255 0 0
-    green = PixelRGB 0 255 0
-
-blend :: PixelRGB8 -> PixelRGB8 -> PixelRGB8
-blend = mixWith (const meanWord8)
-
-meanWord8 :: Word8 -> Word8 -> Word8
-meanWord8 a b =
-  let n = fromIntegral a + fromIntegral b :: Word16
-  in fromIntegral (n `div` 2)
-
-tint :: (PrimMonad m) => PixelRGB8 -> MutableImage (PrimState m) PixelRGB8 -> m ()
-tint color frame =
-  sequence_
-  [ do p <- readPixel frame x y
-       writePixel frame x y (blend color p)
-  | x <- [0 .. pred (mutableImageWidth frame)]
-  , y <- [0 .. pred (mutableImageHeight frame)]
-  ]
-
 data SplitSegment a = SplitSegment
   { segmentNumber :: Int
   , segmentFrame  :: a
@@ -327,12 +296,13 @@ getVideoFileDuration f =
 
 filePathToVideoAsset ::
      (MonadError VideoImportError m, MonadIO m)
-  => FilePath
+  => VideoSettings
+  -> FilePath
   -> OriginalPath
   -> m VideoAsset
-filePathToVideoAsset outDir p = do
+filePathToVideoAsset videoSettings outDir p = do
   d <- liftIO (getVideoFileDuration (p ^. unOriginalPath))
-  proxyPath <- liftIO (generateProxy p (outDir </> "proxies"))
+  proxyPath <- liftIO (generateProxy videoSettings p (outDir </> "proxies"))
   let meta = AssetMetadata p d
   pure (VideoAsset meta proxyPath Nothing)
 
@@ -361,10 +331,11 @@ data VideoImportError
 
 importVideoFile ::
      MonadIO m
-  => FilePath
+  => VideoSettings
+  -> FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError VideoAsset)
-importVideoFile sourceFile outDir = do
+importVideoFile settings sourceFile outDir = do
   Pipes.yield (ProgressUpdate 0)
   -- Copy asset to working directory
   assetPath <- liftIO $ do
@@ -374,11 +345,11 @@ importVideoFile sourceFile outDir = do
     return (OriginalPath assetPath)
   -- Generate thumbnail and return asset
   Pipes.yield (ProgressUpdate 0.5) *>
-    (filePathToVideoAsset outDir assetPath & runExceptT)
+    (filePathToVideoAsset settings outDir assetPath & runExceptT)
     <* Pipes.yield (ProgressUpdate 1)
 
-generateProxy :: OriginalPath -> FilePath -> IO ProxyPath
-generateProxy (view unOriginalPath -> sourceFile) outDir = do
+generateProxy :: VideoSettings -> OriginalPath -> FilePath -> IO ProxyPath
+generateProxy videoSettings (view unOriginalPath -> sourceFile) outDir = do
   createDirectoryIfMissing True outDir
   let proxyPath =
         outDir </> takeBaseName sourceFile <> ".proxy.mp4"
@@ -388,6 +359,8 @@ generateProxy (view unOriginalPath -> sourceFile) outDir = do
         , sourceFile
         , "-vf"
         , "scale=640:-1"
+        , "-framerate"
+        , printf "%d" (videoSettings ^. frameRate)
         , "-vcodec"
         , "h264"
         , "-crf"
@@ -407,9 +380,9 @@ importVideoFileAutoSplit ::
   -> FilePath
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
-importVideoFileAutoSplit _settings sourceFile outDir = do
+importVideoFileAutoSplit settings sourceFile outDir = do
   fullLength <- liftIO (getVideoFileDuration sourceFile)
-  proxyPath <- liftIO (generateProxy original (outDir </> "proxies"))
+  proxyPath <- liftIO (generateProxy settings original (outDir </> "proxies"))
   let classifiedFrames =
         classifyMovement
           1.0

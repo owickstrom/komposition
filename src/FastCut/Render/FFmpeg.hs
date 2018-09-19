@@ -45,18 +45,17 @@ import qualified FastCut.Render.Composition    as Composition
 import           FastCut.Render.FFmpeg.Command (Command (Command))
 import qualified FastCut.Render.FFmpeg.Command as Command
 import           FastCut.Render.Timestamp
+import           FastCut.VideoSettings
 
 data Source (mt :: MediaType) where
   VideoOriginal :: Source Video
   VideoProxy :: Source Video
   AudioOriginal :: Source Audio
 
-type FrameRate = Word
-
 data Input mt where
   VideoAssetInput :: OriginalPath -> Input Video
   AudioAssetInput :: OriginalPath -> Input Audio
-  StillFrameInput :: FilePath -> FrameRate -> Duration -> Input Video
+  StillFrameInput :: FilePath -> Duration -> Input Video
   SilenceInput :: Duration -> Input Audio
 
 deriving instance Eq (Input mt)
@@ -77,12 +76,12 @@ data CommandInput mt = CommandInput
   }
 
 extractFrameToFile
-  :: FrameRate -> Composition.StillFrameMode -> Source Video -> Asset Video -> TimeSpan -> FilePath -> IO FilePath
-extractFrameToFile frameRate mode videoSource videoAsset ts frameDir = do
+  :: VideoSettings -> Composition.StillFrameMode -> Source Video -> Asset Video -> TimeSpan -> FilePath -> IO FilePath
+extractFrameToFile videoSettings mode videoSource videoAsset ts frameDir = do
   let sourcePath =
         case videoSource of
           VideoOriginal -> videoAsset ^. assetMetadata . path . unOriginalPath
-          VideoProxy    -> videoAsset ^. videoAssetProxy . unProxyPath
+          VideoProxy -> videoAsset ^. videoAssetProxy . unProxyPath
       -- Not the best hash...
       frameHash =
         hash
@@ -99,7 +98,8 @@ extractFrameToFile frameRate mode videoSource videoAsset ts frameDir = do
     Composition.FirstFrame ->
       extractFrame sourcePath (spanStart ts) frameFilePath
     Composition.LastFrame ->
-      let frameDuration = durationFromSeconds (1 / fromIntegral frameRate)
+      let frameDuration =
+            durationFromSeconds (1 / fromIntegral (videoSettings ^. frameRate))
       in extractFrame sourcePath (spanEnd ts - frameDuration) frameFilePath
   return frameFilePath
   where
@@ -132,21 +132,19 @@ extractFrameToFile frameRate mode videoSource videoAsset ts frameDir = do
 toCommandInput
   :: SMediaType mt
   -> FilePath
-  -> FrameRate
+  -> VideoSettings
   -> Source mt
   -> Int
   -> NonEmpty (Composition.CompositionPart mt)
   -> IO (CommandInput mt)
-toCommandInput mediaType tmpDir frameRate source startAt parts' =
-  parts'
-  & NonEmpty.zip (startAt :| [succ startAt ..])
-  & traverse toPartStream
-  & (`runStateT` mempty)
-  & (>>= toCommandInputOrPanic)
+toCommandInput mediaType tmpDir videoSettings source startAt parts' =
+  parts' & NonEmpty.zip (startAt :| [succ startAt ..]) & traverse toPartStream &
+  (`runStateT` mempty) &
+  (>>= toCommandInputOrPanic)
   where
     toInputIndex i = InputIndex (fromIntegral (i + startAt))
-    addUniqueInput :: Eq (Input mt) =>
-         Input mt -> StateT (Vector (Input mt)) IO InputIndex
+    addUniqueInput ::
+         Eq (Input mt) => Input mt -> StateT (Vector (Input mt)) IO InputIndex
     addUniqueInput input = do
       inputs <- get
       case Vector.findIndex (== input) inputs of
@@ -160,8 +158,9 @@ toCommandInput mediaType tmpDir frameRate source startAt parts' =
           ii <- addUniqueInput (VideoAssetInput (asset ^. assetMetadata . path))
           return ("v" <> show vi, VideoClipStream ii ts)
         (SVideo, vi, Composition.StillFrame mode asset ts duration') -> do
-          frameFile <- lift (extractFrameToFile frameRate mode source asset ts tmpDir)
-          ii <- addUniqueInput (StillFrameInput frameFile frameRate duration')
+          frameFile <-
+            lift (extractFrameToFile videoSettings mode source asset ts tmpDir)
+          ii <- addUniqueInput (StillFrameInput frameFile duration')
           return ("v" <> show vi, StillFrameStream ii)
         (SAudio, ai, Composition.AudioClip asset) -> do
           ii <- addUniqueInput (AudioAssetInput (asset ^. assetMetadata . path))
@@ -199,11 +198,12 @@ fromCarriageReturnSplit h = go mempty
           else go (buf <> Text.singleton c)
 
 toRenderCommand
-  :: FilePath
+  :: VideoSettings
+  -> FilePath
   -> CommandInput Video
   -> CommandInput Audio
   -> Command
-toRenderCommand outFile videoInput audioInput =
+toRenderCommand videoSettings outFile videoInput audioInput =
   Command
   { output = outFile
   , inputs =
@@ -245,15 +245,16 @@ toRenderCommand outFile videoInput audioInput =
     toVideoInput :: Input Video -> Command.Source
     toVideoInput =
       \case
-        VideoAssetInput p ->
-          Command.FileSource (p ^. unOriginalPath)
-        StillFrameInput frameFile frameRate duration' ->
-          Command.StillFrameSource frameFile frameRate duration'
+        VideoAssetInput p -> Command.FileSource (p ^. unOriginalPath)
+        StillFrameInput frameFile duration' ->
+          Command.StillFrameSource
+            frameFile
+            (videoSettings ^. frameRate)
+            duration'
     toAudioInput :: Input Audio -> Command.Source
     toAudioInput =
       \case
-        AudioAssetInput p ->
-          Command.FileSource (p ^. unOriginalPath)
+        AudioAssetInput p -> Command.FileSource (p ^. unOriginalPath)
         SilenceInput duration' -> Command.AudioNullSource duration'
     toStreamNameOnlySelector streamName =
       Command.StreamSelector (Command.StreamName streamName) Nothing Nothing
@@ -305,6 +306,15 @@ toRenderCommand outFile videoInput audioInput =
            [] :|
          [ Command.RoutedFilter
              []
+             Command.Scale
+             { scaleWidth = videoSettings ^. resolution . width
+             , scaleHeight = videoSettings ^. resolution . height
+             , scaleForceOriginalAspectRatio =
+                 Command.ForceOriginalAspectRatioDisable
+             }
+             []
+         , Command.RoutedFilter
+             []
              Command.SetPTSStart
              [ Command.StreamSelector
                  (Command.StreamName streamName)
@@ -318,26 +328,26 @@ data RenderResult
   | ProcessFailed Text
 
 renderComposition
-  :: FrameRate
+  :: VideoSettings
   -> Source Video
   -> FilePath
   -> Composition
   -> Producer ProgressUpdate IO RenderResult
-renderComposition frameRate videoSource outFile c@(Composition video audio) = do
+renderComposition videoSettings videoSource outFile c@(Composition video audio) = do
   canonical <- lift getCanonicalTemporaryDirectory
   tmpDir <- lift (createTempDirectory canonical "fastcut.render")
   videoInput <-
-    lift (toCommandInput SVideo tmpDir frameRate videoSource 0 video)
+    lift (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
   audioInput <-
     lift
       (toCommandInput
          SAudio
          tmpDir
-         frameRate
+         videoSettings
          AudioOriginal
          (length (inputs videoInput))
          audio)
-  let renderCmd = toRenderCommand outFile videoInput audioInput
+  let renderCmd = toRenderCommand videoSettings outFile videoInput audioInput
       allArgs =
         "-v" :
         "quiet" :

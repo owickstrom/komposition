@@ -89,7 +89,11 @@ timelineMode gui model = do
               progressBar
                 gui
                 "Rendering"
-                (Render.renderComposition 25 Render.VideoOriginal outFile flat) >>= \case
+                (Render.renderComposition
+                   (model ^. project . videoSettings)
+                   Render.VideoOriginal
+                   outFile
+                   flat) >>= \case
                 Just Render.Success -> continue
                 Just (Render.ProcessFailed err) ->
                   iliftIO (putStrLn err) >>> continue

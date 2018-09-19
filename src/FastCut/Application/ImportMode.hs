@@ -87,6 +87,7 @@ importAsset gui timelineModel (filepath, autoSplit)
             False ->
               fmap (: []) <$>
               importVideoFile
+                (timelineModel ^. project . videoSettings)
                 filepath
                 (timelineModel ^. project . workingDirectory)
     in progressBar gui "Import Video" action >>>= \case
