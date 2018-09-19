@@ -54,7 +54,7 @@ filePathToAudioAsset ::
   -> m (Asset Audio)
 filePathToAudioAsset _outDir audioFilePath = do
   d <- getAudioFileDuration audioFilePath
-  let meta = AssetMetadata audioFilePath d
+  let meta = AssetMetadata (OriginalPath audioFilePath) d
   -- TODO: Generate waveform thumbnail
   return (AudioAsset meta)
 

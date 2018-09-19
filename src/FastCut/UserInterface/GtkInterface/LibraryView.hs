@@ -51,7 +51,11 @@ renderVideoAsset asset' =
     Just (n, timeSpan) ->
       container Box [classes ["video", "classified-scene"]] $ do
         let lbl :: Prelude.String
-            lbl = printf "%s (%d)" (takeFileName (asset' ^. assetMetadata . path)) n
+            lbl =
+              printf
+                "%s (%d)"
+                (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
+                n
         boxChild True False 0 $ widget Label [#label := toS lbl]
         boxChild False False 10 $
           widget Label [#label := printTimestamp (durationOf timeSpan)]
@@ -60,7 +64,10 @@ renderVideoAsset asset' =
         boxChild True False 0 $
           widget
             Label
-            [#label := toS (takeFileName (asset' ^. assetMetadata . path))]
+            [ #label :=
+              toS
+                (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
+            ]
         boxChild False False 10 $
           widget
             Label
@@ -74,7 +81,9 @@ renderAudioAsset asset' =
     boxChild True False 0 $
       widget
         Label
-        [#label := toS (takeFileName (asset' ^. assetMetadata . path))]
+        [ #label :=
+          toS (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
+        ]
     boxChild False False 10 $
       widget
         Label

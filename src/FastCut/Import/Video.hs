@@ -328,10 +328,10 @@ getVideoFileDuration f =
 filePathToVideoAsset ::
      (MonadError VideoImportError m, MonadIO m)
   => FilePath
-  -> FilePath
+  -> OriginalPath
   -> m VideoAsset
 filePathToVideoAsset outDir p = do
-  d <- liftIO (getVideoFileDuration p)
+  d <- liftIO (getVideoFileDuration (p ^. unOriginalPath))
   proxyPath <- liftIO (generateProxy p (outDir </> "proxies"))
   let meta = AssetMetadata p d
   pure (VideoAsset meta proxyPath Nothing)
@@ -371,16 +371,17 @@ importVideoFile sourceFile outDir = do
     createDirectoryIfMissing True outDir
     let assetPath = outDir </> takeFileName sourceFile
     copyFile sourceFile assetPath
-    return assetPath
+    return (OriginalPath assetPath)
   -- Generate thumbnail and return asset
   Pipes.yield (ProgressUpdate 0.5) *>
     (filePathToVideoAsset outDir assetPath & runExceptT)
     <* Pipes.yield (ProgressUpdate 1)
 
-generateProxy :: FilePath -> FilePath -> IO ProxyPath
-generateProxy sourceFile outDir = do
+generateProxy :: OriginalPath -> FilePath -> IO ProxyPath
+generateProxy (view unOriginalPath -> sourceFile) outDir = do
   createDirectoryIfMissing True outDir
-  let proxyPath = outDir </> takeBaseName sourceFile <> ".proxy.mp4"
+  let proxyPath =
+        outDir </> takeBaseName sourceFile <> ".proxy.mp4"
       allArgs =
         [ "-nostdin"
         , "-i"
@@ -408,7 +409,7 @@ importVideoFileAutoSplit ::
   -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
 importVideoFileAutoSplit _settings sourceFile outDir = do
   fullLength <- liftIO (getVideoFileDuration sourceFile)
-  proxyPath <- liftIO (generateProxy sourceFile (outDir </> "proxies"))
+  proxyPath <- liftIO (generateProxy original (outDir </> "proxies"))
   let classifiedFrames =
         classifyMovement
           1.0
@@ -419,10 +420,11 @@ importVideoFileAutoSplit _settings sourceFile outDir = do
     (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..]) &
     Pipes.runExceptP
   where
+    original = OriginalPath sourceFile
     toProgress (durationToSeconds -> fullLength) time =
       ProgressUpdate (time / fullLength)
     toSceneAsset proxyPath fullLength n timeSpan = do
-      let meta = AssetMetadata sourceFile fullLength
+      let meta = AssetMetadata original fullLength
       return (VideoAsset meta proxyPath (Just (n, timeSpan)))
 
 isSupportedVideoFile :: FilePath -> Bool

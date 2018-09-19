@@ -67,7 +67,7 @@ duration' range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)
 assetMetadata :: MonadGen m => m AssetMetadata
 assetMetadata =
   AssetMetadata
-    <$> Gen.string (linear 1 50) Gen.unicode
+    <$> (OriginalPath <$> Gen.string (linear 1 50) Gen.unicode)
     <*> duration' (linear 1 10 :: Range Int)
 
 -- With Focus

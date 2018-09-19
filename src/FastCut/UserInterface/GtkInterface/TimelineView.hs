@@ -58,7 +58,7 @@ renderClipAsset zl thisFocus focused asset' duration' =
     Box
     [ classes ["clip", focusedClass focused]
     , #orientation := OrientationHorizontal
-    , #tooltipText := toS (asset' ^. assetMetadata . path)
+    , #tooltipText := toS (asset' ^. assetMetadata . path . unOriginalPath)
     ] $
   boxChild False False 0 $
   widget Button [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))

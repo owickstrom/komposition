@@ -54,8 +54,8 @@ data Source (mt :: MediaType) where
 type FrameRate = Word
 
 data Input mt where
-  VideoAssetInput :: VideoAsset -> Input Video
-  AudioAssetInput :: AudioAsset -> Input Audio
+  VideoAssetInput :: OriginalPath -> Input Video
+  AudioAssetInput :: OriginalPath -> Input Audio
   StillFrameInput :: FilePath -> FrameRate -> Duration -> Input Video
   SilenceInput :: Duration -> Input Audio
 
@@ -81,7 +81,7 @@ extractFrameToFile
 extractFrameToFile frameRate mode videoSource videoAsset ts frameDir = do
   let sourcePath =
         case videoSource of
-          VideoOriginal -> videoAsset ^. assetMetadata . path
+          VideoOriginal -> videoAsset ^. assetMetadata . path . unOriginalPath
           VideoProxy    -> videoAsset ^. videoAssetProxy . unProxyPath
       -- Not the best hash...
       frameHash =
@@ -157,14 +157,14 @@ toCommandInput mediaType tmpDir frameRate source startAt parts' =
     toPartStream (i, p) =
       case (mediaType, i, p) of
         (SVideo, vi, Composition.VideoClip asset ts) -> do
-          ii <- addUniqueInput (VideoAssetInput asset)
+          ii <- addUniqueInput (VideoAssetInput (asset ^. assetMetadata . path))
           return ("v" <> show vi, VideoClipStream ii ts)
         (SVideo, vi, Composition.StillFrame mode asset ts duration') -> do
           frameFile <- lift (extractFrameToFile frameRate mode source asset ts tmpDir)
           ii <- addUniqueInput (StillFrameInput frameFile frameRate duration')
           return ("v" <> show vi, StillFrameStream ii)
         (SAudio, ai, Composition.AudioClip asset) -> do
-          ii <- addUniqueInput (AudioAssetInput asset)
+          ii <- addUniqueInput (AudioAssetInput (asset ^. assetMetadata . path))
           return
             ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf asset)))
         (SAudio, ai, Composition.Silence duration') -> do
@@ -245,15 +245,15 @@ toRenderCommand outFile videoInput audioInput =
     toVideoInput :: Input Video -> Command.Source
     toVideoInput =
       \case
-        VideoAssetInput asset ->
-          Command.FileSource (asset ^. assetMetadata . path)
+        VideoAssetInput p ->
+          Command.FileSource (p ^. unOriginalPath)
         StillFrameInput frameFile frameRate duration' ->
           Command.StillFrameSource frameFile frameRate duration'
     toAudioInput :: Input Audio -> Command.Source
     toAudioInput =
       \case
-        AudioAssetInput asset ->
-          Command.FileSource (asset ^. assetMetadata . path)
+        AudioAssetInput p ->
+          Command.FileSource (p ^. unOriginalPath)
         SilenceInput duration' -> Command.AudioNullSource duration'
     toStreamNameOnlySelector streamName =
       Command.StreamSelector (Command.StreamName streamName) Nothing Nothing

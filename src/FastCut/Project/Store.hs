@@ -22,6 +22,7 @@ instance Binary AssetMetadata
 instance Binary VideoAsset
 instance Binary AudioAsset
 instance Binary ProxyPath
+instance Binary OriginalPath
 
 instance Binary Duration where
   get = Duration . picosecondsToDiffTime <$> Binary.get

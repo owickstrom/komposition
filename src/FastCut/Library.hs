@@ -16,8 +16,14 @@ import           Control.Lens
 import           FastCut.Duration
 import           FastCut.MediaType
 
+newtype OriginalPath = OriginalPath
+  { _unOriginalPath :: FilePath
+  } deriving (Show, Eq, Generic)
+
+makeLenses ''OriginalPath
+
 data AssetMetadata = AssetMetadata
-  { _path     :: FilePath
+  { _path     :: OriginalPath
   , _duration :: Duration
   } deriving (Eq, Show, Generic)
 
