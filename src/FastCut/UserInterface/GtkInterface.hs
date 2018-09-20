@@ -419,11 +419,15 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   progressBar n title producer =
     let setUp d content = do
           pb <- Gtk.new Gtk.ProgressBar [#showText := True]
+          msgLabel <- Gtk.new Gtk.Label []
           let updateProgress = forever $ do
-                ProgressUpdate fraction <- await
-                liftIO . runUI $
-                  Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction]
-          #add content pb
+                ProgressUpdate msg fraction <- await
+                liftIO . runUI $ do
+                  Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction ]
+                  Gtk.set msgLabel [#label := msg]
+          #packStart content pb False False 10
+          #packStart content msgLabel False False 10
+          Gtk.set content [#widthRequest := 300]
 
           jobResult <- newEmptyMVar
           tid <- forkIO $ do

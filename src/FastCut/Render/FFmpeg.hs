@@ -22,29 +22,28 @@ import           FastCut.Prelude
 import qualified Prelude
 
 import           Control.Lens
-import qualified Data.List.NonEmpty            as NonEmpty
-import qualified Data.Text                     as Text
-import           Data.Vector                   (Vector)
-import qualified Data.Vector                   as Vector
+import qualified Data.List.NonEmpty         as NonEmpty
+import qualified Data.Text                  as Text
+import           Data.Vector                (Vector)
+import qualified Data.Vector                as Vector
 import           Pipes
 import           System.Directory
 import           System.FilePath
-import qualified System.IO                     as IO
-import           System.IO.Error               (isDoesNotExistError)
 import           System.IO.Temp
 import           System.Process
 import           Text.Printf
 
 
 import           FastCut.Duration
+import           FastCut.FFmpeg.Command     (Command (Command))
+import qualified FastCut.FFmpeg.Command     as Command
+import           FastCut.FFmpeg.Process
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Progress
-import           FastCut.Render.Composition    (Composition (..))
-import qualified FastCut.Render.Composition    as Composition
-import           FastCut.Render.FFmpeg.Command (Command (Command))
-import qualified FastCut.Render.FFmpeg.Command as Command
-import           FastCut.Render.Timestamp
+import           FastCut.Render.Composition (Composition (..))
+import qualified FastCut.Render.Composition as Composition
+import           FastCut.Timestamp
 import           FastCut.VideoSettings
 
 data Source (mt :: MediaType) where
@@ -75,8 +74,14 @@ data CommandInput mt = CommandInput
   , inputStreams :: NonEmpty (PartStreamName, PartStream mt)
   }
 
-extractFrameToFile
-  :: VideoSettings -> Composition.StillFrameMode -> Source Video -> Asset Video -> TimeSpan -> FilePath -> IO FilePath
+extractFrameToFile ::
+     VideoSettings
+  -> Composition.StillFrameMode
+  -> Source Video
+  -> Asset Video
+  -> TimeSpan
+  -> FilePath
+  -> IO FilePath
 extractFrameToFile videoSettings mode videoSource videoAsset ts frameDir = do
   let sourcePath =
         case videoSource of
@@ -90,10 +95,6 @@ extractFrameToFile videoSettings mode videoSource videoAsset ts frameDir = do
           , durationToSeconds (spanStart ts)
           , durationToSeconds (spanEnd ts))
       frameFilePath = frameDir </> show (abs frameHash) <> ".png"
-  removeFile frameFilePath `catch` \case
-    e
-      | isDoesNotExistError e -> return ()
-      | otherwise -> throwIO e
   case mode of
     Composition.FirstFrame ->
       extractFrame sourcePath (spanStart ts) frameFilePath
@@ -104,25 +105,26 @@ extractFrameToFile videoSettings mode videoSource videoAsset ts frameDir = do
   return frameFilePath
   where
     extractFrame :: FilePath -> Duration -> FilePath -> IO ()
-    extractFrame sourcePath startAfter frameFileName = do
-      putStrLn
-        ("Extracting frame at " <> printTimestamp startAfter <> " from " <>
-         toS sourcePath <>
-         ".")
-      let allArgs =
-            [ "-nostdin"
-            , "-ss"
-            , printf "%f" (durationToSeconds startAfter)
-            , "-i"
-            , sourcePath
-            , "-t"
-            , "1"
-            , "-vframes"
-            , "1"
-            , frameFileName
-            ]
-      putStrLn $ Text.unwords ("ffmpeg" : map toS allArgs)
-      runFFmpeg $ proc "ffmpeg" allArgs
+    extractFrame sourcePath startAfter frameFileName =
+      unlessM (doesFileExist frameFileName) $ do
+        putStrLn
+          ("Extracting frame at " <> printTimestamp startAfter <> " from " <>
+           toS sourcePath <>
+           ".")
+        let allArgs =
+              [ "-nostdin"
+              , "-ss"
+              , printf "%f" (durationToSeconds startAfter)
+              , "-i"
+              , sourcePath
+              , "-t"
+              , "1"
+              , "-vframes"
+              , "1"
+              , frameFileName
+              ]
+        putStrLn $ Text.unwords ("ffmpeg" : map toS allArgs)
+        runFFmpeg $ proc "ffmpeg" allArgs
     runFFmpeg cmd = do
       (exit, _, err) <- readCreateProcessWithExitCode cmd ""
       when
@@ -177,26 +179,6 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
           (NonEmpty.nonEmpty (Vector.toList inputs))
       pure (CommandInput inputs' streams)
 
-parseTimestampFromProgress :: Text -> Maybe Duration
-parseTimestampFromProgress line = parseTimestamp
-  =<< Prelude.lookup "time" (toPairs (splitByWhitespaceOrEquals line))
-  where
-    splitByWhitespaceOrEquals =
-      filter (not . Text.null) . Text.split (`elem` ['\t', ' ', '='])
-    toPairs (key : value : rest) = (key, value) : toPairs rest
-    toPairs _                    = []
-
-fromCarriageReturnSplit :: Handle -> Producer Text IO ()
-fromCarriageReturnSplit h = go mempty
-  where
-    go buf = lift (IO.hIsEOF h) >>= \case
-      True  -> yield buf
-      False -> do
-        c <- lift (IO.hGetChar h)
-        if c == '\r'
-          then yield buf >> go mempty
-          else go (buf <> Text.singleton c)
-
 toRenderCommand
   :: VideoSettings
   -> FilePath
@@ -214,6 +196,9 @@ toRenderCommand videoSettings outFile videoInput audioInput =
         (videoInputChains <> audioInputChains <> (videoChain :| [audioChain]))
   , mappings = [videoStream, audioStream]
   , format = "mp4"
+  , vcodec = Just "h264"
+  , acodec = Just "aac"
+  , frameRate = Just (videoSettings ^. frameRate)
   }
   where
     namedStream n =
@@ -323,10 +308,6 @@ toRenderCommand videoSettings outFile videoInput audioInput =
              ]
          ])
 
-data RenderResult
-  = Success
-  | ProcessFailed Text
-
 renderComposition
   :: VideoSettings
   -> Source Video
@@ -348,25 +329,4 @@ renderComposition videoSettings videoSource outFile c@(Composition video audio) 
          (length (inputs videoInput))
          audio)
   let renderCmd = toRenderCommand videoSettings outFile videoInput audioInput
-      allArgs =
-        "-v" :
-        "quiet" :
-        "-stats" : "-nostdin" : map toS (Command.printCommandLineArgs renderCmd)
-      process = proc "ffmpeg" allArgs
-  lift (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
-  (_, _, Just progressOut, ph) <-
-    lift (createProcess_ "" process {std_err = CreatePipe})
-  lift (IO.hSetBuffering progressOut IO.NoBuffering)
-  let totalDuration = durationToSeconds (durationOf c)
-  Pipes.for (fromCarriageReturnSplit progressOut) $ \line -> do
-    lift (putStrLn line)
-    case parseTimestampFromProgress line of
-      Just currentDuration ->
-        yield
-          (ProgressUpdate (durationToSeconds currentDuration / totalDuration))
-      Nothing -> return ()
-  lift (waitForProcess ph) >>= \case
-    ExitSuccess -> return Success
-    ExitFailure e ->
-      return
-        (ProcessFailed ("FFmpeg command failed with exit code: " <> show e))
+  runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd

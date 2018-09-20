@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-type-defaults #-}
 
-module FastCut.Render.TimestampTest where
+module FastCut.TimestampTest where
 
 import           FastCut.Prelude
 import qualified Prelude
@@ -9,7 +9,7 @@ import           Hedgehog
 import           Hedgehog.Range
 
 import           FastCut.Duration
-import           FastCut.Render.Timestamp
+import           FastCut.Timestamp
 
 import qualified FastCut.Composition.Generators as Gen
 

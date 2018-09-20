@@ -15,40 +15,46 @@
 {-# LANGUAGE ViewPatterns          #-}
 module FastCut.Import.Video where
 
-import           FastCut.Prelude       hiding (catch)
+import           FastCut.Prelude        hiding (catch)
 
-import           Codec.FFmpeg          hiding (resolution)
+import           Codec.FFmpeg           hiding (resolution)
 import           Codec.FFmpeg.Encode
-import qualified Codec.FFmpeg.Probe    as Probe
-import           Codec.Picture         as CP
+import qualified Codec.FFmpeg.Probe     as Probe
+import           Codec.Picture          as CP
 import           Control.Lens
 import           Control.Monad.Catch
-import qualified Data.Massiv.Array     as A
-import           Data.Massiv.Array.IO  as A hiding (Image)
-import           Data.Maybe            (fromMaybe)
-import qualified Data.Text             as Text
+import qualified Data.Massiv.Array      as A
+import           Data.Massiv.Array.IO   as A hiding (Image)
+import           Data.Maybe             (fromMaybe)
 import           Data.Time.Clock
-import qualified Data.Vector           as V
-import qualified Data.Vector.Generic   as VG
-import           Graphics.ColorSpace   as A
-import           Pipes                 (Consumer', Pipe, Producer, (>->))
+import qualified Data.Vector            as V
+import qualified Data.Vector.Generic    as VG
+import           Graphics.ColorSpace    as A
+import           Pipes                  (Consumer', Pipe, Producer, (>->))
 import qualified Pipes
-import qualified Pipes.Lift            as Pipes
-import qualified Pipes.Parse           as Pipes
-import qualified Pipes.Prelude         as Pipes hiding (show)
+import qualified Pipes.Lift             as Pipes
+import qualified Pipes.Parse            as Pipes
+import qualified Pipes.Prelude          as Pipes hiding (show)
 import           System.Directory
 import           System.FilePath
-import           System.IO             hiding (putStrLn)
-import           System.Process
+import           System.IO              hiding (putStrLn)
 import           Text.Printf
 
 import           FastCut.Duration
+import           FastCut.FFmpeg.Command (Command (Command))
+import qualified FastCut.FFmpeg.Command as Command
+import           FastCut.FFmpeg.Process
 import           FastCut.Library
 import           FastCut.Progress
 import           FastCut.VideoSettings
 
 initialize :: IO ()
 initialize = initFFmpeg
+
+data VideoImportError
+  = UnexpectedError FilePath Text
+  | ProxyGenerationFailed FilePath Text
+  deriving (Show, Eq)
 
 -- | The type of frames returned by "Codec.FFmpeg", i.e. JuicyPixel
 -- images.
@@ -299,12 +305,11 @@ filePathToVideoAsset ::
   => VideoSettings
   -> FilePath
   -> OriginalPath
-  -> m VideoAsset
+  -> Producer ProgressUpdate m VideoAsset
 filePathToVideoAsset videoSettings outDir p = do
   d <- liftIO (getVideoFileDuration (p ^. unOriginalPath))
-  proxyPath <- liftIO (generateProxy videoSettings p (outDir </> "proxies"))
-  let meta = AssetMetadata p d
-  pure (VideoAsset meta proxyPath Nothing)
+  proxyPath <- generateProxy videoSettings p d (outDir </> "proxies")
+  pure (VideoAsset (AssetMetadata p d) proxyPath Nothing)
 
 generateVideoThumbnail ::
      (MonadError VideoImportError m, MonadIO m)
@@ -325,10 +330,6 @@ generateVideoThumbnail sourceFile outDir = do
 
 newtype AutoSplit = AutoSplit Bool deriving (Show, Eq)
 
-data VideoImportError
-  = UnexpectedError FilePath Text
-  deriving (Show, Eq)
-
 importVideoFile ::
      MonadIO m
   => VideoSettings
@@ -336,7 +337,6 @@ importVideoFile ::
   -> FilePath
   -> Producer ProgressUpdate m (Either VideoImportError VideoAsset)
 importVideoFile settings sourceFile outDir = do
-  Pipes.yield (ProgressUpdate 0)
   -- Copy asset to working directory
   assetPath <- liftIO $ do
     createDirectoryIfMissing True outDir
@@ -344,35 +344,44 @@ importVideoFile settings sourceFile outDir = do
     copyFile sourceFile assetPath
     return (OriginalPath assetPath)
   -- Generate thumbnail and return asset
-  Pipes.yield (ProgressUpdate 0.5) *>
-    (filePathToVideoAsset settings outDir assetPath & runExceptT)
-    <* Pipes.yield (ProgressUpdate 1)
+  Pipes.runExceptP $ filePathToVideoAsset settings outDir assetPath
 
-generateProxy :: VideoSettings -> OriginalPath -> FilePath -> IO ProxyPath
-generateProxy videoSettings (view unOriginalPath -> sourceFile) outDir = do
-  createDirectoryIfMissing True outDir
-  let proxyPath =
-        outDir </> takeBaseName sourceFile <> ".proxy.mp4"
-      allArgs =
-        [ "-nostdin"
-        , "-i"
-        , sourceFile
-        , "-vf"
-        , "scale=640:-1"
-        , "-framerate"
-        , printf "%d" (videoSettings ^. frameRate)
-        , "-vcodec"
-        , "h264"
-        , "-crf"
-        , "18"
-        , proxyPath
-        ]
-  putStrLn $ Text.unwords ("ffmpeg" : map toS allArgs)
-  (exit, _, err) <- readCreateProcessWithExitCode (proc "ffmpeg" allArgs) ""
-  when
-    (exit /= ExitSuccess)
-    (panic ("Couldn't generate proxy video from file: " <> toS err))
-  return (ProxyPath proxyPath)
+generateProxy ::
+     (MonadError VideoImportError m, MonadIO m)
+  => VideoSettings
+  -> OriginalPath
+  -> Duration
+  -> FilePath
+  -> Producer ProgressUpdate m ProxyPath
+generateProxy videoSettings (view unOriginalPath -> sourceFile) fullLength outDir = do
+  liftIO (createDirectoryIfMissing True outDir)
+  let proxyPath = outDir </> takeBaseName sourceFile <> ".proxy.mp4"
+      cmd =
+        Command
+        { output = proxyPath
+        , inputs = pure (Command.FileSource sourceFile)
+        , filterGraph =
+            Command.FilterGraph
+              (pure
+                 (Command.FilterChain
+                    (pure
+                       (Command.RoutedFilter
+                          []
+                          (Command.Scale
+                             640
+                             360
+                             Command.ForceOriginalAspectRatioDisable)
+                          []))))
+        , frameRate = Just (videoSettings ^. frameRate)
+        , mappings = []
+        , vcodec = Just "h264"
+        , acodec = Nothing
+        , format = "mp4"
+        }
+  result <- runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd
+  case result of
+    Success           -> return (ProxyPath proxyPath)
+    ProcessFailed err -> throwError (ProxyGenerationFailed sourceFile err)
 
 importVideoFileAutoSplit ::
      MonadIO m
@@ -382,23 +391,25 @@ importVideoFileAutoSplit ::
   -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
 importVideoFileAutoSplit settings sourceFile outDir = do
   fullLength <- liftIO (getVideoFileDuration sourceFile)
-  proxyPath <- liftIO (generateProxy settings original (outDir </> "proxies"))
-  let classifiedFrames =
-        classifyMovement
-          1.0
-          (readVideoFile (proxyPath ^. unProxyPath) >-> toMassiv) >->
-        Pipes.map (fmap (fmap A.toJPImageRGB8))
-  classifyMovingScenes fullLength classifiedFrames >->
-    Pipes.map (toProgress fullLength) &
-    (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..]) &
-    Pipes.runExceptP
+  generateProxy settings original fullLength (outDir </> "proxies")
+    & flip divideProgress (classifyScenes fullLength)
+    & Pipes.runExceptP
   where
     original = OriginalPath sourceFile
     toProgress (durationToSeconds -> fullLength) time =
-      ProgressUpdate (time / fullLength)
+      ProgressUpdate "Classifying scenes" (time / fullLength)
     toSceneAsset proxyPath fullLength n timeSpan = do
       let meta = AssetMetadata original fullLength
       return (VideoAsset meta proxyPath (Just (n, timeSpan)))
+    classifyScenes fullLength proxyPath = do
+      let classifiedFrames =
+                classifyMovement
+                1.0
+                (readVideoFile (proxyPath ^. unProxyPath) >-> toMassiv) >->
+                Pipes.map (fmap (fmap A.toJPImageRGB8))
+      classifyMovingScenes fullLength classifiedFrames >->
+            Pipes.map (toProgress fullLength) &
+            (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..])
 
 isSupportedVideoFile :: FilePath -> Bool
 isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov"]

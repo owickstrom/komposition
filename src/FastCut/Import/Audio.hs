@@ -31,7 +31,7 @@ importAudioFile ::
   -> FilePath
   -> Producer ProgressUpdate m (Either AudioImportError (Asset Audio))
 importAudioFile audioFile outDir = do
-  Pipes.yield (ProgressUpdate 0)
+  Pipes.yield (ProgressUpdate "Importing Audio" 0)
   -- Copy asset to working directory
   assetPath <-
     liftIO $ do
@@ -40,9 +40,9 @@ importAudioFile audioFile outDir = do
       copyFile audioFile assetPath
       return assetPath
   -- Generate thumbnail and return asset
-  Pipes.yield (ProgressUpdate 0.5) *>
+  Pipes.yield (ProgressUpdate "Importing Audio" 0.5) *>
     (lift (filePathToAudioAsset outDir assetPath & runExceptT)) <*
-    Pipes.yield (ProgressUpdate 1)
+    Pipes.yield (ProgressUpdate "Importing Audio" 1)
 
 isSupportedAudioFile :: FilePath -> Bool
 isSupportedAudioFile p = takeExtension p `elem` [".wav", ".mp3", ".m4a", ".aiff", ".aac"]

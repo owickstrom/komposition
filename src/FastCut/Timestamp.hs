@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module FastCut.Render.Timestamp where
+module FastCut.Timestamp where
 
 import           FastCut.Prelude
 import qualified Prelude

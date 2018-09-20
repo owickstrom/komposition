@@ -30,6 +30,8 @@ library
                       , FastCut.Composition.Insert
                       , FastCut.Composition.Split
                       , FastCut.Duration
+                      , FastCut.FFmpeg.Command
+                      , FastCut.FFmpeg.Process
                       , FastCut.Focus
                       , FastCut.Focus.Parent
                       , FastCut.Import.Audio
@@ -43,8 +45,6 @@ library
                       , FastCut.MediaType
                       , FastCut.Render.Composition
                       , FastCut.Render.FFmpeg
-                      , FastCut.Render.FFmpeg.Command
-                      , FastCut.Render.Timestamp
                       , FastCut.UserInterface
                       , FastCut.UserInterface.GtkInterface
                       , FastCut.UserInterface.GtkInterface.EventListener
@@ -52,6 +52,7 @@ library
                       , FastCut.UserInterface.GtkInterface.ImportView
                       , FastCut.UserInterface.GtkInterface.LibraryView
                       , FastCut.UserInterface.GtkInterface.TimelineView
+                      , FastCut.Timestamp
                       , FastCut.VideoSettings
   build-depends:        base >=4.10 && <4.12
                       , async

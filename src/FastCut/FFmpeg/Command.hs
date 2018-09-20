@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-module FastCut.Render.FFmpeg.Command
+module FastCut.FFmpeg.Command
   ( Command(..)
   , Source(..)
   , Name
@@ -21,18 +21,21 @@ where
 import           FastCut.Prelude
 import qualified Prelude
 
-import qualified Data.List.NonEmpty       as NonEmpty
-import qualified Data.Text                as Text
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Text          as Text
 import           Text.Printf
 
 import           FastCut.Duration
-import           FastCut.Render.Timestamp
+import           FastCut.Timestamp
 
 data Command = Command
   { inputs      :: NonEmpty Source
   , filterGraph :: FilterGraph
+  , frameRate   :: Maybe FrameRate
   , mappings    :: [StreamSelector]
   , format      :: Text
+  , vcodec      :: Maybe Text
+  , acodec      :: Maybe Text
   , output      :: FilePath
   }
 
@@ -92,7 +95,15 @@ printCommandLineArgs Command {..} =
     <> ["-filter_complex", printFilterGraph filterGraph]
     <> foldMap printMapping mappings
     <> ["-f", format]
+    <> printOptionalPair "-framerate" show frameRate
+    <> printOptionalPair "-vcodec" identity vcodec
+    <> printOptionalPair "-acodec" identity acodec
     <> [toS output]
+
+printOptionalPair :: Text -> (a -> Text) -> Maybe a -> [Text]
+printOptionalPair flag printValue = \case
+  Just value -> [flag, printValue value]
+  Nothing -> []
 
 printSourceArgs :: Source -> [Text]
 printSourceArgs =
