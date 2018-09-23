@@ -261,7 +261,7 @@ toRenderCommand videoSettings output videoInput audioInput =
     toVideoInputChain (streamName, partStream) =
       case partStream of
         VideoClipStream ii ts ->
-          trimmedIndexedInput Command.Video streamName ii ts
+          trimmedIndexedInput Video streamName ii ts
         StillFrameStream i ->
           Command.FilterChain
             (Command.RoutedFilter
@@ -278,7 +278,7 @@ toRenderCommand videoSettings output videoInput audioInput =
     toAudioInputChain (streamName, partStream) =
       case partStream of
         AudioClipStream ii ts ->
-          trimmedIndexedInput Command.Audio streamName ii ts
+          trimmedIndexedInput Audio streamName ii ts
         SilenceStream i ->
           Command.FilterChain
             (Command.RoutedFilter
@@ -292,17 +292,22 @@ toRenderCommand videoSettings output videoInput audioInput =
              [])
     indexedStreamSelector track (InputIndex i) =
       Command.StreamSelector (Command.StreamIndex i) (Just track) (Just 0)
-    trimmedIndexedInput track streamName (InputIndex i) ts =
-      Command.FilterChain
-        (Command.RoutedFilter
+    trimmedIndexedInput mediaType streamName (InputIndex i) ts =
+      case mediaType of
+        Video -> Command.FilterChain (trimFilter Command.Video Command.Trim :| [scaleFilter, setPTSFilter Command.SetPTSStart])
+        Audio -> Command.FilterChain (trimFilter Command.Audio Command.AudioTrim :| [setPTSFilter Command.AudioSetPTSStart])
+      where
+        trimFilter track trim =
+          Command.RoutedFilter
            [ Command.StreamSelector
                (Command.StreamIndex i)
                (Just track)
                (Just 0)
            ]
-           (Command.Trim (spanStart ts) (durationOf ts))
-           [] :|
-         [ Command.RoutedFilter
+           (trim (spanStart ts) (durationOf ts))
+           []
+        scaleFilter =
+          Command.RoutedFilter
              []
              Command.Scale
              { scaleWidth = videoSettings ^. resolution . width
@@ -311,15 +316,15 @@ toRenderCommand videoSettings output videoInput audioInput =
                  Command.ForceOriginalAspectRatioDisable
              }
              []
-         , Command.RoutedFilter
+        setPTSFilter setPTS =
+          Command.RoutedFilter
              []
-             Command.SetPTSStart
+             setPTS
              [ Command.StreamSelector
                  (Command.StreamName streamName)
                  Nothing
                  Nothing
              ]
-         ])
 
 renderComposition
   :: VideoSettings
