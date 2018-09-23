@@ -87,6 +87,8 @@ data Filter
           , scaleForceOriginalAspectRatio :: ForceOriginalAspectRatio }
   | Trim { trimStart    :: Duration
          , trimDuration :: Duration }
+  | AudioTrim { trimStart    :: Duration
+              , trimDuration :: Duration }
   | SetPTSStart
   | AudioSetPTSStart
 
@@ -187,6 +189,15 @@ printFilter =
       toS
         (printf
            "trim=start=%f:duration=%f"
+           -- NOTE: the trim filter appearantly doesn't handle
+           -- timestamp format well, so we format as seconds with
+           -- decimal numbers
+           (durationToSeconds trimStart)
+           (durationToSeconds trimDuration) :: Prelude.String)
+    AudioTrim {..} ->
+      toS
+        (printf
+           "atrim=start=%f:duration=%f"
            -- NOTE: the trim filter appearantly doesn't handle
            -- timestamp format well, so we format as seconds with
            -- decimal numbers
