@@ -82,9 +82,10 @@ library
                       , parallel
                       , pipes
                       , pipes-parse
+                      , pipes-safe
                       , primitive
                       , protolude
-                      , process
+                      , process >= 1.6.4.0 && < 2
                       , row-types
                       , transformers
                       , temporary

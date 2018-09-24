@@ -1,14 +1,15 @@
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds         #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RebindableSyntax  #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedLabels    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RebindableSyntax    #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators       #-}
 module FastCut.Application.ImportMode where
 
 import           FastCut.Application.Base
@@ -56,7 +57,7 @@ importFile gui timelineModel = do
         (ImportClicked          , form) -> fillForm model form
         (ImportFileSelected file, form) -> fillForm
           model { autoSplitValue     = False
-                , autoSplitAvailable = maybe False isSupportedVideoFile file
+                , autoSplitAvailable = maybe False (\f -> isSupportedVideoFile f || isSupportedAudioFile f) file
                 }
           form { selectedFile = file }
         (ImportAutoSplitSet s, form) ->
@@ -83,23 +84,32 @@ importAsset gui timelineModel (filepath, autoSplit)
                 filepath
                 (timelineModel ^. project . workingDirectory)
             False ->
-              fmap (: []) <$>
+              (: []) <$>
               importVideoFile
                 (timelineModel ^. project . proxyVideoSettings)
                 filepath
                 (timelineModel ^. project . workingDirectory)
-    in progressBar gui "Import Video" action >>>= \case
+    in progressBar gui "Importing Video" action >>>= \case
          Nothing -> do
            ireturn timelineModel
-         Just assets -> handleImportResult gui timelineModel SVideo assets
+         Just (assets :: Either VideoImportError [VideoAsset]) ->
+          handleImportResult gui timelineModel SVideo assets
   | isSupportedAudioFile filepath =
-    progressBar
-      gui
-      "Import Video"
-      (importAudioFile filepath (timelineModel ^. project . workingDirectory)) >>>= \case
+    let action =
+          case autoSplit of
+            True ->
+              importAudioFileAutoSplit
+                filepath
+                (timelineModel ^. project . workingDirectory)
+            False ->
+              (: []) <$>
+              importAudioFile
+                filepath
+                (timelineModel ^. project . workingDirectory)
+    in progressBar gui "Importing Audio" action >>>= \case
       Nothing -> ireturn timelineModel
-      Just asset ->
-        handleImportResult gui timelineModel SAudio (fmap pure asset)
+      Just (assets :: Either AudioImportError [AudioAsset]) ->
+        handleImportResult gui timelineModel SAudio assets
   | otherwise = do
     _ <-
       dialog

@@ -8,6 +8,7 @@
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RebindableSyntax  #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ScopedTypeVariables     #-}
 module FastCut.Application.TimelineMode where
 
 import           FastCut.Application.Base
@@ -93,9 +94,9 @@ timelineMode gui model = do
                    Render.VideoOriginal
                    (FFmpeg.FileOutput outFile)
                    flat) >>= \case
-                Just Render.Success -> continue
-                Just (Render.ProcessFailed err) ->
-                  iliftIO (putStrLn err) >>> continue
+                Just (Right ()) -> continue
+                Just (Left (err :: Render.RenderError)) ->
+                  iliftIO (print err) >>> continue
                 Nothing -> continue
             Nothing -> continue
         Nothing -> beep gui >>> continue

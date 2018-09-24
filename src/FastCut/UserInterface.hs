@@ -20,6 +20,7 @@ import           Control.Lens
 import           Data.Row.Records
 import           Motor.FSM                  hiding (Delete)
 import           Pipes
+import           Pipes.Safe                 (SafeT)
 
 import           FastCut.Composition.Insert
 import           FastCut.Focus
@@ -225,14 +226,15 @@ class MonadFSM m =>
     -> FilePath
     -> Actions m '[ n := Remain (State m t)] r (Maybe FilePath)
   progressBar
-    :: Name n
+    :: Exception e
+    => (Name n)
     -> Text -- ^ Progress window title.
-    -> Producer ProgressUpdate IO a -- ^ Progress updates producer.
-    -> Actions m '[ n := Remain (State m t)] r (Maybe a)
+    -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer.
+    -> Actions m '[ n := Remain (State m t)] r (Maybe (Either e a))
   previewStream
     :: Name n
     -> Text -- ^ URI to stream
-    -> Producer ProgressUpdate IO () -- ^ Streaming process
+    -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
     -> VideoSettings
     -> Actions m '[ n := Remain (State m t)] r (Maybe ())
   help

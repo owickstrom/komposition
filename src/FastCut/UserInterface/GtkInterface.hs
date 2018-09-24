@@ -30,13 +30,13 @@ where
 import           FastCut.Prelude                                  hiding (state)
 import qualified Prelude
 
+import           Control.Lens
 import           Control.Monad                                    (void)
 import           Control.Monad.Indexed                            ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
 import qualified Data.GI.Base.Properties                          as GI
 import qualified Data.HashSet                                     as HashSet
-import           Control.Lens
 import           Data.Row.Records                                 (Empty)
 import           Data.String
 import qualified Data.Text                                        as Text
@@ -50,6 +50,8 @@ import qualified GI.Gtk.Declarative                               as Declarative
 import           Motor.FSM                                        hiding ((:=))
 import qualified Motor.FSM                                        as FSM
 import           Pipes
+import           Pipes.Safe                                       (runSafeT,
+                                                                   tryP)
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
@@ -434,18 +436,21 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           #packStart content msgLabel False False 10
           Gtk.set content [#widthRequest := 300]
 
-          jobResult <- newEmptyMVar
-          tid <- forkIO $ do
-            result <- Pipes.runEffect (producer >-> updateProgress)
-            putMVar jobResult result
+          async $ do
+            result <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
             runUI (#destroy d)
-          return (jobResult, tid)
+            return result
 
-        toResponse d (jobResult, tid) r = do
+        toResponse d job r = do
           when (r < 0) (#destroy d)
-          result <- tryReadMVar jobResult
-          when (isNothing result) (killThread tid)
-          return result
+          poll job >>= \case
+            Just (Left (SomeException e)) -> do
+              print e
+              return Nothing
+            Just (Right a) ->
+              return (Just a)
+            Nothing ->
+              return Nothing
         tearDown _ _ = return ()
         classes = HashSet.fromList ["progress-bar"]
     in inNewModalDialog n ModalDialog { message = Nothing, .. }
@@ -483,7 +488,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           let updateProgress = forever $ do
                 ProgressUpdate _msg fraction <- await
                 print fraction
-          ffmpegThread <- forkIO $ Pipes.runEffect (streamingProcess >-> updateProgress)
+          ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
           void . Gtk.onWidgetRealize content $ do
             #add content videoWidget
@@ -491,12 +496,15 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
             #setSizeRequest
               videoWidget
               (fromIntegral (videoSettings ^. resolution . width))
-              (fromIntegral (videoSettings ^. resolution . width))
+              (fromIntegral (videoSettings ^. resolution . height))
             void $ Gst.elementSetState playbin Gst.StatePlaying
 
           void . Gtk.onWidgetDestroy d $ do
             void $ Gst.elementSetState playbin Gst.StateNull
-            killThread ffmpegThread
+            void . forkIO $ do
+              putStrLn ("Killing FFmpeg..." :: Text)
+              cancel ffmpegRenderer
+              putStrLn ("Killed FFmpeg." :: Text)
 
         toResponse _ _ = const (return Nothing)
         tearDown d _ = #destroy d
@@ -530,5 +538,6 @@ runGtkUserInterface cssPath ui = do
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
-  void (forkIO (runReaderT (runFSM (runGtkInterface ui)) Env {..}))
+  appLoop <- async (runReaderT (runFSM (runGtkInterface ui)) Env {..})
   Gtk.main
+  cancel appLoop
