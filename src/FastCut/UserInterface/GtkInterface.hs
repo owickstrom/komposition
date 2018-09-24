@@ -245,16 +245,16 @@ patchIn w o1 o2 =
 
 renderFirst
   :: Typeable a => Declarative.Widget (Event a) -> SMode a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
-renderFirst view mode keyMaps env = do
-  w <- initializeWindow env view
-  widget <- Declarative.create view
-  viewEvents <- subscribeToDeclarativeWidget view widget
+renderFirst view' mode keyMaps env = do
+  w <- initializeWindow env view'
+  widget <- Declarative.create view'
+  viewEvents <- subscribeToDeclarativeWidget view' widget
   allEvents <-
     subscribeKeyEvents w >>= applyKeyMap (keyMaps mode) >>=
     mergeEvents viewEvents
   pure
     GtkInterfaceState
-    {currentViewParent = Top w, currentView = (Top (AnyDeclarative view), viewEvents), ..}
+    {currentViewParent = Top w, currentView = (Top (AnyDeclarative view'), viewEvents), ..}
 
 switchView
   :: NewView b -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
@@ -284,8 +284,8 @@ switchView'
        '[(FSM.:=) n (GtkInterfaceState a !--> GtkInterfaceState b)]
        r
        ()
-switchView' n view newMode =
-  FSM.get n >>>= \s -> iliftIO (switchView view newMode s) >>>= FSM.enter n
+switchView' n view' newMode =
+  FSM.get n >>>= \s -> iliftIO (switchView view' newMode s) >>>= FSM.enter n
 
 oneOffWidget :: Typeable mode => Declarative.Widget (Event mode) -> SMode mode -> IO Gtk.Widget
 oneOffWidget markup _ = Gtk.toWidget =<< Declarative.create markup
@@ -491,7 +491,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
           void . Gtk.onWidgetRealize content $ do
-            #add content videoWidget
+            #packStart content videoWidget True True 0
             #show videoWidget
             #setSizeRequest
               videoWidget
