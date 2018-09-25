@@ -16,6 +16,10 @@ data Resolution = Resolution
 
 makeLenses ''Resolution
 
+scaleResolution :: Double -> Resolution -> Resolution
+scaleResolution x (Resolution w h) =
+  Resolution (round (fromIntegral w * x)) (round (fromIntegral h * x))
+
 data VideoSettings = VideoSettings
   { _frameRate  :: FrameRate
   , _resolution :: Resolution

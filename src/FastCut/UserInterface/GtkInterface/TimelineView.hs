@@ -31,7 +31,9 @@ import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.Library
 import           FastCut.Project
+import           FastCut.VideoSettings
 import           FastCut.UserInterface
+import           FastCut.UserInterface.GtkInterface.ThumbnailPreview
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
 widthFromDuration (ZoomLevel zl) duration' =
@@ -148,21 +150,21 @@ emptyClass :: Bool -> Text
 emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
-renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
-renderPreviewPane part =
+renderPreviewPane :: VideoSettings -> Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
+renderPreviewPane proxyVideoSettings part =
   container Box [classes ["preview-pane"]] $ do
     boxChild True True 0 $
       case part of
         Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
-          thumbnailImage (toS thumbnail)
+          thumbnailPreview thumbnail (proxyVideoSettings ^. resolution & scaleResolution 0.5)
         Just (FirstAudioPart AudioClip{}) ->
           noPreviewAvailable
         Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
         Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
         Nothing                     -> noPreviewAvailable
   where
-    thumbnailImage thumbnailFile =
-       widget Image [#file := thumbnailFile]
+    -- thumbnailImage thumbnailFile =
+    --    widget Image [#file := thumbnailFile]
     noPreviewAvailable = widget Label [#label := "No preview available."]
 
 renderMenu :: Widget (Event TimelineMode)
@@ -202,6 +204,7 @@ timelineView model =
       True
       0
       (renderPreviewPane
+         (model ^. project . proxyVideoSettings)
          (firstCompositionPart (model ^. currentFocus) (model ^. project . timeline)))
     boxChild False False 0 $
       bin

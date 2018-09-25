@@ -8,6 +8,8 @@
   margin: .25em 0;
 }
 .preview-pane {
+  background-color: #000;
+  color: #eee;
   min-width: 25em;
   min-height: 20em;
 }

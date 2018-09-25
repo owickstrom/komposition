@@ -52,6 +52,7 @@ library
                       , FastCut.UserInterface.GtkInterface.ImportView
                       , FastCut.UserInterface.GtkInterface.LibraryView
                       , FastCut.UserInterface.GtkInterface.TimelineView
+                      , FastCut.UserInterface.GtkInterface.ThumbnailPreview
                       , FastCut.Timestamp
                       , FastCut.VideoSettings
   build-depends:        base >=4.10 && <4.12
@@ -68,6 +69,7 @@ library
                       , gi-gtk
                       , gi-gtk-declarative
                       , gi-gdk
+                      , gi-gdkpixbuf
                       , gi-pango
                       , indexed
                       , JuicyPixels
