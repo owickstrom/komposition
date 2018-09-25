@@ -77,8 +77,6 @@
   box-shadow: inset 0pt 0pt 2pt #000;
   border-radius: 0;
 }
-.timeline .clip button {
-}
 .timeline .gap button {
   background-color: #777;
   background-image: url('stripes.png');

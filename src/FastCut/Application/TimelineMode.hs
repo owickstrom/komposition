@@ -12,6 +12,7 @@
 module FastCut.Application.TimelineMode where
 
 import           FastCut.Application.Base
+import qualified Prelude
 
 import           Control.Lens
 import           Data.Row.Records                hiding (split)
@@ -101,18 +102,7 @@ timelineMode gui model = do
             Nothing -> continue
         Nothing -> beep gui >>> continue
     CommandKeyMappedEvent Preview ->
-      case Render.flattenTimeline (model ^. project . timeline) of
-        Just flat -> do
-          let streamingProcess =
-                void $
-                Render.renderComposition
-                  (model ^. project . proxyVideoSettings)
-                  Render.VideoProxy
-                  (FFmpeg.HttpStreamingOutput "localhost" 12345)
-                  flat
-          _ <- previewStream gui "http://localhost:12345" streamingProcess (model ^. project . proxyVideoSettings)
-          continue
-        Nothing -> beep gui >>> continue
+      previewFocusedComposition gui model >>> continue
     CommandKeyMappedEvent Cancel -> continue
     CommandKeyMappedEvent Help ->
       help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
@@ -132,6 +122,8 @@ timelineMode gui model = do
                "Error: could not handle focus modification %s\n"
                (show cmd :: Text))
         _ -> ireturn ()
+
+    -- Render.flattenTimeline (model ^. project . timeline) of
 
 insertIntoTimeline
   :: Application t m
@@ -218,3 +210,35 @@ prettyFocusedAt = \case
   FocusedParallel{}  -> "parallel"
   FocusedVideoPart{} -> "video track"
   FocusedAudioPart{} -> "audio track"
+
+previewFocusedComposition
+  :: Application t m
+  => Name n
+  -> TimelineModel
+  -> Actions
+       (t m)
+       '[n := Remain (State (t m) TimelineMode)]
+       r
+       ()
+previewFocusedComposition gui model =  
+  case flatComposition of
+    Just flat -> do
+       let streamingProcess =
+             void $
+             Render.renderComposition
+               (model ^. project . proxyVideoSettings)
+               Render.VideoProxy
+               (FFmpeg.HttpStreamingOutput "localhost" 12345)
+               flat
+       _ <- previewStream gui "http://localhost:12345" streamingProcess (model ^. project . proxyVideoSettings)
+       ireturn ()
+    Nothing -> do
+      beep gui
+      ireturn ()
+  where
+    flatComposition :: Maybe Render.Composition
+    flatComposition = do
+      atFocus (model ^. currentFocus) (model ^. project . timeline) Prelude.>>= \case
+        FocusedSequence s -> Render.flattenSequence s
+        FocusedParallel p -> Render.flattenParallel p
+        _  -> Nothing

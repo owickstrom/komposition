@@ -1,5 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ExplicitForAll    #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
@@ -11,27 +12,30 @@ module FastCut.UserInterface.GtkInterface.TimelineView
   ( timelineView
   ) where
 
-import           FastCut.Prelude             hiding (on)
+import           FastCut.Prelude                                     hiding (on)
 
 import           Control.Lens
-import           Data.Int                    (Int32)
-import           Data.Text                   (Text)
-import           GI.Gtk                      (Align (..), Box (..), Button (..),
-                                              Image (..), Label (..),
-                                              MenuBar (..), MenuItem (..),
-                                              Orientation (..), PolicyType (..),
-                                              Scale (..),
-                                              ScrolledWindow (..))
+import           Data.Int                                            (Int32)
+import           Data.Text                                           (Text)
+import           GI.Gtk                                              (Align (..),
+                                                                      Box (..),
+                                                                      Button (..),
+                                                                      Label (..),
+                                                                      MenuBar (..),
+                                                                      MenuItem (..),
+                                                                      Orientation (..),
+                                                                      PolicyType (..),
+                                                                      Scale (..),
+                                                                      ScrolledWindow (..))
 import           GI.Gtk.Declarative
 
 import           FastCut.Composition
-import           FastCut.MediaType
 import           FastCut.Composition.Focused
 import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.Library
+import           FastCut.MediaType
 import           FastCut.Project
-import           FastCut.VideoSettings
 import           FastCut.UserInterface
 import           FastCut.UserInterface.GtkInterface.ThumbnailPreview
 
@@ -150,13 +154,13 @@ emptyClass :: Bool -> Text
 emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
-renderPreviewPane :: VideoSettings -> Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
-renderPreviewPane proxyVideoSettings part =
+renderPreviewPane :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
+renderPreviewPane part =
   container Box [classes ["preview-pane"]] $ do
     boxChild True True 0 $
       case part of
         Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
-          thumbnailPreview thumbnail (proxyVideoSettings ^. resolution & scaleResolution 0.5)
+          thumbnailPreview thumbnail
         Just (FirstAudioPart AudioClip{}) ->
           noPreviewAvailable
         Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
@@ -204,7 +208,6 @@ timelineView model =
       True
       0
       (renderPreviewPane
-         (model ^. project . proxyVideoSettings)
          (firstCompositionPart (model ^. currentFocus) (model ^. project . timeline)))
     boxChild False False 0 $
       bin

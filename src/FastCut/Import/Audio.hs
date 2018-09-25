@@ -4,24 +4,27 @@
 {-# LANGUAGE OverloadedStrings #-}
 module FastCut.Import.Audio where
 
-import           FastCut.Prelude     hiding (catch)
+import           FastCut.Prelude        hiding (catch)
 import qualified Prelude
 
-import qualified Codec.FFmpeg.Probe  as Probe
+import qualified Codec.FFmpeg.Probe     as Probe
 import           Control.Monad.Catch
-import qualified Data.Char           as Char
-import qualified Data.Text           as Text
+import qualified Data.Char              as Char
+import qualified Data.Text              as Text
 import           Data.Time.Clock
 import           Pipes
-import           Pipes               (Producer)
+import           Pipes                  (Producer)
 import           Pipes.Safe
 import           System.Directory
 import           System.FilePath
-import qualified System.IO           as IO
+import qualified System.IO              as IO
 import           System.IO.Temp
 import           System.Process
 
 import           FastCut.Duration
+import           FastCut.FFmpeg.Command (Command (..))
+import qualified FastCut.FFmpeg.Command as Command
+import           FastCut.FFmpeg.Process (runFFmpegCommand)
 import           FastCut.Library
 import           FastCut.MediaType
 import           FastCut.Progress
@@ -66,7 +69,7 @@ runSoxWithProgress toProgress args = do
       case Text.splitOn ":" (Text.takeWhile (not . Char.isSpace) line) of
         ["In", percentStr] ->
           case readDouble (Text.init percentStr) of
-            Just d  -> yield (toProgress (d / 100))
+            Just d  -> print (toProgress (d/100)) >> yield (toProgress (d / 100))
             Nothing -> return ()
         _ -> return ()
 
@@ -76,8 +79,10 @@ normalizeAudio
   -> FilePath -- Source path
   -> Producer ProgressUpdate m FilePath -- Action with progress updates, returning the normalized file path
 normalizeAudio tempDir sourcePath = do
-  let outPath = tempDir </> "normalized.wav"
-  runSoxWithProgress (ProgressUpdate "Normalizing audio") ["--norm", sourcePath, outPath]
+  let toProgress = ProgressUpdate "Normalizing audio"
+      outPath = tempDir </> "normalized.wav"
+  yield  (toProgress 0)
+  runSoxWithProgress toProgress ["--norm", sourcePath, outPath]
   return outPath
 
 splitAudioBySilence
@@ -139,18 +144,19 @@ importAudioFileAutoSplit ::
   => FilePath
   -> FilePath
   -> Producer ProgressUpdate m [Asset Audio]
-importAudioFileAutoSplit audioFile outDir = do
+importAudioFileAutoSplit audioFilePath outDir = do
   liftIO (createDirectoryIfMissing True outDir)
   -- TODO: bracket to make sure temp directory is deleted
   tempDir <- liftIO $ do
     canonical <- getCanonicalTemporaryDirectory
     createTempDirectory canonical "fastcut.audio.import"
+  fullLength <- getAudioFileDuration audioFilePath
   -- TODO: use file md5 digest in filename (or for a subdirectory) to avoid collisions
   chunks <-
     divideProgress4
-      (lift (transcodeAudioFileToWav tempDir audioFile))
+      (transcodeAudioFileToWav tempDir fullLength audioFilePath)
       (normalizeAudio tempDir)
-      (splitAudioBySilence (outDir </> "audio-chunks") (takeBaseName audioFile <> "-%5n.wav"))
+      (splitAudioBySilence (outDir </> "audio-chunks") (takeBaseName audioFilePath <> "-%5n.wav"))
       dropSilentChunks
   lift (mapM (filePathToAudioAsset outDir) chunks)
 
@@ -184,11 +190,25 @@ getAudioFileMaxAmplitude inPath = do
          readDouble ampStr
     ExitFailure c -> throwIO (ProcessFailed "sox" c (Just (toS err)))
 
-transcodeAudioFileToWav :: MonadIO m => FilePath -> FilePath -> m FilePath
-transcodeAudioFileToWav tempDir inPath = do
+transcodeAudioFileToWav 
+  :: (MonadIO m, MonadSafe m)
+  => FilePath
+  -> Duration
+  -> FilePath
+  -> Producer ProgressUpdate m FilePath
+transcodeAudioFileToWav tempDir fullLength inPath = do
   -- TODO: use md5 digest to avoid collisions
   let outPath = tempDir </> takeBaseName inPath <> ".wav"
-  (ex, _, err) <- liftIO (readCreateProcessWithExitCode (proc "ffmpeg" ["-i", inPath, "-f", "wav", outPath]) "")
-  case ex of
-    ExitSuccess   -> return outPath
-    ExitFailure _ -> throwIO (TranscodingFailed (toS err))
+      cmd =
+        Command
+        { output = Command.FileOutput outPath
+        , inputs = pure (Command.FileSource inPath)
+        , filterGraph = Nothing
+        , frameRate = Nothing
+        , mappings = []
+        , vcodec = Nothing
+        , acodec = Nothing
+        , format = Just "wav"
+        }
+  runFFmpegCommand (ProgressUpdate "Transcoding audio") fullLength cmd
+  return outPath

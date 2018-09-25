@@ -359,22 +359,22 @@ generateProxy videoSettings (view unOriginalPath -> sourceFile) fullLength outDi
         { output = Command.FileOutput proxyPath
         , inputs = pure (Command.FileSource sourceFile)
         , filterGraph =
-            Command.FilterGraph
-              (pure
-                 (Command.FilterChain
-                    (pure
-                       (Command.RoutedFilter
-                          []
-                          (Command.Scale
-                             640
-                             360
-                             Command.ForceOriginalAspectRatioDisable)
-                          []))))
+            Just . Command.FilterGraph $
+              pure
+                (Command.FilterChain
+                   (pure
+                      (Command.RoutedFilter
+                         []
+                         (Command.Scale
+                            640
+                            360
+                            Command.ForceOriginalAspectRatioDisable)
+                         [])))
         , frameRate = Just (videoSettings ^. frameRate)
         , mappings = []
         , vcodec = Just "h264"
         , acodec = Nothing
-        , format = "mp4"
+        , format = Just "mp4"
         }
   runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd
   return (ProxyPath proxyPath)

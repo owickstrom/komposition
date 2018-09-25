@@ -11,6 +11,8 @@ module FastCut.Render.Composition
   , StillFrameMode(..)
   , CompositionPart(..)
   , flattenTimeline
+  , flattenSequence
+  , flattenParallel
   ) where
 
 import           FastCut.Prelude
@@ -63,14 +65,24 @@ instance HasDuration Tracks where
 
 flattenTimeline :: Core.Timeline a -> Maybe Composition
 flattenTimeline (Core.Timeline seqs) = do
-  Tracks vs as <- foldMap flattenSequence seqs
+  Tracks vs as <- foldMap flattenSequenceTracks seqs
   Composition <$> nonEmpty vs <*> nonEmpty as
 
-flattenSequence :: Core.Sequence a -> Maybe Tracks
-flattenSequence (Core.Sequence _ pars) = foldMap flattenParallel pars
+flattenSequence :: Core.Sequence a -> Maybe Composition
+flattenSequence s = do
+  Tracks vs as <- flattenSequenceTracks s
+  Composition <$> nonEmpty vs <*> nonEmpty as
 
-flattenParallel :: Core.Parallel a -> Maybe Tracks
-flattenParallel (Core.Parallel _ vs as) =
+flattenParallel :: Core.Parallel a -> Maybe Composition
+flattenParallel s = do
+  Tracks vs as <- flattenParallelTracks s
+  Composition <$> nonEmpty vs <*> nonEmpty as
+
+flattenSequenceTracks :: Core.Sequence a -> Maybe Tracks
+flattenSequenceTracks (Core.Sequence _ pars) = foldMap flattenParallelTracks pars
+
+flattenParallelTracks :: Core.Parallel a -> Maybe Tracks
+flattenParallelTracks (Core.Parallel _ vs as) =
   let (video, lastAsset, lastGaps) =
         foldl' foldVideo (mempty, Nothing, mempty) vs
       audio = foldMap toAudio as

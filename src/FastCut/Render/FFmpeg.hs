@@ -202,14 +202,14 @@ toRenderCommand videoSettings output videoInput audioInput =
       NonEmpty.map toVideoInput (inputs videoInput) <>
       NonEmpty.map toAudioInput (inputs audioInput)
   , filterGraph =
-      Command.FilterGraph
-        (videoInputChains <> audioInputChains <> (videoChain :| [audioChain]))
+      Just . Command.FilterGraph $
+        videoInputChains <> audioInputChains <> (videoChain :| [audioChain])
   , mappings = [videoStream, audioStream]
   , format =
       case output of
-        Command.HttpStreamingOutput{} -> "matroska"
-        Command.UdpStreamingOutput{}  -> "matroska"
-        Command.FileOutput{}          -> "mp4"
+        Command.HttpStreamingOutput{} -> Just "matroska"
+        Command.UdpStreamingOutput{}  -> Just "matroska"
+        Command.FileOutput{}          -> Just "mp4"
   , vcodec = Just "h264"
   , acodec = Just "aac"
   , frameRate = Just (videoSettings ^. frameRate)

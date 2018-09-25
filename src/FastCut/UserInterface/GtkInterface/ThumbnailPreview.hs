@@ -5,7 +5,6 @@ module FastCut.UserInterface.GtkInterface.ThumbnailPreview where
 
 import           FastCut.Prelude
 
-import           Control.Lens
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GdkPixbuf                   as Pixbuf
 import qualified GI.GLib                        as GLib
@@ -13,19 +12,16 @@ import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
 
-import           FastCut.VideoSettings
-
 data ThumbnailPreview event = ThumbnailPreview
   { thumbnailPath :: FilePath
-  , initialSize   :: Resolution
   }
 
-thumbnailPreview :: FilePath -> Resolution -> Widget a
-thumbnailPreview thumbnailPath initialSize =
+thumbnailPreview :: FilePath -> Widget a
+thumbnailPreview thumbnailPath =
   Widget ThumbnailPreview {..}
 
 instance Functor ThumbnailPreview where
-  fmap f ThumbnailPreview {..} = ThumbnailPreview {..}
+  fmap _ ThumbnailPreview {..} = ThumbnailPreview {..}
 
 instance Patchable ThumbnailPreview where
   create ThumbnailPreview {..} = do
@@ -49,9 +45,9 @@ instance Patchable ThumbnailPreview where
       h <- Gdk.getRectangleHeight a
       redraw w h
     Gtk.toWidget layout
-  -- TODO: Implement patch
-  patch _ ThumbnailPreview {..} =
-    Keep
+  patch old new 
+    | thumbnailPath old == thumbnailPath new = Keep
+    | otherwise = Replace (create new)
 
 instance EventSource ThumbnailPreview where
   subscribe ThumbnailPreview{..} _ _ = do
