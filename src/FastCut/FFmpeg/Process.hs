@@ -49,7 +49,6 @@ runFFmpegCommand toProgress totalDuration cmd = do
   bracket
     (liftIO (createProcess_ "" process { std_err = CreatePipe }))
     (\p -> do
-      putStrLn ("Cleaning up FFmpeg process..." :: Text)
       liftIO (cleanupProcess p))
     (\(_, _, Just progressOut, ph) -> do
       liftIO (IO.hSetBuffering progressOut IO.NoBuffering)

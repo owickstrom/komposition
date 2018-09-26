@@ -28,6 +28,7 @@ import           GI.Gtk                                              (Align (..)
                                                                       Scale (..),
                                                                       ScrolledWindow (..))
 import           GI.Gtk.Declarative
+import           GI.Pango                                            (EllipsizeMode (..))
 
 import           FastCut.Composition
 import           FastCut.Composition.Focused
@@ -77,21 +78,21 @@ renderGap ::
   -> Duration
   -> Widget (Event TimelineMode)
 renderGap zl (thisFocus, focused) duration' =
-      container
-        Box
-        [ classes ["gap", focusedClass focused]
-        , #orientation := OrientationHorizontal
-        ] $
-      boxChild
-        False
-        False
-        0
-        (widget
-           Button
-           [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-           , #widthRequest := widthFromDuration zl duration'
-           , #hasFocus := (focused == Focused)
-           ])
+  container
+    Box
+    [ classes ["gap", focusedClass focused]
+    , #orientation := OrientationHorizontal
+    ] $
+  boxChild
+    False
+    False
+    0
+    (widget
+        Button
+        [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+        , #widthRequest := widthFromDuration zl duration'
+        , #hasFocus := (focused == Focused)
+        ])
 
 renderVideoPart ::
      ZoomLevel
@@ -199,6 +200,32 @@ renderMenu =
             (enumFrom minBound)
             (labelledItem . InsertCommand (InsertGap (Just mediaType')))
 
+renderBottomBar :: TimelineModel -> Widget (Event TimelineMode)
+renderBottomBar model =
+  container Box [#orientation := OrientationHorizontal, classes ["bottom-bar"]] $ do
+    boxChild True True 0 $
+      widget
+        Label
+        [ classes ["status-message"]
+        , #label := fromMaybe "" (model ^. statusMessage)
+        , #ellipsize := EllipsizeModeEnd
+        , #halign := AlignStart
+        ]
+    boxChild False False 0 $
+      widget
+        Scale
+        [ classes ["zoom-level"]
+        , onM #valueChanged onZoomLevelChange
+        , afterCreated afterZoomLevelCreate
+        , #drawValue := False
+        ]
+  where
+    afterZoomLevelCreate :: Scale -> IO ()
+    afterZoomLevelCreate scale =
+      #setRange scale 1 9
+
+    onZoomLevelChange = fmap (ZoomLevelChanged . ZoomLevel) . #getValue
+
 timelineView :: TimelineModel -> Widget (Event TimelineMode)
 timelineView model =
   container Box [#orientation := OrientationVertical] $ do
@@ -217,22 +244,9 @@ timelineView model =
         , classes ["timeline-container"]
         ]
         (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
-    boxChild False False 0 $
-      widget
-        Scale
-        [ classes ["zoom-level"]
-        , onM #valueChanged onZoomLevelChange
-        , afterCreated afterZoomLevelCreate
-        , #drawValue := False
-        ]
+    boxChild False False 0 (renderBottomBar model)
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci =
       withAllFoci (model ^. project . timeline) <&> \f ->
         (f, focusedState (model ^. currentFocus) f)
-
-    afterZoomLevelCreate :: Scale -> IO ()
-    afterZoomLevelCreate scale =
-      #setRange scale 1 9
-
-    onZoomLevelChange = fmap (ZoomLevelChanged . ZoomLevel) . #getValue

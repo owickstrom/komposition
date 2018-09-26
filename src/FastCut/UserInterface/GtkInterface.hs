@@ -40,6 +40,7 @@ import qualified Data.HashSet                                     as HashSet
 import           Data.Row.Records                                 (Empty)
 import           Data.String
 import qualified Data.Text                                        as Text
+import           Data.Time.Clock                                  (diffTimeToPicoseconds)
 import qualified GI.Gdk                                           as Gdk
 import qualified GI.GLib
 import qualified GI.GLib.Constants                                as GLib
@@ -358,6 +359,14 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     switchView' n (ModalView (importView form)) SImportMode
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
+
+  nextEventOrTimeout n t = FSM.get n >>>= \s -> iliftIO $ do
+    let microseconds = round (fromIntegral (diffTimeToPicoseconds t) / 1000000 :: Double)
+    race
+      (threadDelay microseconds)
+      (readEvent (allEvents s)) >>= \case
+      Left () -> return Nothing
+      Right e -> return (Just e)
 
   beep _ = iliftIO (runUI Gdk.beep)
 

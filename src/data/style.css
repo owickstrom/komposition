@@ -129,6 +129,10 @@
   box-shadow: inset 1pt 1pt 1pt #fff;
 }
 
+.bottom-bar {
+  padding: 0 5pt;
+  font-size: 90%;
+}
 .zoom-level {
-  background-color: #ddd;
+  min-width: 5em;
 }

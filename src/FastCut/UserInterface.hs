@@ -18,6 +18,7 @@ import           FastCut.Prelude            hiding (State)
 
 import           Control.Lens
 import           Data.Row.Records
+import           Data.Time.Clock
 import           Motor.FSM                  hiding (Delete)
 import           Pipes
 import           Pipes.Safe                 (SafeT)
@@ -148,9 +149,10 @@ data PromptMode ret where
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
-  { _project      :: Project
-  , _currentFocus :: Focus SequenceFocusType
-  , _zoomLevel    :: ZoomLevel
+  { _project       :: Project
+  , _currentFocus  :: Focus SequenceFocusType
+  , _statusMessage :: Maybe Text
+  , _zoomLevel     :: ZoomLevel
   }
 
 makeLenses ''TimelineModel
@@ -204,6 +206,10 @@ class MonadFSM m =>
   nextEvent
     :: Name n
     -> Actions m '[ n := Remain (State m t)] r (Event t)
+  nextEventOrTimeout
+    :: Name n
+    -> DiffTime
+    -> Actions m '[ n := Remain (State m t)] r (Maybe (Event t))
   beep :: Name n -> Actions m '[] r ()
   dialog
     :: DialogChoice c

@@ -1,11 +1,12 @@
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs            #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE RebindableSyntax #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE RebindableSyntax  #-}
+{-# LANGUAGE TypeOperators     #-}
 module FastCut.Application.LibraryMode where
 
 import           FastCut.Application.Base
@@ -13,6 +14,7 @@ import           FastCut.Application.Base
 import           Control.Lens
 import qualified Data.List.NonEmpty          as NonEmpty
 import           Data.Row.Records
+import           Data.String                 (fromString)
 
 import           FastCut.Composition
 import           FastCut.Composition.Insert
@@ -93,7 +95,9 @@ selectAssetAndInsert gui model mediaType' position =
       i <- insertionOf assets
       model & project . timeline %~ insert_ (model ^. currentFocus) i position &
         ireturn
-    Nothing -> beep gui >>> ireturn model
+    Nothing -> do
+      beep gui
+      ireturn (model & statusMessage .~ Just (noAssetsMessage mediaType'))
   where
     insertionOf a =
       case mediaType' of
@@ -114,3 +118,11 @@ selectAssetAndInsert gui model mediaType' position =
            videoAsset
            ts
            (model ^. project . workingDirectory)
+
+noAssetsMessage :: SMediaType mt -> Text
+noAssetsMessage mt =
+  "You have no " <> mt' <> " assets in your library. Use 'Import' to add some assets."
+  where
+    mt' = case mt of
+      SVideo -> "video"
+      SAudio -> "audio"

@@ -69,7 +69,7 @@ runSoxWithProgress toProgress args = do
       case Text.splitOn ":" (Text.takeWhile (not . Char.isSpace) line) of
         ["In", percentStr] ->
           case readDouble (Text.init percentStr) of
-            Just d  -> print (toProgress (d/100)) >> yield (toProgress (d / 100))
+            Just d  -> yield (toProgress (d / 100))
             Nothing -> return ()
         _ -> return ()
 

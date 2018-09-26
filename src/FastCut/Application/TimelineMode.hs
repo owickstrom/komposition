@@ -43,77 +43,91 @@ timelineMode
   -> t m (n .== State (t m) 'TimelineMode) Empty ()
 timelineMode gui model = do
   updateTimeline gui model
-  nextEvent gui >>>= \case
-    CommandKeyMappedEvent (FocusCommand cmd) ->
-      case modifyFocus (model ^. project . timeline) cmd (model ^. currentFocus) of
-        Left err -> do
-          beep gui
-          printUnexpectedFocusError err cmd
-          continue
-        Right newFocus -> timelineMode gui (model & currentFocus .~ newFocus)
-    CommandKeyMappedEvent (JumpFocus newFocus) ->
-      case atFocus newFocus (model ^. project . timeline) of
-        Just _  -> timelineMode gui (model & currentFocus .~ newFocus)
-        Nothing -> beep gui >>> continue
-    CommandKeyMappedEvent (InsertCommand type' position) ->
-      insertIntoTimeline gui model type' position
-    CommandKeyMappedEvent Delete ->
-      case delete (model ^. currentFocus) (model ^. project . timeline) of
-        Nothing -> beep gui >> continue
-        Just (timeline', Just cmd) ->
-          case modifyFocus
-                 (model ^. project . timeline)
-                 cmd
-                 (model ^. currentFocus) of
-            Left err -> do
-              beep gui
-              iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
-              continue
-            Right newFocus ->
-              model & project . timeline .~ timeline' & currentFocus .~ newFocus &
-              timelineMode gui
-        Just (timeline', Nothing) ->
-          model & project . timeline .~ timeline' & timelineMode gui
-    CommandKeyMappedEvent Split ->
-      case split (model ^. currentFocus) (model ^. project . timeline) of
-        Just (timeline', newFocus) ->
-          model & project . timeline .~ timeline' & currentFocus .~ newFocus &
-          timelineMode gui
-        Nothing -> beep gui >> continue
-    CommandKeyMappedEvent Import -> importFile gui model >>>= timelineMode gui
-    CommandKeyMappedEvent Render ->
-      case Render.flattenTimeline (model ^. project . timeline) of
-        Just flat -> do
-          outDir <- iliftIO getUserDocumentsDirectory
-          chooseFile gui Save "Render To File" outDir >>>= \case
-            Just outFile -> do
-              progressBar
-                gui
-                "Rendering"
-                (Render.renderComposition
-                   (model ^. project . videoSettings)
-                   Render.VideoOriginal
-                   (FFmpeg.FileOutput outFile)
-                   flat) >>= \case
-                Just (Right ()) -> continue
-                Just (Left (err :: Render.RenderError)) ->
-                  iliftIO (print err) >>> continue
-                Nothing -> continue
-            Nothing -> continue
-        Nothing -> beep gui >>> continue
-    CommandKeyMappedEvent Preview ->
-      previewFocusedComposition gui model >>> continue
-    CommandKeyMappedEvent Cancel -> continue
-    CommandKeyMappedEvent Help ->
-      help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
-    CommandKeyMappedEvent Exit ->
-      dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
-        Just Yes -> exit gui
-        Just No -> continue
-        Nothing -> continue
-    ZoomLevelChanged zl -> model & zoomLevel .~ zl & timelineMode gui
+  nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
     continue = timelineMode gui model
+    continueWithStatusMessage msg =
+      model
+      & statusMessage .~ Just msg
+      & timelineMode gui
+    resetStatusMessage =
+      model
+      & statusMessage .~ Nothing
+      & timelineMode gui
+    onNextEvent = \case
+      CommandKeyMappedEvent (FocusCommand cmd) ->
+        case modifyFocus (model ^. project . timeline) cmd (model ^. currentFocus) of
+          Left err -> do
+            beep gui
+            printUnexpectedFocusError err cmd
+            continue
+          Right newFocus -> timelineMode gui (model & currentFocus .~ newFocus)
+      CommandKeyMappedEvent (JumpFocus newFocus) ->
+        case atFocus newFocus (model ^. project . timeline) of
+          Just _  -> timelineMode gui (model & currentFocus .~ newFocus)
+          Nothing -> beep gui >>> continueWithStatusMessage "Couldn't set focus."
+      CommandKeyMappedEvent (InsertCommand type' position) ->
+        insertIntoTimeline gui model type' position
+      CommandKeyMappedEvent Delete ->
+        case delete (model ^. currentFocus) (model ^. project . timeline) of
+          Nothing -> beep gui >> continueWithStatusMessage "Delete failed."
+          Just (timeline', Just cmd) ->
+            case modifyFocus
+                  (model ^. project . timeline)
+                  cmd
+                  (model ^. currentFocus) of
+              Left err -> do
+                beep gui
+                iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
+                continueWithStatusMessage "Delete failed."
+              Right newFocus ->
+                model & project . timeline .~ timeline' & currentFocus .~ newFocus &
+                timelineMode gui
+          Just (timeline', Nothing) ->
+            model & project . timeline .~ timeline' & timelineMode gui
+      CommandKeyMappedEvent Split ->
+        case split (model ^. currentFocus) (model ^. project . timeline) of
+          Just (timeline', newFocus) ->
+            model & project . timeline .~ timeline' & currentFocus .~ newFocus &
+            timelineMode gui
+          Nothing -> do
+            beep gui
+            continueWithStatusMessage "Can't split composition at current focus."
+      CommandKeyMappedEvent Import ->
+        importFile gui model >>>= timelineMode gui
+      CommandKeyMappedEvent Render ->
+        case Render.flattenTimeline (model ^. project . timeline) of
+          Just flat -> do
+            outDir <- iliftIO getUserDocumentsDirectory
+            chooseFile gui Save "Render To File" outDir >>>= \case
+              Just outFile -> do
+                progressBar
+                  gui
+                  "Rendering"
+                  (Render.renderComposition
+                    (model ^. project . videoSettings)
+                    Render.VideoOriginal
+                    (FFmpeg.FileOutput outFile)
+                    flat) >>= \case
+                  Just (Right ()) -> continue
+                  Just (Left (err :: Render.RenderError)) ->
+                    iliftIO (print err) >>> continue
+                  Nothing -> continue
+              Nothing -> continue
+          Nothing -> do
+            beep gui
+            continueWithStatusMessage "Cannot render a composition without video clips."
+      CommandKeyMappedEvent Preview ->
+        previewFocusedComposition gui model >>> continue
+      CommandKeyMappedEvent Cancel -> continue
+      CommandKeyMappedEvent Help ->
+        help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
+      CommandKeyMappedEvent Exit ->
+        dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
+          Just Yes -> exit gui
+          Just No -> continue
+          Nothing -> continue
+      ZoomLevelChanged zl -> model & zoomLevel .~ zl & timelineMode gui
     printUnexpectedFocusError err cmd =
       case err of
         UnhandledFocusModification {} ->
@@ -122,8 +136,6 @@ timelineMode gui model = do
                "Error: could not handle focus modification %s\n"
                (show cmd :: Text))
         _ -> ireturn ()
-
-    -- Render.flattenTimeline (model ^. project . timeline) of
 
 insertIntoTimeline
   :: Application t m
@@ -155,11 +167,8 @@ insertIntoTimeline gui model type' position =
     (InsertGap Nothing, Just FocusedAudioPart {}) ->
       insertGap gui model SAudio position >>>= timelineMode gui
     (c, Just f) -> do
-      iliftIO
-        (putStrLn
-           ("Cannot perform " <> show c <> " when focused at " <>
-            prettyFocusedAt f))
-      continue
+      let msg = "Cannot perform " <> show c <> " when focused at " <> prettyFocusedAt f
+      timelineMode gui (model & statusMessage .~ Just msg)
     (_, Nothing) -> do
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
@@ -219,7 +228,7 @@ previewFocusedComposition
        (t m)
        '[n := Remain (State (t m) TimelineMode)]
        r
-       ()
+       TimelineModel
 previewFocusedComposition gui model =  
   case flatComposition of
     Just flat -> do
@@ -231,10 +240,12 @@ previewFocusedComposition gui model =
                (FFmpeg.HttpStreamingOutput "localhost" 12345)
                flat
        _ <- previewStream gui "http://localhost:12345" streamingProcess (model ^. project . proxyVideoSettings)
-       ireturn ()
+       ireturn model
     Nothing -> do
       beep gui
-      ireturn ()
+      model
+        & statusMessage .~ Just "Cannot preview a composition without video clips."
+        & ireturn
   where
     flatComposition :: Maybe Render.Composition
     flatComposition = do
