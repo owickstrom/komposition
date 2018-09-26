@@ -477,8 +477,9 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
                 gErrorText     <- Gst.gerrorMessage gError
                 liftIO . putStrLn $ show gError <> ": " <> gErrorText
               [Gst.MessageTypeStateChanged] -> do
-                (oldState, newState, _) <- Gst.messageParseStateChanged msg
-                putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                -- (oldState, newState, _) <- Gst.messageParseStateChanged msg
+                -- putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                return ()
               [Gst.MessageTypeEos] ->
                 #destroy d
               _ -> return ()
@@ -494,9 +495,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           GI.setObjectPropertyBool playbin "force-aspect-ratio" True
           void $ GI.setObjectPropertyString playbin "uri" (Just uri)
 
-          let updateProgress = forever $ do
-                ProgressUpdate _msg fraction <- await
-                print fraction
+          let updateProgress = forever (void await)
           ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
           void . Gtk.onWidgetRealize content $ do
@@ -510,10 +509,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
 
           void . Gtk.onWidgetDestroy d $ do
             void $ Gst.elementSetState playbin Gst.StateNull
-            void . forkIO $ do
-              putStrLn ("Killing FFmpeg..." :: Text)
-              cancel ffmpegRenderer
-              putStrLn ("Killed FFmpeg." :: Text)
+            void . async $ cancel ffmpegRenderer
 
         toResponse _ _ = const (return Nothing)
         tearDown d _ = #destroy d
