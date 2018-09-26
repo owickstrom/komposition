@@ -33,4 +33,4 @@ fastcut project' = do
   timelineMode #gui model
   where
     initialFocus = SequenceFocus 0 Nothing
-    model = TimelineModel project' initialFocus (ZoomLevel 1)
+    model = TimelineModel project' initialFocus Nothing (ZoomLevel 1)

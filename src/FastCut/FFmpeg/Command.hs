@@ -41,10 +41,10 @@ data Output
 
 data Command = Command
   { inputs      :: NonEmpty Source
-  , filterGraph :: FilterGraph
+  , filterGraph :: Maybe FilterGraph
   , frameRate   :: Maybe FrameRate
   , mappings    :: [StreamSelector]
-  , format      :: Text
+  , format      :: Maybe Text
   , vcodec      :: Maybe Text
   , acodec      :: Maybe Text
   , output      :: Output
@@ -105,9 +105,9 @@ data FilterGraph = FilterGraph (NonEmpty FilterChain)
 printCommandLineArgs :: Command -> [Text]
 printCommandLineArgs Command {..} =
   concatMap printSourceArgs inputs
-    <> ["-filter_complex", printFilterGraph filterGraph]
+    <> printOptionalPair "-filter_complex" printFilterGraph filterGraph
     <> foldMap printMapping mappings
-    <> ["-f", format]
+    <> printOptionalPair "-f" identity format
     <> printOptionalPair "-framerate" show frameRate
     <> printOptionalPair "-vcodec" identity vcodec
     <> printOptionalPair "-acodec" identity acodec

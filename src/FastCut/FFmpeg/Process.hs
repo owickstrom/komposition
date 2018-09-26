@@ -1,16 +1,17 @@
-{-# LANGUAGE GADTs         #-}
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE KindSignatures    #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies      #-}
 module FastCut.FFmpeg.Process where
 
-import           FastCut.Prelude
+import           FastCut.Prelude        hiding (bracket)
 import qualified Prelude
 
 import qualified Data.Text              as Text
 import           Pipes
+import           Pipes.Safe             (MonadSafe, bracket)
 import           System.Directory
 import qualified System.IO              as IO
 import           System.IO.Error        (isDoesNotExistError)
@@ -21,15 +22,18 @@ import           FastCut.FFmpeg.Command
 import           FastCut.Progress
 import           FastCut.Timestamp
 
-data RenderResult
-  = Success
-  | ProcessFailed Text
+data RenderError
+  = ProcessFailed Text
+  deriving (Eq, Show)
+
+instance Exception RenderError
 
 runFFmpegCommand
-  :: (Double -> ProgressUpdate)
+  :: (MonadSafe m, MonadIO m)
+  => (Double -> ProgressUpdate)
   -> Duration
   -> Command
-  -> Producer ProgressUpdate IO RenderResult
+  -> Producer ProgressUpdate m ()
 runFFmpegCommand toProgress totalDuration cmd = do
   yield (toProgress 0)
   -- If it's rendering to a file, try removing any existing file first.
@@ -42,11 +46,15 @@ runFFmpegCommand toProgress totalDuration cmd = do
       allArgs = verbosityArgs <> ["-stats", "-nostdin"] <> map toS (printCommandLineArgs cmd)
       process = proc "ffmpeg" allArgs
   liftIO (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
-  (_, _, Just progressOut, ph) <- liftIO
-    (createProcess_ "" process { std_err = CreatePipe })
-  liftIO (IO.hSetBuffering progressOut IO.NoBuffering)
-  fromCarriageReturnSplit progressOut >-> yieldLines
-  waitForExit ph
+  bracket
+    (liftIO (createProcess_ "" process { std_err = CreatePipe }))
+    (\p -> do
+      liftIO (cleanupProcess p))
+    (\(_, _, Just progressOut, ph) -> do
+      liftIO (IO.hSetBuffering progressOut IO.NoBuffering)
+      fromCarriageReturnSplit progressOut >-> yieldLines
+      waitForExit ph
+    )
   where
     yieldLines :: MonadIO m => Pipe Text ProgressUpdate m ()
     yieldLines = forever $ do
@@ -58,8 +66,8 @@ runFFmpegCommand toProgress totalDuration cmd = do
           )
         Nothing -> return ()
     waitForExit ph = liftIO (waitForProcess ph) >>= \case
-      ExitSuccess   -> return Success
-      ExitFailure e -> return
+      ExitSuccess   -> return ()
+      ExitFailure e -> throwIO
         (ProcessFailed ("FFmpeg command failed with exit code: " <> show e))
 
 fromCarriageReturnSplit :: MonadIO m => Handle -> Producer Text m ()

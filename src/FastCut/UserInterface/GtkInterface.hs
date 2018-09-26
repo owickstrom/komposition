@@ -30,16 +30,17 @@ where
 import           FastCut.Prelude                                  hiding (state)
 import qualified Prelude
 
+import           Control.Lens
 import           Control.Monad                                    (void)
 import           Control.Monad.Indexed                            ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
 import qualified Data.GI.Base.Properties                          as GI
 import qualified Data.HashSet                                     as HashSet
-import           Control.Lens
 import           Data.Row.Records                                 (Empty)
 import           Data.String
 import qualified Data.Text                                        as Text
+import           Data.Time.Clock                                  (diffTimeToPicoseconds)
 import qualified GI.Gdk                                           as Gdk
 import qualified GI.GLib
 import qualified GI.GLib.Constants                                as GLib
@@ -50,6 +51,8 @@ import qualified GI.Gtk.Declarative                               as Declarative
 import           Motor.FSM                                        hiding ((:=))
 import qualified Motor.FSM                                        as FSM
 import           Pipes
+import           Pipes.Safe                                       (runSafeT,
+                                                                   tryP)
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
@@ -243,16 +246,16 @@ patchIn w o1 o2 =
 
 renderFirst
   :: Typeable a => Declarative.Widget (Event a) -> SMode a -> KeyMaps -> Env -> IO (GtkInterfaceState a)
-renderFirst view mode keyMaps env = do
-  w <- initializeWindow env view
-  widget <- Declarative.create view
-  viewEvents <- subscribeToDeclarativeWidget view widget
+renderFirst view' mode keyMaps env = do
+  w <- initializeWindow env view'
+  widget <- Declarative.create view'
+  viewEvents <- subscribeToDeclarativeWidget view' widget
   allEvents <-
     subscribeKeyEvents w >>= applyKeyMap (keyMaps mode) >>=
     mergeEvents viewEvents
   pure
     GtkInterfaceState
-    {currentViewParent = Top w, currentView = (Top (AnyDeclarative view), viewEvents), ..}
+    {currentViewParent = Top w, currentView = (Top (AnyDeclarative view'), viewEvents), ..}
 
 switchView
   :: NewView b -> SMode b -> GtkInterfaceState a -> IO (GtkInterfaceState b)
@@ -282,8 +285,8 @@ switchView'
        '[(FSM.:=) n (GtkInterfaceState a !--> GtkInterfaceState b)]
        r
        ()
-switchView' n view newMode =
-  FSM.get n >>>= \s -> iliftIO (switchView view newMode s) >>>= FSM.enter n
+switchView' n view' newMode =
+  FSM.get n >>>= \s -> iliftIO (switchView view' newMode s) >>>= FSM.enter n
 
 oneOffWidget :: Typeable mode => Declarative.Widget (Event mode) -> SMode mode -> IO Gtk.Widget
 oneOffWidget markup _ = Gtk.toWidget =<< Declarative.create markup
@@ -356,6 +359,14 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     switchView' n (ModalView (importView form)) SImportMode
 
   nextEvent n = FSM.get n >>>= iliftIO . readEvent . allEvents
+
+  nextEventOrTimeout n t = FSM.get n >>>= \s -> iliftIO $ do
+    let microseconds = round (fromIntegral (diffTimeToPicoseconds t) / 1000000 :: Double)
+    race
+      (threadDelay microseconds)
+      (readEvent (allEvents s)) >>= \case
+      Left () -> return Nothing
+      Right e -> return (Just e)
 
   beep _ = iliftIO (runUI Gdk.beep)
 
@@ -434,18 +445,21 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           #packStart content msgLabel False False 10
           Gtk.set content [#widthRequest := 300]
 
-          jobResult <- newEmptyMVar
-          tid <- forkIO $ do
-            result <- Pipes.runEffect (producer >-> updateProgress)
-            putMVar jobResult result
+          async $ do
+            result <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
             runUI (#destroy d)
-          return (jobResult, tid)
+            return result
 
-        toResponse d (jobResult, tid) r = do
+        toResponse d job r = do
           when (r < 0) (#destroy d)
-          result <- tryReadMVar jobResult
-          when (isNothing result) (killThread tid)
-          return result
+          poll job >>= \case
+            Just (Left (SomeException e)) -> do
+              print e
+              return Nothing
+            Just (Right a) ->
+              return (Just a)
+            Nothing ->
+              return Nothing
         tearDown _ _ = return ()
         classes = HashSet.fromList ["progress-bar"]
     in inNewModalDialog n ModalDialog { message = Nothing, .. }
@@ -463,8 +477,9 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
                 gErrorText     <- Gst.gerrorMessage gError
                 liftIO . putStrLn $ show gError <> ": " <> gErrorText
               [Gst.MessageTypeStateChanged] -> do
-                (oldState, newState, _) <- Gst.messageParseStateChanged msg
-                putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                -- (oldState, newState, _) <- Gst.messageParseStateChanged msg
+                -- putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                return ()
               [Gst.MessageTypeEos] ->
                 #destroy d
               _ -> return ()
@@ -480,23 +495,21 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           GI.setObjectPropertyBool playbin "force-aspect-ratio" True
           void $ GI.setObjectPropertyString playbin "uri" (Just uri)
 
-          let updateProgress = forever $ do
-                ProgressUpdate _msg fraction <- await
-                print fraction
-          ffmpegThread <- forkIO $ Pipes.runEffect (streamingProcess >-> updateProgress)
+          let updateProgress = forever (void await)
+          ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
           void . Gtk.onWidgetRealize content $ do
-            #add content videoWidget
+            #packStart content videoWidget True True 0
             #show videoWidget
             #setSizeRequest
               videoWidget
               (fromIntegral (videoSettings ^. resolution . width))
-              (fromIntegral (videoSettings ^. resolution . width))
+              (fromIntegral (videoSettings ^. resolution . height))
             void $ Gst.elementSetState playbin Gst.StatePlaying
 
           void . Gtk.onWidgetDestroy d $ do
             void $ Gst.elementSetState playbin Gst.StateNull
-            killThread ffmpegThread
+            void . async $ cancel ffmpegRenderer
 
         toResponse _ _ = const (return Nothing)
         tearDown d _ = #destroy d
@@ -530,5 +543,6 @@ runGtkUserInterface cssPath ui = do
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
-  void (forkIO (runReaderT (runFSM (runGtkInterface ui)) Env {..}))
+  appLoop <- async (runReaderT (runFSM (runGtkInterface ui)) Env {..})
   Gtk.main
+  cancel appLoop

@@ -13,7 +13,7 @@ module FastCut.Render.FFmpeg
   ( Source(..)
   , extractFrameToFile
   , toRenderCommand
-  , RenderResult(..)
+  , RenderError(..)
   , renderComposition
   )
 where
@@ -26,7 +26,8 @@ import qualified Data.List.NonEmpty         as NonEmpty
 import qualified Data.Text                  as Text
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as Vector
-import           Pipes (Producer)
+import           Pipes                      (Producer)
+import           Pipes.Safe                 (MonadSafe)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
@@ -201,14 +202,14 @@ toRenderCommand videoSettings output videoInput audioInput =
       NonEmpty.map toVideoInput (inputs videoInput) <>
       NonEmpty.map toAudioInput (inputs audioInput)
   , filterGraph =
-      Command.FilterGraph
-        (videoInputChains <> audioInputChains <> (videoChain :| [audioChain]))
+      Just . Command.FilterGraph $
+        videoInputChains <> audioInputChains <> (videoChain :| [audioChain])
   , mappings = [videoStream, audioStream]
   , format =
       case output of
-        Command.HttpStreamingOutput{} -> "matroska"
-        Command.UdpStreamingOutput{} -> "matroska"
-        Command.FileOutput{} -> "mp4"
+        Command.HttpStreamingOutput{} -> Just "matroska"
+        Command.UdpStreamingOutput{}  -> Just "matroska"
+        Command.FileOutput{}          -> Just "mp4"
   , vcodec = Just "h264"
   , acodec = Just "aac"
   , frameRate = Just (videoSettings ^. frameRate)
@@ -327,12 +328,14 @@ toRenderCommand videoSettings output videoInput audioInput =
              ]
 
 renderComposition
-  :: VideoSettings
+  :: (MonadIO m, MonadSafe m)
+  => VideoSettings
   -> Source Video
   -> Command.Output
   -> Composition
-  -> Producer ProgressUpdate IO RenderResult
+  -> Producer ProgressUpdate m ()
 renderComposition videoSettings videoSource target c@(Composition video audio) = do
+  -- TODO: bracket to make sure temp directory is deleted
   canonical <- liftIO getCanonicalTemporaryDirectory
   tmpDir <- liftIO (createTempDirectory canonical "fastcut.render")
   videoInput <-

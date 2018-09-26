@@ -8,6 +8,8 @@
   margin: .25em 0;
 }
 .preview-pane {
+  background-color: #000;
+  color: #eee;
   min-width: 25em;
   min-height: 20em;
 }
@@ -75,8 +77,6 @@
   box-shadow: inset 0pt 0pt 2pt #000;
   border-radius: 0;
 }
-.timeline .clip button {
-}
 .timeline .gap button {
   background-color: #777;
   background-image: url('stripes.png');
@@ -129,6 +129,10 @@
   box-shadow: inset 1pt 1pt 1pt #fff;
 }
 
+.bottom-bar {
+  padding: 0 5pt;
+  font-size: 90%;
+}
 .zoom-level {
-  background-color: #ddd;
+  min-width: 5em;
 }

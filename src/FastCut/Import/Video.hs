@@ -1,4 +1,3 @@
-{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE FlexibleContexts      #-}
@@ -6,6 +5,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TupleSections         #-}
@@ -30,9 +30,9 @@ import qualified Data.Vector.Generic    as VG
 import           Graphics.ColorSpace    as A
 import           Pipes                  (Consumer', Pipe, Producer, (>->))
 import qualified Pipes
-import qualified Pipes.Lift             as Pipes
 import qualified Pipes.Parse            as Pipes
 import qualified Pipes.Prelude          as Pipes hiding (show)
+import           Pipes.Safe
 import           System.Directory
 import           System.FilePath
 import           System.IO              hiding (putStrLn)
@@ -51,8 +51,9 @@ initialize = initFFmpeg
 
 data VideoImportError
   = UnexpectedError FilePath Text
-  | ProxyGenerationFailed FilePath Text
   deriving (Show, Eq)
+
+instance Exception VideoImportError
 
 -- | The type of frames returned by "Codec.FFmpeg", i.e. JuicyPixel
 -- images.
@@ -70,10 +71,9 @@ data Timed a = Timed
   , time    :: Time
   } deriving (Eq, Show, Functor)
 
-readVideoFile :: MonadIO m => FilePath -> Producer (Timed Frame) (ExceptT VideoImportError m) ()
+readVideoFile :: MonadIO m => FilePath -> Producer (Timed Frame) m ()
 readVideoFile filePath = do
-  (getFrame, cleanup) <-
-    lift ((UnexpectedError filePath . toS) `withExceptT` imageReaderTimeT (File filePath))
+  (getFrame, cleanup) <- liftIO (imageReaderTime (File filePath))
   yieldNext getFrame cleanup
   where
     yieldNext ::
@@ -299,7 +299,7 @@ getVideoFileDuration f =
   Probe.withAvFile f Probe.duration
 
 filePathToVideoAsset ::
-     (MonadError VideoImportError m, MonadIO m)
+     (MonadMask m, MonadSafe m, MonadIO m)
   => VideoSettings
   -> FilePath
   -> OriginalPath
@@ -329,11 +329,11 @@ generateVideoThumbnail sourceFile outDir = do
 newtype AutoSplit = AutoSplit Bool deriving (Show, Eq)
 
 importVideoFile ::
-     MonadIO m
+     (MonadIO m, MonadSafe m)
   => VideoSettings
   -> FilePath
   -> FilePath
-  -> Producer ProgressUpdate m (Either VideoImportError VideoAsset)
+  -> Producer ProgressUpdate m VideoAsset
 importVideoFile settings sourceFile outDir = do
   -- Copy asset to working directory
   assetPath <- liftIO $ do
@@ -342,10 +342,10 @@ importVideoFile settings sourceFile outDir = do
     copyFile sourceFile assetPath
     return (OriginalPath assetPath)
   -- Generate thumbnail and return asset
-  Pipes.runExceptP $ filePathToVideoAsset settings outDir assetPath
+  filePathToVideoAsset settings outDir assetPath
 
 generateProxy ::
-     (MonadError VideoImportError m, MonadIO m)
+     (MonadIO m, MonadSafe m)
   => VideoSettings
   -> OriginalPath
   -> Duration
@@ -359,39 +359,36 @@ generateProxy videoSettings (view unOriginalPath -> sourceFile) fullLength outDi
         { output = Command.FileOutput proxyPath
         , inputs = pure (Command.FileSource sourceFile)
         , filterGraph =
-            Command.FilterGraph
-              (pure
-                 (Command.FilterChain
-                    (pure
-                       (Command.RoutedFilter
-                          []
-                          (Command.Scale
-                             640
-                             360
-                             Command.ForceOriginalAspectRatioDisable)
-                          []))))
+            Just . Command.FilterGraph $
+              pure
+                (Command.FilterChain
+                   (pure
+                      (Command.RoutedFilter
+                         []
+                         (Command.Scale
+                            640
+                            360
+                            Command.ForceOriginalAspectRatioDisable)
+                         [])))
         , frameRate = Just (videoSettings ^. frameRate)
         , mappings = []
         , vcodec = Just "h264"
         , acodec = Nothing
-        , format = "mp4"
+        , format = Just "mp4"
         }
-  result <- Pipes.hoist liftIO (runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd)
-  case result of
-    Success           -> return (ProxyPath proxyPath)
-    ProcessFailed err -> throwError (ProxyGenerationFailed sourceFile err)
+  runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd
+  return (ProxyPath proxyPath)
 
 importVideoFileAutoSplit ::
-     MonadIO m
+     (MonadIO m, MonadSafe m)
   => VideoSettings
   -> FilePath
   -> FilePath
-  -> Producer ProgressUpdate m (Either VideoImportError [VideoAsset])
+  -> Producer ProgressUpdate m [VideoAsset]
 importVideoFileAutoSplit settings sourceFile outDir = do
   fullLength <- liftIO (getVideoFileDuration sourceFile)
   generateProxy settings original fullLength (outDir </> "proxies")
-    & flip divideProgress (classifyScenes fullLength)
-    & Pipes.runExceptP
+    & flip divideProgress2 (classifyScenes fullLength)
   where
     original = OriginalPath sourceFile
     toProgress (durationToSeconds -> fullLength) time =
@@ -427,8 +424,7 @@ split settings equalFramesTimeThreshold src outDir = do
       printResult res = do
         putStrLn ("" :: Text)
         case res of
-          Left _err -> putStrLn ("Failed." :: Text)
+          Left (err :: VideoImportError) -> putStrLn ("Video split failed: " <> show err :: Text)
           Right files ->
             putStrLn ("Wrote " <> show (length files) <> " files." :: Text)
-  Pipes.runEffect
-    (Pipes.runExceptP writeSplitSegments >-> discardUpdates >>= printResult)
+  runSafeT (Pipes.runEffect (tryP (writeSplitSegments >-> discardUpdates) >>= printResult))

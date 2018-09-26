@@ -1,5 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ExplicitForAll    #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
@@ -11,27 +12,33 @@ module FastCut.UserInterface.GtkInterface.TimelineView
   ( timelineView
   ) where
 
-import           FastCut.Prelude             hiding (on)
+import           FastCut.Prelude                                     hiding (on)
 
 import           Control.Lens
-import           Data.Int                    (Int32)
-import           Data.Text                   (Text)
-import           GI.Gtk                      (Align (..), Box (..), Button (..),
-                                              Image (..), Label (..),
-                                              MenuBar (..), MenuItem (..),
-                                              Orientation (..), PolicyType (..),
-                                              Scale (..),
-                                              ScrolledWindow (..))
+import           Data.Int                                            (Int32)
+import           Data.Text                                           (Text)
+import           GI.Gtk                                              (Align (..),
+                                                                      Box (..),
+                                                                      Button (..),
+                                                                      Label (..),
+                                                                      MenuBar (..),
+                                                                      MenuItem (..),
+                                                                      Orientation (..),
+                                                                      PolicyType (..),
+                                                                      Scale (..),
+                                                                      ScrolledWindow (..))
 import           GI.Gtk.Declarative
+import           GI.Pango                                            (EllipsizeMode (..))
 
 import           FastCut.Composition
-import           FastCut.MediaType
 import           FastCut.Composition.Focused
 import           FastCut.Duration
 import           FastCut.Focus
 import           FastCut.Library
+import           FastCut.MediaType
 import           FastCut.Project
 import           FastCut.UserInterface
+import           FastCut.UserInterface.GtkInterface.ThumbnailPreview
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
 widthFromDuration (ZoomLevel zl) duration' =
@@ -71,21 +78,21 @@ renderGap ::
   -> Duration
   -> Widget (Event TimelineMode)
 renderGap zl (thisFocus, focused) duration' =
-      container
-        Box
-        [ classes ["gap", focusedClass focused]
-        , #orientation := OrientationHorizontal
-        ] $
-      boxChild
-        False
-        False
-        0
-        (widget
-           Button
-           [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-           , #widthRequest := widthFromDuration zl duration'
-           , #hasFocus := (focused == Focused)
-           ])
+  container
+    Box
+    [ classes ["gap", focusedClass focused]
+    , #orientation := OrientationHorizontal
+    ] $
+  boxChild
+    False
+    False
+    0
+    (widget
+        Button
+        [on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+        , #widthRequest := widthFromDuration zl duration'
+        , #hasFocus := (focused == Focused)
+        ])
 
 renderVideoPart ::
      ZoomLevel
@@ -154,15 +161,15 @@ renderPreviewPane part =
     boxChild True True 0 $
       case part of
         Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
-          thumbnailImage (toS thumbnail)
+          thumbnailPreview thumbnail
         Just (FirstAudioPart AudioClip{}) ->
           noPreviewAvailable
         Just (FirstVideoPart VideoGap{}) -> widget Label [#label := "Video gap."]
         Just (FirstAudioPart AudioGap{}) -> widget Label [#label := "Audio gap."]
         Nothing                     -> noPreviewAvailable
   where
-    thumbnailImage thumbnailFile =
-       widget Image [#file := thumbnailFile]
+    -- thumbnailImage thumbnailFile =
+    --    widget Image [#file := thumbnailFile]
     noPreviewAvailable = widget Label [#label := "No preview available."]
 
 renderMenu :: Widget (Event TimelineMode)
@@ -193,6 +200,32 @@ renderMenu =
             (enumFrom minBound)
             (labelledItem . InsertCommand (InsertGap (Just mediaType')))
 
+renderBottomBar :: TimelineModel -> Widget (Event TimelineMode)
+renderBottomBar model =
+  container Box [#orientation := OrientationHorizontal, classes ["bottom-bar"]] $ do
+    boxChild True True 0 $
+      widget
+        Label
+        [ classes ["status-message"]
+        , #label := fromMaybe "" (model ^. statusMessage)
+        , #ellipsize := EllipsizeModeEnd
+        , #halign := AlignStart
+        ]
+    boxChild False False 0 $
+      widget
+        Scale
+        [ classes ["zoom-level"]
+        , onM #valueChanged onZoomLevelChange
+        , afterCreated afterZoomLevelCreate
+        , #drawValue := False
+        ]
+  where
+    afterZoomLevelCreate :: Scale -> IO ()
+    afterZoomLevelCreate scale =
+      #setRange scale 1 9
+
+    onZoomLevelChange = fmap (ZoomLevelChanged . ZoomLevel) . #getValue
+
 timelineView :: TimelineModel -> Widget (Event TimelineMode)
 timelineView model =
   container Box [#orientation := OrientationVertical] $ do
@@ -211,22 +244,9 @@ timelineView model =
         , classes ["timeline-container"]
         ]
         (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
-    boxChild False False 0 $
-      widget
-        Scale
-        [ classes ["zoom-level"]
-        , onM #valueChanged onZoomLevelChange
-        , afterCreated afterZoomLevelCreate
-        , #drawValue := False
-        ]
+    boxChild False False 0 (renderBottomBar model)
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci =
       withAllFoci (model ^. project . timeline) <&> \f ->
         (f, focusedState (model ^. currentFocus) f)
-
-    afterZoomLevelCreate :: Scale -> IO ()
-    afterZoomLevelCreate scale =
-      #setRange scale 1 9
-
-    onZoomLevelChange = fmap (ZoomLevelChanged . ZoomLevel) . #getValue

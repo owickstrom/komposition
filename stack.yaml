@@ -17,3 +17,4 @@ extra-deps:
  - massiv-0.1.6.1
  - motor-0.3.0
  - row-types-0.2.3.0
+ - process-1.6.4.0
