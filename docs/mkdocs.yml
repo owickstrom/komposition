@@ -1,0 +1,25 @@
+site_name: Komposition
+site_description: 'Documentation for the Komposition screencast editor.'
+site_author: 'Oskar Wickström'
+copyright: 'Oskar Wickström'
+docs_dir: src
+nav:
+    - index.md
+    - 'User Guide':
+        - user-guide/introduction.md
+        - user-guide/installation.md
+        - 'Core Concepts':
+            - user-guide/core-concepts/timeline.md
+            - user-guide/core-concepts/navigation.md
+            - user-guide/core-concepts/commands.md
+            - user-guide/core-concepts/library.md
+            - user-guide/core-concepts/importing-media.md
+            - user-guide/core-concepts/preview.md
+            - user-guide/core-concepts/rendering.md
+            - user-guide/core-concepts/keyboard-driven-editing.md
+        - Tutorials:
+            - user-guide/tutorials/your-first-screencast.md
+    - roadmap.md
+    - contributing.md
+theme:
+  name: 'material'
