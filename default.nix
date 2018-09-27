@@ -32,10 +32,10 @@ let
     };
   };
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
-  drv = variant (haskellPackages.callCabal2nix "fastcut" ./. {});
+  drv = variant (haskellPackages.callCabal2nix "komposition" ./. {});
 in
-{ fastcut = drv;
-  fastcut-shell = haskellPackages.shellFor {
+{ komposition = drv;
+  komposition-shell = haskellPackages.shellFor {
     withHoogle = true;
     packages = p: [drv];
   };

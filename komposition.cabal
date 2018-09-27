@@ -1,0 +1,194 @@
+name:                 komposition
+version:              0.1.0
+synopsis:             High-productivity screencast editing
+-- description:
+license:              MPL-2.0
+license-file:         LICENSE
+author:               Oskar Wickström
+maintainer:           oskar.wickstrom@gmail.com
+copyright:            Oskar Wickström
+category:             Multimedia
+build-type:           Simple
+cabal-version:        >=1.10
+
+extra-source-files:   CHANGELOG.md
+data-dir:             src/data
+data-files:           style.css
+                    , stripes.png
+
+library
+  exposed-modules:      Control.Monad.Indexed.IO
+                      , Komposition.Application
+                      , Komposition.Application.Base
+                      , Komposition.Application.ImportMode
+                      , Komposition.Application.KeyMaps
+                      , Komposition.Application.LibraryMode
+                      , Komposition.Application.TimelineMode
+                      , Komposition.Composition
+                      , Komposition.Composition.Delete
+                      , Komposition.Composition.Focused
+                      , Komposition.Composition.Insert
+                      , Komposition.Composition.Split
+                      , Komposition.Duration
+                      , Komposition.FFmpeg.Command
+                      , Komposition.FFmpeg.Process
+                      , Komposition.Focus
+                      , Komposition.Focus.Parent
+                      , Komposition.Import.Audio
+                      , Komposition.Import.Video
+                      , Komposition.KeyMap
+                      , Komposition.Prelude
+                      , Komposition.Progress
+                      , Komposition.Project
+                      , Komposition.Project.Store
+                      , Komposition.Library
+                      , Komposition.MediaType
+                      , Komposition.Render.Composition
+                      , Komposition.Render.FFmpeg
+                      , Komposition.UserInterface
+                      , Komposition.UserInterface.GtkInterface
+                      , Komposition.UserInterface.GtkInterface.EventListener
+                      , Komposition.UserInterface.GtkInterface.HelpView
+                      , Komposition.UserInterface.GtkInterface.ImportView
+                      , Komposition.UserInterface.GtkInterface.LibraryView
+                      , Komposition.UserInterface.GtkInterface.TimelineView
+                      , Komposition.UserInterface.GtkInterface.ThumbnailPreview
+                      , Komposition.Timestamp
+                      , Komposition.VideoSettings
+  build-depends:        base >=4.10 && <4.12
+                      , async
+                      , binary
+                      , deepseq
+                      , directory
+                      , exceptions
+                      , ffmpeg-light >= 0.12.1 && <0.13
+                      , filepath
+                      , gi-gobject
+                      , gi-glib
+                      , gi-gst
+                      , gi-gtk
+                      , gi-gtk-declarative
+                      , gi-gdk
+                      , gi-gdkpixbuf
+                      , gi-pango
+                      , indexed
+                      , JuicyPixels
+                      , hashable
+                      , haskell-gi
+                      , haskell-gi-base
+                      , lens
+                      , massiv >= 0.1.6.1 && < 0.2
+                      , massiv-io >= 0.1.4 && < 0.2
+                      , motor >= 0.3 && < 0.4
+                      , mtl
+                      , parallel
+                      , pipes
+                      , pipes-parse
+                      , pipes-safe
+                      , primitive
+                      , protolude
+                      , process >= 1.6.4.0 && < 2
+                      , row-types
+                      , transformers
+                      , temporary
+                      , text
+                      , time
+                      , unordered-containers
+                      , vector
+  hs-source-dirs:       src
+  default-language:     Haskell2010
+  ghc-options:        -Wall -fno-warn-unticked-promoted-constructors
+  default-extensions: NoImplicitPrelude
+
+executable komposition
+  main-is:              Main.hs
+  other-modules:        Paths_komposition
+  -- other-extensions:
+  build-depends:        base >=4.10 && <4.12
+                      , komposition
+                      , filepath
+                      , gi-gobject
+                      , gi-glib
+                      , gi-gtk
+                      , gi-gdk
+                      , gi-pango
+                      , haskell-gi
+                      , haskell-gi-base
+                      , temporary
+                      , text
+                      , time
+  hs-source-dirs:       exe
+  default-language:     Haskell2010
+  ghc-options:        -Wall -threaded -O -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude
+
+executable komposition-split
+  main-is:              Split.hs
+  other-modules:        Paths_komposition
+  -- other-extensions:
+  build-depends:        base >=4.10 && <4.12
+                      , komposition
+                      , gi-gobject
+                      , gi-glib
+                      , gi-gtk
+                      , gi-gdk
+                      , gi-pango
+                      , haskell-gi
+                      , haskell-gi-base
+                      , text
+                      , time
+  hs-source-dirs:       exe
+  default-language:     Haskell2010
+  ghc-options:        -Wall -threaded -O2 -rtsopts -with-rtsopts=-N
+  default-extensions: NoImplicitPrelude
+
+test-suite komposition-tests
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  test
+  main-is:         Main.hs
+  other-modules:   Komposition.Composition.FocusedTest
+                 , Komposition.Composition.DeleteTest
+                 , Komposition.Composition.Generators
+                 , Komposition.Composition.InsertTest
+                 , Komposition.Composition.ValidFocusTest
+                 , Komposition.FocusTest
+                 , Komposition.Render.CompositionTest
+                 , Komposition.Render.TimestampTest
+                 , Komposition.Render.FFmpeg.CommandTest
+                 , Komposition.TestLibrary
+                 , Komposition.Import.VideoTest
+  build-depends:   base                 >= 4        && < 5
+                 , unordered-containers >= 0.2      && < 0.3
+                 , extra
+                 , komposition
+                 , hedgehog
+                 , JuicyPixels
+                 , lens
+                 , pipes
+                 , pipes-parse
+                 , massiv
+                 , massiv-io
+                 , tasty
+                 , tasty-hunit
+                 , tasty-hspec
+                 , tasty-hedgehog
+                 , tasty-discover
+  default-language:     Haskell2010
+  default-extensions:   NoImplicitPrelude
+  ghc-options:     -Wall -fno-warn-unticked-promoted-constructors
+
+benchmark komposition-benchmark
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  bench
+  main-is:         Benchmark.hs
+  build-depends:   base                 >= 4        && < 5
+                 , bytestring
+                 , criterion
+                 , komposition
+                 , JuicyPixels
+                 , lens
+                 , massiv
+                 , massiv-io
+                 , vector
+  ghc-options:     -Wall -O2
+  default-extensions:   NoImplicitPrelude

@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Composition.FocusedTest where
+module Komposition.Composition.FocusedTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Test.Tasty.Hspec
 
--- import           FastCut.Composition
--- import           FastCut.Composition.Focused
--- import           FastCut.Focus
+-- import           Komposition.Composition
+-- import           Komposition.Composition.Focused
+-- import           Komposition.Focus
 
 spec_applyFocus = do
   it "adds valid foci to every part of a sequence" $

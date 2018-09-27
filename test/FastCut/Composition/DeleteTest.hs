@@ -1,19 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Composition.DeleteTest where
+module Komposition.Composition.DeleteTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Test.Tasty.Hspec
 
-import           FastCut.Composition
-import           FastCut.Composition.Delete
-import           FastCut.Focus
-import           FastCut.MediaType
+import           Komposition.Composition
+import           Komposition.Composition.Delete
+import           Komposition.Focus
+import           Komposition.MediaType
 
-import           FastCut.TestLibrary
+import           Komposition.TestLibrary
 
 spec_delete =
   it "deletes only audio part and retains valid focus" $ do

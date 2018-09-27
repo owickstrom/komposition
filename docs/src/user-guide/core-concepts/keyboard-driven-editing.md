@@ -1,2 +1,0 @@
-Keyboard-Driven Editing
-=======================

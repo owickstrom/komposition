@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# LANGUAGE OverloadedStrings #-}
-module FastCut.TestLibrary where
+module Komposition.TestLibrary where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 
-import           FastCut.Composition
-import           FastCut.Duration
-import           FastCut.Library
+import           Komposition.Composition
+import           Komposition.Duration
+import           Komposition.Library
 
 video4s =
   VideoClip

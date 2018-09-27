@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 
 import           System.IO.Temp
 
-import           FastCut.Application
-import           FastCut.Composition
-import           FastCut.Import.Video
-import           FastCut.Library
-import           FastCut.Project
-import           FastCut.UserInterface.GtkInterface
-import           FastCut.VideoSettings
-import           Paths_fastcut
+import           Komposition.Application
+import           Komposition.Composition
+import           Komposition.Import.Video
+import           Komposition.Library
+import           Komposition.Project
+import           Komposition.UserInterface.GtkInterface
+import           Komposition.VideoSettings
+import           Paths_komposition
 
 initialProject :: FilePath -> IO Project
 initialProject workDir = do
@@ -31,6 +31,6 @@ main :: IO ()
 main = do
   initialize
   cssPath <- getDataFileName "style.css"
-  withSystemTempDirectory "project.fastcut" $ \workDir -> do
+  withSystemTempDirectory "project.komposition" $ \workDir -> do
     p <- initialProject workDir
-    runGtkUserInterface cssPath (fastcut p)
+    runGtkUserInterface cssPath (komposition p)

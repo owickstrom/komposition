@@ -1,9 +1,9 @@
 module Main where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 
-import           FastCut.Import.Video
-import           FastCut.VideoSettings
+import           Komposition.Import.Video
+import           Komposition.VideoSettings
 
 main :: IO ()
 main = do
@@ -14,7 +14,7 @@ main = do
       case readDouble (toS minStillTime) of
         Just s -> split videoSettings s input output
         Nothing -> putStrLn "Invalid MIN_STILL_TIME, must be a value in seconds."
-    _               -> putStrLn "Usage: fastcut-split MIN_STILL_TIME INPUT OUTPUT"
+    _               -> putStrLn "Usage: komposition-split MIN_STILL_TIME INPUT OUTPUT"
 
   where
     videoSettings = VideoSettings 25 (Resolution 640 480)

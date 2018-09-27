@@ -1,17 +1,17 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-type-defaults #-}
 
-module FastCut.TimestampTest where
+module Komposition.TimestampTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Hedgehog
 import           Hedgehog.Range
 
-import           FastCut.Duration
-import           FastCut.Timestamp
+import           Komposition.Duration
+import           Komposition.Timestamp
 
-import qualified FastCut.Composition.Generators as Gen
+import qualified Komposition.Composition.Generators as Gen
 
 equalishTo d1 d2 =
   when (abs (durationToSeconds d1 - durationToSeconds d2) > eps) $ do

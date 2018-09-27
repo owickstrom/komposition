@@ -2,14 +2,14 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.FFmpeg.CommandTest where
+module Komposition.FFmpeg.CommandTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 
 import           Test.Tasty.Hspec
 
-import           FastCut.Duration
-import           FastCut.FFmpeg.Command
+import           Komposition.Duration
+import           Komposition.FFmpeg.Command
 
 spec_printCommandLineArgs = do
   it "prints command-line args for a multi-chain concat command" $

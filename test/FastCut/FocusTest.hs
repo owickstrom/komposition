@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.FocusTest where
+module Komposition.FocusTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Test.Tasty.Hspec
 
-import           FastCut.Composition
-import           FastCut.Focus
-import           FastCut.MediaType
+import           Komposition.Composition
+import           Komposition.Focus
+import           Komposition.MediaType
 
-import           FastCut.TestLibrary
+import           Komposition.TestLibrary
 
 spec_atFocus = do
   it "returns focused sequence" $

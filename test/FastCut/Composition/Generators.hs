@@ -1,19 +1,19 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
-module FastCut.Composition.Generators where
+module Komposition.Composition.Generators where
 
-import           FastCut.Prelude                   hiding ( nonEmpty )
+import           Komposition.Prelude                   hiding ( nonEmpty )
 
 import           Control.Lens
 import           Hedgehog                          hiding ( Parallel(..) )
 import qualified Hedgehog.Gen                  as Gen
 import           Hedgehog.Range
 
-import           FastCut.Composition
-import           FastCut.Focus
-import           FastCut.Duration
-import           FastCut.Library                   hiding (assetMetadata)
-import           FastCut.MediaType
+import           Komposition.Composition
+import           Komposition.Focus
+import           Komposition.Duration
+import           Komposition.Library                   hiding (assetMetadata)
+import           Komposition.MediaType
 
 timeline :: MonadGen m => Range Int -> m (Parallel ()) -> m (Timeline ())
 timeline range genParallel = Timeline <$> Gen.nonEmpty range (sequence' range genParallel)

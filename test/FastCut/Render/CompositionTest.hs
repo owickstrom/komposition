@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Render.CompositionTest where
+module Komposition.Render.CompositionTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Hedgehog
 import           Hedgehog.Range
 
-import           FastCut.Duration
-import qualified FastCut.Render.Composition     as Render
+import           Komposition.Duration
+import qualified Komposition.Render.Composition     as Render
 
-import qualified FastCut.Composition.Generators as Gen
+import qualified Komposition.Composition.Generators as Gen
 
 hprop_flattenTimeline =
   property $ do

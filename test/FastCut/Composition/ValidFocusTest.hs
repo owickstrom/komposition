@@ -6,24 +6,24 @@
 {-# LANGUAGE TupleSections     #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Composition.ValidFocusTest where
+module Komposition.Composition.ValidFocusTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Hedgehog                       hiding (Parallel)
 import qualified Hedgehog.Gen                   as Gen hiding (parallel)
 import           Hedgehog.Range
 
-import           FastCut.Composition
-import           FastCut.Composition.Delete
-import           FastCut.Composition.Insert
-import           FastCut.Composition.Split
-import           FastCut.Focus
-import           FastCut.Focus.Parent
-import           FastCut.MediaType
+import           Komposition.Composition
+import           Komposition.Composition.Delete
+import           Komposition.Composition.Insert
+import           Komposition.Composition.Split
+import           Komposition.Focus
+import           Komposition.Focus.Parent
+import           Komposition.MediaType
 
-import qualified FastCut.Composition.Generators as Gen
+import qualified Komposition.Composition.Generators as Gen
 
 data TestCommand
   = TestChangeFocus FocusCommand

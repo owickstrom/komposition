@@ -1,25 +1,32 @@
 site_name: Komposition
 site_description: 'Documentation for the Komposition screencast editor.'
 site_author: 'Oskar Wickström'
-copyright: 'Oskar Wickström'
+copyright: 'Copyright © 2018 Oskar Wickström'
 docs_dir: src
 nav:
-    - index.md
+    - 'Home': index.md
     - 'User Guide':
         - user-guide/introduction.md
         - user-guide/installation.md
-        - 'Core Concepts':
-            - user-guide/core-concepts/timeline.md
-            - user-guide/core-concepts/navigation.md
-            - user-guide/core-concepts/commands.md
-            - user-guide/core-concepts/library.md
-            - user-guide/core-concepts/importing-media.md
-            - user-guide/core-concepts/preview.md
-            - user-guide/core-concepts/rendering.md
-            - user-guide/core-concepts/keyboard-driven-editing.md
+        - 'Concepts':
+            - user-guide/concepts/timeline.md
+            - user-guide/concepts/navigation.md
+            - user-guide/concepts/commands.md
+            - user-guide/concepts/library.md
+            - user-guide/concepts/importing-media.md
+            - user-guide/concepts/preview.md
+            - user-guide/concepts/rendering.md
+            - user-guide/concepts/keyboard-driven-editing.md
         - Tutorials:
             - user-guide/tutorials/your-first-screencast.md
     - roadmap.md
     - contributing.md
 theme:
   name: 'material'
+  font:
+    text: 'Source Sans Pro'
+    code: 'Source Code Pro'
+extra_css:
+    - css/komposition.css
+markdown_extensions:
+  - admonition

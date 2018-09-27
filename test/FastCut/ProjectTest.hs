@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.ProjectTest where
+module Komposition.ProjectTest where
 
 import           Data.Semigroup   ((<>))
 import           Test.Tasty.Hspec

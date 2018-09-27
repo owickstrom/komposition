@@ -1,19 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module FastCut.Composition.InsertTest where
+module Komposition.Composition.InsertTest where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 import qualified Prelude
 
 import           Test.Tasty.Hspec
 
-import           FastCut.Composition
-import           FastCut.Composition.Insert
-import           FastCut.Focus
-import           FastCut.MediaType
+import           Komposition.Composition
+import           Komposition.Composition.Insert
+import           Komposition.Focus
+import           Komposition.MediaType
 
-import           FastCut.TestLibrary
+import           Komposition.TestLibrary
 
 spec_insertRightOf = do
   it "appends a sequence after the focused one" $ do

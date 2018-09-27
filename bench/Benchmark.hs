@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 
 import qualified Codec.Picture        as Juicy
 import           Criterion.Main
 import qualified Data.ByteString      as ByteString
 import qualified Data.Massiv.Array.IO as Massiv
 
-import           FastCut.Import.Video
+import           Komposition.Import.Video
 
 testImageName :: Int -> FilePath
 testImageName n = "bench/images/" <> show n <> ".png"
