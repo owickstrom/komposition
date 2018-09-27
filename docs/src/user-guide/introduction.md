@@ -4,9 +4,11 @@ _Komposition_ is the video editor built for screencasters. It lets you focus
 on producing and publishing quality content, instead of spending all of your
 time in complicated video editors. Stop wasting time on manually adjusting
 clip lengths, building still-frame segments, and dragging clips around, and
-enjoy a new screencast editing experience. Komposition automatically detects
-scenes in screen capture video, automatically detects sentences in voice-over
-audio recordings, and features a high-productivity editing workflow.
+enjoy a new screencast editing experience.
+
+Komposition automatically detects scenes in screen capture video,
+automatically detects sentences in voice-over audio recordings, and features
+a high-productivity editing workflow based on keyboard navigation.
 
 ## Adjusting Your Expectations
 
