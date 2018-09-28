@@ -14,7 +14,7 @@ be done in a certain way.
 
 **Write a detailed script before recording anything.**
 :   This is paramount for the Komposition workflow. Also, it's generally good
-    advice that will save you loads of time, even if you're not usingKomposition.
+    advice that will save you loads of time, even if you're not using Komposition.
     Your script should be detailed enough for you to record video and audio
     separately based off it.
 
