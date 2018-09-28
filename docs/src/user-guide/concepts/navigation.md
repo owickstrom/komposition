@@ -19,3 +19,14 @@ timeline part. For example:
 * Focusing a video clip:
 
     ![A focused video clip](video-clip.png)
+
+## Key Bindings
+
+Navigation is mean to be keyboard-driven, in that you use your arrow keys or
+the <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> keys to move around,
+like in [Vim](https://www.vim.org/). You can also click any clip or gap in a
+parallel to move directly to it.
+
+!!! note
+    There's currently no way to focus sequences or parallels using the mouse,
+    but this should be addressed in the future.

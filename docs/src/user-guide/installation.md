@@ -55,6 +55,18 @@ Next, build and install the application using Stack:
 stack install
 ```
 
+You should now have Komposition available:
+
+```shell
+~/.local/bin/komposition
+```
+
+If you have added `~/.local/bin` to your `PATH`, run:
+
+```shell
+komposition
+```
+
 ## macOS
 
 *These instructions will be available soon.*

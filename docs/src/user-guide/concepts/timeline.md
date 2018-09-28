@@ -28,6 +28,13 @@ means that if the audio parts form a longer track than the video parts, the
 video will be extended with still frames. Correspondingly, if the video track
 is longer, the audio track will be silent in the end.
 
+## Video & Audio Parts
+
+Video and audio parts added to a track are either clips from the
+[library](library.md), or *gaps*. A clip is a slice of some original media
+file. A video gap is a still frame segment, and an audio gap is simply
+silence.
+
 ## Examples
 
 * If you want video clip *v1* to start at exactly the same time as
@@ -38,5 +45,7 @@ is longer, the audio track will be silent in the end.
 * If you want video clip *v1* to play with silence, and then play audio clip
   *a1* together with video clip *v2*, put *v1* in a parallel, and *v2* and *a1*
   in another parallel.
-
+* If you want to play video clip *v1* together with audio clip *a1*, but start
+  *a1* after two seconds, put *v1*, a two second audio gap, and *a1* in a
+  parallel.
 
