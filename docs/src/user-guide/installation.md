@@ -79,3 +79,8 @@ komposition
 ## Windows
 
 *These instructions will be available soon.*
+
+```
+# something like this...
+pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-libav mingw-w64-x86_64-gst-plugins-{base,good,bad}
+```
