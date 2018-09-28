@@ -10,7 +10,9 @@ See [the documentation and user guide](https://owickstrom.github.io/komposition/
 
 ## Build Instructions
 
-This project can be built using Stack, Cabal, and Nix.
+This project can be built using Stack, Cabal, and Nix. Please see the
+[Installation docs](https://owickstrom.github.io/komposition/) for build
+instructions.
 
 ## License
 
