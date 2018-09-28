@@ -16,6 +16,7 @@ nav:
             - user-guide/concepts/importing-media.md
             - user-guide/concepts/preview.md
             - user-guide/concepts/rendering.md
+            - user-guide/concepts/projects.md
     - roadmap.md
     - contributing.md
 theme:
