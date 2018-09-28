@@ -1,8 +1,20 @@
-# Komposition
+<div align="center">
+<img src="docs/src/screenshot.png" alt="Screenshot of Komposition" width="442px" height="362px">
+<h1>Komposition</h1>
+</div>
 
-[![Join the chat at https://gitter.im/owickstrom/komposition](https://badges.gitter.im/owickstrom/komposition.svg)](https://gitter.im/owickstrom/komposition?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+<p align="center">The video editor built for screencasters</p>
 
-**The video editor built for screencasters**
+<p align="center">
+<a href="user-guide/introduction/">Introduction</a> |
+<a href="user-guide/installation/">Installation</a>
+</p>
+
+<p align="center">
+  <a href="https://gitter.im/owickstrom/komposition?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"><img src="https://badges.gitter.im/owickstrom/komposition.svg" alt="Join the chat at https://gitter.im/owickstrom/komposition"></a>
+</p>
+
+<hr>
 
 ## Documentation
 
