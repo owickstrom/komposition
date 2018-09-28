@@ -49,6 +49,11 @@ sudo apt-get install \
     libgstreamer-plugins-bad1.0-dev
 ```
 
+!!! warning
+    These might not be all the required dependencies. If you find
+    more that needs to be installed, please [submit an issue on
+    GitHub](https://github.com/owickstrom/komposition).
+
 Next, build and install the application using Stack:
 
 ```shell

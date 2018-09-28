@@ -1,3 +1,5 @@
+<img alt="Komposition screenshot" src="screenshot.png" width="442px" height="362px" id="main-screenshot">
+
 # Komposition
 
 <p id="subtitle">
