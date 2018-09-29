@@ -40,7 +40,7 @@ importView ImportFileModel {..} =
     boxChild False False 10 $
       widget
         CheckButton
-        [ #label := "Automatically split"
+        [ #label := "Classify parts automatically"
         , #active := autoSplitValue
         , #sensitive := autoSplitAvailable
         , onM #toggled (fmap ImportAutoSplitSet . toggleButtonGetActive)
