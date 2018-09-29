@@ -407,7 +407,7 @@ importVideoFileAutoSplit settings sourceFile outDir = do
             (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..])
 
 isSupportedVideoFile :: FilePath -> Bool
-isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov"]
+isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov", ".flv"]
 
 split :: VideoSettings -> Time -> FilePath -> FilePath -> IO ()
 split settings equalFramesTimeThreshold src outDir = do
