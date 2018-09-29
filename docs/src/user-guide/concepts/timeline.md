@@ -40,7 +40,7 @@ silence.
 * If you want video clip *v1* to start at exactly the same time as
   audio clip *a1*, put them both in the beginning of a parallel.
 * If you want video clip *v1* and audio clip *a1* to play simultaneously, and when
-  they end play video clip *v1*, put *v1* and *a1* in one parallel followed by
+  they end play video clip *v2*, put *v1* and *a1* in one parallel followed by
   a parallel containing only *v2*.
 * If you want video clip *v1* to play with silence, and then play audio clip
   *a1* together with video clip *v2*, put *v1* in a parallel, and *v2* and *a1*
