@@ -2,9 +2,9 @@
     padding-bottom: 4em;
 }
 
-#main-screenshot {
+#introduction-video {
     display: block;
-    margin: 0 auto 2em;
+    margin: 0 auto 4em;
 }
 h1#komposition {
     font-size: 400%;
@@ -31,4 +31,8 @@ h1#komposition {
 }
 #subtitle + p a:last-child:after {
     content: '';
+}
+#main-screenshot {
+    display: block;
+    margin: 0 auto 1em auto;
 }
