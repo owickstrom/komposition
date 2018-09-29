@@ -6,6 +6,8 @@ time in complicated video editors. Stop wasting time on manually adjusting
 clip lengths, building still-frame segments, and dragging clips around, and
 enjoy a new screencast editing experience.
 
+<img alt="Komposition screenshot" src="../../screenshot.png" width="442px" height="362px" id="main-screenshot">
+
 Komposition automatically detects scenes in screen capture video,
 automatically detects sentences in voice-over audio recordings, and features
 a high-productivity editing workflow based on keyboard navigation.

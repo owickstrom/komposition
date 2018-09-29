@@ -1,4 +1,5 @@
-<img alt="Komposition screenshot" src="screenshot.png" width="442px" height="362px" id="main-screenshot">
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/VRmn76TZadg" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen id="introduction-video"></iframe>
 
 # Komposition
 
