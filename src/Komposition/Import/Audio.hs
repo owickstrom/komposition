@@ -79,10 +79,20 @@ normalizeAudio
   -> FilePath -- Source path
   -> Producer ProgressUpdate m FilePath -- Action with progress updates, returning the normalized file path
 normalizeAudio tempDir sourcePath = do
-  let toProgress = ProgressUpdate "Normalizing audio"
-      outPath = tempDir </> "normalized.wav"
+  let toProgress = ProgressUpdate "Normalizing and gating audio"
+      outPath = tempDir </> "preprocessed.wav"
   yield  (toProgress 0)
-  runSoxWithProgress toProgress ["--norm", sourcePath, outPath]
+  runSoxWithProgress
+    toProgress
+    [ "--norm"
+    , sourcePath
+    , outPath
+    , "compand"
+    , ".1,.2"
+    , "−inf,−50.1,−inf,−50,−50", "0"
+    , "−90"
+    , ".1"
+    ]
   return outPath
 
 splitAudioBySilence
