@@ -34,6 +34,7 @@ library
                       , Komposition.FFmpeg.Process
                       , Komposition.Focus
                       , Komposition.Focus.Parent
+                      , Komposition.History
                       , Komposition.Import.Audio
                       , Komposition.Import.Video
                       , Komposition.KeyMap
