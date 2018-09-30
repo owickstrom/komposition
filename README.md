@@ -6,8 +6,8 @@
 <p align="center">The video editor built for screencasters</p>
 
 <p align="center">
-<a href="user-guide/introduction/">Introduction</a> |
-<a href="user-guide/installation/">Installation</a>
+<a href="https://owickstrom.github.io/komposition/user-guide/introduction/">Introduction</a> |
+<a href="https://owickstrom.github.io/komposition/user-guide/installation/">Installation</a>
 </p>
 
 <p align="center">
