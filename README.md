@@ -11,6 +11,7 @@
 </p>
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=VRmn76TZadg">Tutorial Video</a>
   <a href="https://gitter.im/owickstrom/komposition?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"><img src="https://badges.gitter.im/owickstrom/komposition.svg" alt="Join the chat at https://gitter.im/owickstrom/komposition"></a>
 </p>
 
