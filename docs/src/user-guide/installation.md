@@ -40,6 +40,7 @@ First, install the required dependencies:
 sudo apt-get install \
     ffmpeg \
     sox \
+    libavdevice-dev \
     libgirepository1.0-dev \
     gstreamer1.0-gtk3 \
     gstreamer1.0-libav \
