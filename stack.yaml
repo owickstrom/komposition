@@ -8,11 +8,11 @@ extra-deps:
  - gi-gst-1.0.16
  - ffmpeg-light-0.12.2.2
  - indexed-0.1.3
- - git: git@github.com:owickstrom/gi-gtk-declarative.git
+ - git: https://github.com/owickstrom/gi-gtk-declarative.git
    commit: 0bcc55e675659e4d266caf2662bad63deb6a4196
    subdirs:
      - gi-gtk-declarative
- - git: git@github.com:reinerp/indexed-extras.git
+ - git: https://github.com/reinerp/indexed-extras.git
    commit: 8b38e7503c030644154e844cd932003d9438cfa2
  - massiv-0.1.6.1
  - motor-0.3.0
