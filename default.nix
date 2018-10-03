@@ -1,4 +1,4 @@
-{ compiler ? "ghc843", doBenchmark ? false }:
+{ compiler ? "ghc843", doBenchmark ? false, doProfiling ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {
@@ -28,8 +28,14 @@ let
         in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
     };
   };
-  variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
-  drv = variant (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}));
+  toggleBenchmark = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
+  toggleLibraryProfiling = if doBenchmark then pkgs.haskell.lib.enableLibraryProfiling else pkgs.haskell.lib.disableLibraryProfiling;
+  toggleExecutableProfiling = if doBenchmark then pkgs.haskell.lib.enableExecutableProfiling else pkgs.haskell.lib.disableExecutableProfiling;
+
+  drv = toggleExecutableProfiling
+        (toggleLibraryProfiling
+         (toggleBenchmark
+          (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}))));
 in
 { komposition = drv;
   komposition-shell = haskellPackages.shellFor {
