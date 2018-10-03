@@ -1,14 +1,12 @@
 { compiler ? "ghc843", doBenchmark ? false }:
 
 let
-  bootstrap = import <nixpkgs> { };
-  nixpkgsJson = builtins.fromJSON (builtins.readFile ./nixpkgs.json);
-  nixpkgsSrc = bootstrap.fetchFromGitHub {
-    owner = "NixOS";
-    repo  = "nixpkgs";
-    inherit (nixpkgsJson) rev sha256;
-  };
-  nixpkgs = import nixpkgsSrc {};
+  nixpkgs = import (builtins.fetchGit {
+    name = "nixos-unstable-2018-10-02";
+    url = https://github.com/nixos/nixpkgs/;
+    # `git ls-remote https://github.com/nixos/nixpkgs-channels nixos-unstable`
+    rev = "46651b82b87318e37440c15a639d49ec05e79b79";
+  }) {};
 
   giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
 
@@ -28,15 +26,15 @@ let
             inherit (giGtkDeclarativeJson) rev sha256;
           };
         in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
-      process = self.callHackage "process" "1.6.4.0" {};
     };
   };
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
-  drv = variant (haskellPackages.callCabal2nix "komposition" ./. {});
+  drv = variant (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}));
 in
 { komposition = drv;
   komposition-shell = haskellPackages.shellFor {
     withHoogle = true;
     packages = p: [drv];
+    buildInputs = with pkgs; [ cabal-install ];
   };
 }

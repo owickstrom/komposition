@@ -81,13 +81,13 @@ library
                       , massiv-io >= 0.1.4 && < 0.2
                       , motor >= 0.3 && < 0.4
                       , mtl
-                      , parallel
                       , pipes
                       , pipes-parse
                       , pipes-safe
                       , primitive
                       , protolude
-                      , process >= 1.6.4.0 && < 2
+                      , process
+                      , typed-process >= 0.2 && < 0.3
                       , row-types
                       , transformers
                       , temporary
@@ -153,8 +153,8 @@ test-suite komposition-tests
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FocusTest
                  , Komposition.Render.CompositionTest
-                 , Komposition.Render.TimestampTest
-                 , Komposition.Render.FFmpeg.CommandTest
+                 , Komposition.TimestampTest
+                 , Komposition.FFmpeg.CommandTest
                  , Komposition.TestLibrary
                  , Komposition.Import.VideoTest
   build-depends:   base                 >= 4        && < 5

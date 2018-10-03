@@ -1,0 +1,42 @@
+# Base image for Komposition builds on CircleCI, with system dependencies
+# and Stack preinstalled.
+
+FROM ubuntu:18.04
+
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update && apt-get install -y \
+    git \
+    ssh \
+    tar \
+    gzip \
+    ca-certificates \
+    curl \
+    libgmp-dev \
+    libavutil-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libswscale-dev \
+    libavdevice-dev \
+    libgirepository1.0-dev \
+    libgtk-3-dev \
+    libpango1.0-dev \
+    libgdk-pixbuf2.0-dev \
+    libgstreamer1.0-dev \
+    happy \
+    alex
+# gstreamer1.0-libav \
+# gstreamer1.0-plugins-base \
+# gstreamer1.0-plugins-good \
+# gstreamer1.0-plugins-bad \
+
+RUN curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C /usr/bin '*/stack'
+ENV PATH="${HOME}/.local/bin:${PATH}"
+
+RUN stack --resolver lts-12.4 --no-terminal --install-ghc setup
+
+ADD . /preload-app
+WORKDIR /preload-app
+
+RUN stack --no-terminal install --only-dependencies
