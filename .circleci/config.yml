@@ -1,0 +1,76 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: owickstrom/komposition-stack-builder:lts-12.4
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "komposition.cabal" }}
+            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}
+
+      - run:
+          command: stack build --no-terminal --test --bench --only-dependencies -j1
+
+      - save_cache:
+          key: stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "komposition.cabal" }}
+          paths:
+            - ~/.stack
+
+      - run:
+          command: stack build --no-terminal --test --no-run-tests --bench --no-run-benchmarks
+
+      - save_cache:
+          key: stack-work-{{ arch }}-{{ .Revision }}
+          paths:
+            - .stack-work
+
+  test:
+    docker:
+      - image: owickstrom/komposition-stack-builder:lts-12.4
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "komposition.ca" }}
+            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}
+      - restore_cache:
+          key: stack-work-{{ arch }}-{{ .Revision }}
+      - run:
+          command: stack test
+
+  # haddock:
+  #   docker:
+  #     - image: owickstrom/komposition-stack-builder:lts-12.4
+  #   steps:
+  #     - checkout
+  #     - restore_cache:
+  #         keys:
+  #           - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "package.yaml" }}
+  #           - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}
+  #     - restore_cache:
+  #         key: stack-work-{{ arch }}-{{ .Revision }}
+  #     - run:
+  #         command: stack haddock --no-haddock-deps
+  #     - run:
+  #         name: Move haddock files to a temporary directory
+  #         command: |
+  #           mkdir -p /tmp/haddock
+  #           mv $(stack path --local-install-root)/doc /tmp/haddock
+  #     - store_artifacts:
+  #         path: /tmp/haddock
+
+workflows:
+  version: 2
+  build-test:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+      # - haddock:
+      #     requires:
+      #       - build
