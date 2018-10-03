@@ -1,0 +1,4 @@
+
+#!/usr/bin/env bash
+
+cat stack.yaml | grep '^resolver:' | cut -d : -f 2 | xargs echo -n
