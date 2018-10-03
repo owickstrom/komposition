@@ -1,3 +1,4 @@
+# Based off https://github.com/tathougies/beam/blob/master/shell.nix
 { nixpkgs ? import <nixpkgs> {} }:
 with (import <nixpkgs> {});
 
