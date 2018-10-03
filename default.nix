@@ -28,7 +28,6 @@ let
             inherit (giGtkDeclarativeJson) rev sha256;
           };
         in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
-      process = self.callHackage "process" "1.6.4.0" {};
     };
   };
   variant = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;

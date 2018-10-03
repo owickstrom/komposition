@@ -15,7 +15,7 @@ import           Pipes.Safe             (MonadSafe, bracket)
 import           System.Directory
 import qualified System.IO              as IO
 import           System.IO.Error        (isDoesNotExistError)
-import           System.Process
+import           System.Process.Typed
 
 import           Komposition.Duration
 import           Komposition.FFmpeg.Command
@@ -44,17 +44,12 @@ runFFmpegCommand toProgress totalDuration cmd = do
     _ -> return ()
   let verbosityArgs = ["-v", "quiet"]
       allArgs = verbosityArgs <> ["-stats", "-nostdin"] <> map toS (printCommandLineArgs cmd)
-      process = proc "ffmpeg" allArgs
+      process = proc "ffmpeg" allArgs & setStderr createPipe
   liftIO (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
-  bracket
-    (liftIO (createProcess_ "" process { std_err = CreatePipe }))
-    (\p -> do
-      liftIO (cleanupProcess p))
-    (\(_, _, Just progressOut, ph) -> do
-      liftIO (IO.hSetBuffering progressOut IO.NoBuffering)
-      fromCarriageReturnSplit progressOut >-> yieldLines
-      waitForExit ph
-    )
+  bracket (startProcess process) stopProcess $ \p -> do
+    liftIO (IO.hSetBuffering (getStderr p) IO.NoBuffering)
+    fromCarriageReturnSplit (getStderr p) >-> yieldLines
+    waitForExit p
   where
     yieldLines :: MonadIO m => Pipe Text ProgressUpdate m ()
     yieldLines = forever $ do
@@ -65,7 +60,7 @@ runFFmpegCommand toProgress totalDuration cmd = do
             (durationToSeconds currentDuration / durationToSeconds totalDuration)
           )
         Nothing -> return ()
-    waitForExit ph = liftIO (waitForProcess ph) >>= \case
+    waitForExit p = waitExitCode p >>= \case
       ExitSuccess   -> return ()
       ExitFailure e -> throwIO
         (ProcessFailed ("FFmpeg command failed with exit code: " <> show e))

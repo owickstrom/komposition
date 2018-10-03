@@ -81,13 +81,13 @@ library
                       , massiv-io >= 0.1.4 && < 0.2
                       , motor >= 0.3 && < 0.4
                       , mtl
-                      , parallel
                       , pipes
                       , pipes-parse
                       , pipes-safe
                       , primitive
                       , protolude
-                      , process >= 1.6.4.0 && < 2
+                      , process
+                      , typed-process >= 0.2 && < 0.3
                       , row-types
                       , transformers
                       , temporary
