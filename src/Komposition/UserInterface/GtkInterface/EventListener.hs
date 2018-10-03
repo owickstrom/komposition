@@ -54,22 +54,32 @@ subscribeKeyEvents w = do
   sid <-
     w `Gtk.onWidgetKeyPressEvent` \eventKey -> do
       keyVal <- Gdk.getEventKeyKeyval eventKey
+      modifiers <- Gdk.getEventKeyState eventKey
       keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
-      case toKeyCombo (keyChar :: Char, keyVal) of
-        Just keyCombo -> writeChan events (HashSet.fromList keyCombo) $> False
+      case toKeyCombo keyChar keyVal modifiers of
+        Just keyCombo -> writeChan events keyCombo $> False
         _ -> return False
   return EventListener {unsubscribe = GObject.signalHandlerDisconnect w sid, ..}
   where
-    toKeyCombo =
+    toKey =
       \case
-        (_, Gdk.KEY_Up) -> Just [KeyUp]
-        (_, Gdk.KEY_Down) -> Just [KeyDown]
-        (_, Gdk.KEY_Left) -> Just [KeyLeft]
-        (_, Gdk.KEY_Right) -> Just [KeyRight]
-        (_, Gdk.KEY_Escape) -> Just [KeyEscape]
-        (_, Gdk.KEY_Return) -> Just [KeyEnter]
-        (_, Gdk.KEY_space) -> Just [KeySpace]
-        (c, _) -> Just [KeyChar c]
+        (_, Gdk.KEY_Up) -> Just KeyUp
+        (_, Gdk.KEY_Down) -> Just KeyDown
+        (_, Gdk.KEY_Left) -> Just KeyLeft
+        (_, Gdk.KEY_Right) -> Just KeyRight
+        (_, Gdk.KEY_Escape) -> Just KeyEscape
+        (_, Gdk.KEY_Return) -> Just KeyEnter
+        (_, Gdk.KEY_space) -> Just KeySpace
+        (c, _) -> Just (KeyChar c)
+    toModifier = \case
+      Gdk.ModifierTypeShiftMask -> Just (KeyModifier Shift)
+      Gdk.ModifierTypeControlMask -> Just (KeyModifier Ctrl)
+      Gdk.ModifierTypeMetaMask -> Just (KeyModifier Meta)
+      _ -> Nothing
+    toKeyCombo keyChar keyVal modifiers = do
+      key <- toKey (keyChar :: Char, keyVal)
+      pure (HashSet.fromList (key : mapMaybe toModifier modifiers))
+
 
 applyKeyMap :: KeyMap a -> EventListener KeyCombo -> IO (EventListener a)
 applyKeyMap topKeyMap keyPresses = do

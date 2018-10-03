@@ -235,7 +235,7 @@ timelineView model =
       True
       0
       (renderPreviewPane
-         (firstCompositionPart (model ^. currentFocus) (model ^. project . timeline)))
+         (firstCompositionPart (model ^. currentFocus) (currentProject model ^. timeline)))
     boxChild False False 0 $
       bin
         ScrolledWindow
@@ -248,5 +248,5 @@ timelineView model =
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci =
-      withAllFoci (model ^. project . timeline) <&> \f ->
+      withAllFoci (currentProject model ^. timeline) <&> \f ->
         (f, focusedState (model ^. currentFocus) f)

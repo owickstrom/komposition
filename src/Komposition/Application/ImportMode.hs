@@ -22,6 +22,7 @@ import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
+import           Komposition.History
 
 import           Komposition.Application.KeyMaps
 
@@ -80,15 +81,15 @@ importAsset gui timelineModel (filepath, autoSplit)
           case autoSplit of
             True ->
               importVideoFileAutoSplit
-                (timelineModel ^. project . proxyVideoSettings)
+                (currentProject timelineModel ^. proxyVideoSettings)
                 filepath
-                (timelineModel ^. project . workingDirectory)
+                (currentProject timelineModel ^. workingDirectory)
             False ->
               (: []) <$>
               importVideoFile
-                (timelineModel ^. project . proxyVideoSettings)
+                (currentProject timelineModel ^. proxyVideoSettings)
                 filepath
-                (timelineModel ^. project . workingDirectory)
+                (currentProject timelineModel ^. workingDirectory)
     in progressBar gui "Importing Video" action >>>= \case
          Nothing -> do
            ireturn timelineModel
@@ -100,12 +101,12 @@ importAsset gui timelineModel (filepath, autoSplit)
             True ->
               importAudioFileAutoSplit
                 filepath
-                (timelineModel ^. project . workingDirectory)
+                (currentProject timelineModel ^. workingDirectory)
             False ->
               (: []) <$>
               importAudioFile
                 filepath
-                (timelineModel ^. project . workingDirectory)
+                (currentProject timelineModel ^. workingDirectory)
     in progressBar gui "Importing Audio" action >>>= \case
       Nothing -> ireturn timelineModel
       Just (assets :: Either AudioImportError [AudioAsset]) ->
@@ -131,7 +132,11 @@ handleImportResult gui model mediaType result = case (mediaType, result) of
     iliftIO (print err)
     _ <- dialog gui "Import Failed!" (show err) [Ok]
     ireturn model
-  (SVideo, Right assets) -> do
-    model & project . library . videoAssets %~ (<> assets) & ireturn
-  (SAudio, Right assets) -> do
-    model & project . library . audioAssets %~ (<> assets) & ireturn
+  (SVideo, Right assets) ->
+    model
+      & projectHistory %~ edit (library . videoAssets %~ (<> assets))
+      & ireturn
+  (SAudio, Right assets) ->
+    model
+      & projectHistory %~ edit (library . audioAssets %~ (<> assets))
+      & ireturn
