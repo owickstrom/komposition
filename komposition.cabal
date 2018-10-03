@@ -153,8 +153,8 @@ test-suite komposition-tests
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FocusTest
                  , Komposition.Render.CompositionTest
-                 , Komposition.Render.TimestampTest
-                 , Komposition.Render.FFmpeg.CommandTest
+                 , Komposition.TimestampTest
+                 , Komposition.FFmpeg.CommandTest
                  , Komposition.TestLibrary
                  , Komposition.Import.VideoTest
   build-depends:   base                 >= 4        && < 5

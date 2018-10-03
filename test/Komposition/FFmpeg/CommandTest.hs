@@ -31,19 +31,18 @@ spec_printCommandLineArgs = do
         filter2b = RoutedFilter [] AudioSetPTSStart [audioStream]
         chain1 = FilterChain (filter1a :| [filter1b])
         chain2 = FilterChain (filter2a :| [filter2b])
-        filterGraph = FilterGraph (chain1 :| [chain2])
+        filterGraph = Just (FilterGraph (chain1 :| [chain2]))
         inputs =
           (FileSource "foo.mp4" :|
            [ StillFrameSource "bar.png" 25 10
            , AudioNullSource (durationFromSeconds 4.3)
            ])
         mappings = [videoStream, audioStream]
-        format = "mp4"
-        output = "bar.mp4"
+        format = Just "mp4"
+        output = FileOutput "bar.mp4"
         frameRate = Nothing
         vcodec = Nothing
         acodec = Nothing
-        listen = True
         command = Command {..}
     in printCommandLineArgs command `shouldBe`
        [ "-i"
@@ -68,7 +67,5 @@ spec_printCommandLineArgs = do
        , "[audio]"
        , "-f"
        , "mp4"
-       , "-listen"
-       , "1"
        , "bar.mp4"
        ]
