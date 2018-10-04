@@ -7,7 +7,6 @@ description:          This project can be built using Stack, Cabal, and Nix. Ple
 stability:            alpha
 license:              MPL-2.0
 license-file:         LICENSE
-location:             git://github.com/owickstrom/komposition.git
 bug-reports:          https://github.com/owickstrom/komposition/issues
 author:               Oskar Wickström
 maintainer:           oskar.wickstrom@gmail.com
@@ -20,6 +19,10 @@ extra-source-files:   CHANGELOG.md
 data-dir:             src/data
 data-files:           style.css
                     , stripes.png
+
+source-repository head
+  type:               git
+  location:           git://github.com/owickstrom/komposition.git
 
 library
   exposed-modules:      Control.Monad.Indexed.IO
