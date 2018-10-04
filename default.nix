@@ -35,7 +35,8 @@ let
         (toggleCheck
          (pkgs.haskell.lib.justStaticExecutables
           (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}))));
-  mkdocs = import ./mkdocs.nix { inherit nixpkgs; };
+
+  python = import ./docs/requirements.nix { pkgs = nixpkgs; };
 
   komposition = nixpkgs.stdenv.mkDerivation {
     name = "komposition";
@@ -83,7 +84,8 @@ in
       ffmpeg
       sox
       # Documentation
-      mkdocs.packages
+      python.packages.mkdocs
+      python.packages.mkdocs-material
       ];
   };
 }
