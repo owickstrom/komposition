@@ -40,20 +40,26 @@ First, install the required dependencies:
 sudo apt-get install \
     ffmpeg \
     sox \
+    libgmp-dev \
+    libavutil-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libswscale-dev \
     libavdevice-dev \
     libgirepository1.0-dev \
-    gstreamer1.0-gtk3 \
+    libgtk-3-dev \
+    libpango1.0-dev \
+    libgdk-pixbuf2.0-dev \
+    libgstreamer1.0-dev \
     gstreamer1.0-libav \
-    libgstreamer1.0-0 \
-    libgstreamer-plugins-base1.0-dev \
-    libgstreamer-plugins-good1.0-dev \
-    libgstreamer-plugins-bad1.0-dev
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad
 ```
 
 !!! warning
-    These might not be all the required dependencies. If you find
-    more that needs to be installed, please [submit an issue on
-    GitHub](https://github.com/owickstrom/komposition).
+    If you find additional packages that needs to be installed, please [submit
+    an issue on GitHub](https://github.com/owickstrom/komposition).
 
 Next, build and install the application using Stack:
 
@@ -84,4 +90,29 @@ komposition
 ```
 # something like this...
 pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-libav mingw-w64-x86_64-gst-plugins-{base,good,bad}
+```
+
+## Nix/NixOS
+
+Komposition is not yet in [nixpkgs](https://github.com/NixOS/nixpkgs), but it
+can be installed with Nix from an archive on GitHub.
+
+First, consider installing [Cachix](https://cachix.org/) and using the
+Komposition binary cache. It's not strictly required, but will save you time
+waiting on compilation.
+
+```shell
+cachix use komposition
+```
+
+Next, use `nix-env` to install Komposition from the `master` branch:
+
+```shell
+nix-env -iA komposition -f https://github.com/owickstrom/komposition/archive/master.tar.gz
+```
+
+Run it from the command line:
+
+```shell
+komposition
 ```
