@@ -1,56 +1,73 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
-    
     <url>
-     <loc>/</loc>
+     <loc>None</loc>
      <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-    
-
-    
     <url>
-     <loc>/contributing/</loc>
+     <loc>None</loc>
      <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-    
-
-    
     <url>
-     <loc>/roadmap/</loc>
+     <loc>None</loc>
      <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-    
-
-    
-        
     <url>
-     <loc>/user-guide/installation/</loc>
+     <loc>None</loc>
      <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-        
     <url>
-     <loc>/user-guide/introduction/</loc>
+     <loc>None</loc>
      <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-        
     <url>
-     <loc>/user-guide/workflow/</loc>
+     <loc>None</loc>
      <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-        
     <url>
-     <loc></loc>
-     <lastmod></lastmod>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
-        
-    
-
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+    <url>
+     <loc>None</loc>
+     <lastmod>1970-01-01</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
 </urlset>
