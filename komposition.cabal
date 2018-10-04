@@ -1,9 +1,14 @@
 name:                 komposition
 version:              0.1.0
 synopsis:             High-productivity screencast editing
--- description:
+description:          This project can be built using Stack, Cabal, and Nix. Please see the
+                      <https://owickstrom.github.io/komposition/ documentation> for build
+                      instructions and more information.
+stability:            alpha
 license:              MPL-2.0
 license-file:         LICENSE
+location:             git://github.com/owickstrom/komposition.git
+bug-reports:          https://github.com/owickstrom/komposition/issues
 author:               Oskar Wickström
 maintainer:           oskar.wickstrom@gmail.com
 copyright:            Oskar Wickström
