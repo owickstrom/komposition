@@ -1,4 +1,4 @@
-{ compiler ? "ghc843", doBenchmark ? false, doProfiling ? false }:
+{ compiler ? "ghc843", doCheck ? true, doBenchmark ? false, doProfiling ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {
@@ -28,6 +28,7 @@ let
         in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
     };
   };
+  toggleCheck = if doCheck then pkgs.haskell.lib.doCheck else pkgs.haskell.lib.dontCheck;
   toggleBenchmark = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
   toggleLibraryProfiling = if doBenchmark then pkgs.haskell.lib.enableLibraryProfiling else pkgs.haskell.lib.disableLibraryProfiling;
   toggleExecutableProfiling = if doBenchmark then pkgs.haskell.lib.enableExecutableProfiling else pkgs.haskell.lib.disableExecutableProfiling;
@@ -35,13 +36,57 @@ let
   drv = toggleExecutableProfiling
         (toggleLibraryProfiling
          (toggleBenchmark
-          (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}))));
+          (toggleCheck
+           (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {})))));
   mkdocs = import ./mkdocs.nix { inherit nixpkgs; };
+
+  komposition = nixpkgs.stdenv.mkDerivation {
+    name = "komposition";
+    nativeBuildInputs = with nixpkgs; [ wrapGAppsHook makeWrapper ];
+    buildInputs = with nixpkgs; [
+      gnome3.gtk
+      gnome3.dconf
+      gnome3.defaultIconTheme
+      gnome3.gsettings_desktop_schemas
+      gst_all_1.gstreamer
+      gst_all_1.gst-plugins-base
+      gst_all_1.gst-plugins-good
+      (gst_all_1.gst-plugins-good.override { gtkSupport = true; })
+      gst_all_1.gst-libav
+    ];
+    src = ./.;
+    buildPhase = ''
+        mkdir -p $out
+      '';
+    installPhase = ''
+      mkdir -p $out/bin
+      ln -s ${drv}/bin/komposition $out/bin
+      wrapProgram $out/bin/komposition \
+        --prefix 'PATH' ':' "${pkgs.ffmpeg}/bin" \
+        --prefix 'PATH' ':' "${pkgs.sox}/bin"
+    '';
+  };
 in
-{ komposition = drv;
+{ komposition = komposition;
   komposition-shell = haskellPackages.shellFor {
     withHoogle = true;
     packages = p: [drv];
-    buildInputs = with pkgs; [ cabal-install mkdocs.packages  ];
+    buildInputs = with pkgs; [
+      cabal-install
+      # Gnome/GTK+/Gstreamer
+      gnome3.gtk
+      gnome3.dconf
+      gnome3.defaultIconTheme
+      gnome3.gsettings_desktop_schemas
+      gst_all_1.gstreamer
+      gst_all_1.gst-plugins-base
+      (gst_all_1.gst-plugins-good.override { gtkSupport = true; })
+      gst_all_1.gst-libav
+      # CLI tools
+      ffmpeg
+      sox
+      # Documentation
+      mkdocs.packages
+      ];
   };
 }
