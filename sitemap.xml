@@ -1,73 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+    
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc>/</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
+    
+
+    
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc>/contributing/</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
+    
+
+    
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc>/roadmap/</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
+    
+
+    
+        
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc>/user-guide/installation/</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
+        
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc>/user-guide/introduction/</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
+        
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc>/user-guide/workflow/</loc>
+     <lastmod>1970-01-01</lastmod>
      <changefreq>daily</changefreq>
     </url>
+        
     <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
+     <loc></loc>
+     <lastmod></lastmod>
      <changefreq>daily</changefreq>
     </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-    <url>
-     <loc>None</loc>
-     <lastmod>2018-09-30</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
+        
+    
+
 </urlset>
