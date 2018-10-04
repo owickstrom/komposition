@@ -1,4 +1,4 @@
-{ compiler ? "ghc843", doCheck ? true, doBenchmark ? false, doProfiling ? false }:
+{ compiler ? "ghc843", doCheck ? true, doBenchmark ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {
@@ -30,14 +30,11 @@ let
   };
   toggleCheck = if doCheck then pkgs.haskell.lib.doCheck else pkgs.haskell.lib.dontCheck;
   toggleBenchmark = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
-  toggleLibraryProfiling = if doBenchmark then pkgs.haskell.lib.enableLibraryProfiling else pkgs.haskell.lib.disableLibraryProfiling;
-  toggleExecutableProfiling = if doBenchmark then pkgs.haskell.lib.enableExecutableProfiling else pkgs.haskell.lib.disableExecutableProfiling;
 
-  drv = toggleExecutableProfiling
-        (toggleLibraryProfiling
-         (toggleBenchmark
-          (toggleCheck
-           (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {})))));
+  drv = toggleBenchmark
+        (toggleCheck
+         (pkgs.haskell.lib.justStaticExecutables
+          (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}))));
   mkdocs = import ./mkdocs.nix { inherit nixpkgs; };
 
   komposition = nixpkgs.stdenv.mkDerivation {
