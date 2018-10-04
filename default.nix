@@ -36,11 +36,12 @@ let
         (toggleLibraryProfiling
          (toggleBenchmark
           (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}))));
+  mkdocs = import ./mkdocs.nix { inherit nixpkgs; };
 in
 { komposition = drv;
   komposition-shell = haskellPackages.shellFor {
     withHoogle = true;
     packages = p: [drv];
-    buildInputs = with pkgs; [ cabal-install ];
+    buildInputs = with pkgs; [ cabal-install mkdocs.packages  ];
   };
 }

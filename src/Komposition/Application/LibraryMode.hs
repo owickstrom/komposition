@@ -19,6 +19,7 @@ import           Data.String                 (fromString)
 import           Komposition.Composition
 import           Komposition.Composition.Insert
 import           Komposition.Duration
+import           Komposition.History
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
@@ -64,7 +65,7 @@ selectAsset ::
   -> t m r r (Maybe [Asset mt])
 selectAsset gui model = \case
   SVideo ->
-    case NonEmpty.nonEmpty (model ^. project . library . videoAssets) of
+    case NonEmpty.nonEmpty (currentProject model ^. library . videoAssets) of
       Just vs -> do
         let libraryModel = SelectAssetsModel SVideo vs []
         enterLibrary gui libraryModel
@@ -73,7 +74,7 @@ selectAsset gui model = \case
         ireturn assets
       Nothing -> ireturn Nothing
   SAudio ->
-    case NonEmpty.nonEmpty (model ^. project . library . audioAssets) of
+    case NonEmpty.nonEmpty (currentProject model ^. library . audioAssets) of
       Just as -> do
         let libraryModel = SelectAssetsModel SAudio as []
         enterLibrary gui libraryModel
@@ -93,8 +94,9 @@ selectAssetAndInsert gui model mediaType' position =
   selectAsset gui model mediaType' >>= \case
     Just assets -> do
       i <- insertionOf assets
-      model & project . timeline %~ insert_ (model ^. currentFocus) i position &
-        ireturn
+      model
+        & projectHistory %~ (edit (\p -> p & timeline %~ insert_ (model ^. currentFocus) i position))
+        & ireturn
     Nothing -> do
       beep gui
       ireturn (model & statusMessage .~ Just (noAssetsMessage mediaType'))
@@ -112,12 +114,12 @@ selectAssetAndInsert gui model mediaType' position =
               (videoAsset ^. videoClassifiedScene)
       in VideoClip () videoAsset ts <$>
          extractFrameToFile
-           (model ^. project . videoSettings)
+           (currentProject model ^. videoSettings)
            Composition.FirstFrame
            VideoProxy
            videoAsset
            ts
-           (model ^. project . workingDirectory)
+           (currentProject model ^. workingDirectory)
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =

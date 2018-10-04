@@ -22,6 +22,7 @@ import           Data.Row.Records
 
 import           Komposition.Focus
 import           Komposition.Project
+import           Komposition.History
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
@@ -33,4 +34,4 @@ komposition project' = do
   timelineMode #gui model
   where
     initialFocus = SequenceFocus 0 Nothing
-    model = TimelineModel project' initialFocus Nothing (ZoomLevel 1)
+    model = TimelineModel (initialise project') initialFocus Nothing (ZoomLevel 1)

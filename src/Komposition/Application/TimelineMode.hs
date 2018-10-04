@@ -31,6 +31,7 @@ import           Komposition.Project
 import qualified Komposition.FFmpeg.Command          as FFmpeg
 import qualified Komposition.Render.Composition      as Render
 import qualified Komposition.Render.FFmpeg           as Render
+import Komposition.History
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
@@ -56,24 +57,24 @@ timelineMode gui model = do
       & timelineMode gui
     onNextEvent = \case
       CommandKeyMappedEvent (FocusCommand cmd) ->
-        case modifyFocus (model ^. project . timeline) cmd (model ^. currentFocus) of
+        case modifyFocus (currentProject model ^. timeline) cmd (model ^. currentFocus) of
           Left err -> do
             beep gui
             printUnexpectedFocusError err cmd
             continue
           Right newFocus -> timelineMode gui (model & currentFocus .~ newFocus)
       CommandKeyMappedEvent (JumpFocus newFocus) ->
-        case atFocus newFocus (model ^. project . timeline) of
+        case atFocus newFocus (currentProject model ^. timeline) of
           Just _  -> timelineMode gui (model & currentFocus .~ newFocus)
           Nothing -> beep gui >>> continueWithStatusMessage "Couldn't set focus."
       CommandKeyMappedEvent (InsertCommand type' position) ->
         insertIntoTimeline gui model type' position
       CommandKeyMappedEvent Delete ->
-        case delete (model ^. currentFocus) (model ^. project . timeline) of
+        case delete (model ^. currentFocus) (currentProject model ^. timeline) of
           Nothing -> beep gui >> continueWithStatusMessage "Delete failed."
           Just (timeline', Just cmd) ->
             case modifyFocus
-                  (model ^. project . timeline)
+                  (currentProject model ^. timeline)
                   cmd
                   (model ^. currentFocus) of
               Left err -> do
@@ -81,22 +82,28 @@ timelineMode gui model = do
                 iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
                 continueWithStatusMessage "Delete failed."
               Right newFocus ->
-                model & project . timeline .~ timeline' & currentFocus .~ newFocus &
-                timelineMode gui
+                model
+                  & projectHistory %~ edit (timeline .~ timeline')
+                  & currentFocus .~ newFocus
+                  & timelineMode gui
           Just (timeline', Nothing) ->
-            model & project . timeline .~ timeline' & timelineMode gui
+            model
+              & projectHistory %~ edit (timeline .~ timeline')
+              & timelineMode gui
       CommandKeyMappedEvent Split ->
-        case split (model ^. currentFocus) (model ^. project . timeline) of
+        case split (model ^. currentFocus) (currentProject model ^. timeline) of
           Just (timeline', newFocus) ->
-            model & project . timeline .~ timeline' & currentFocus .~ newFocus &
-            timelineMode gui
+            model
+              & projectHistory %~ edit (timeline .~ timeline')
+              & currentFocus .~ newFocus
+              & timelineMode gui
           Nothing -> do
             beep gui
             continueWithStatusMessage "Can't split composition at current focus."
       CommandKeyMappedEvent Import ->
         importFile gui model >>>= timelineMode gui
       CommandKeyMappedEvent Render ->
-        case Render.flattenTimeline (model ^. project . timeline) of
+        case Render.flattenTimeline (currentProject model ^. timeline) of
           Just flat -> do
             outDir <- iliftIO getUserDocumentsDirectory
             chooseFile gui Save "Render To File" outDir >>>= \case
@@ -105,7 +112,7 @@ timelineMode gui model = do
                   gui
                   "Rendering"
                   (Render.renderComposition
-                    (model ^. project . videoSettings)
+                    (currentProject model ^. videoSettings)
                     Render.VideoOriginal
                     (FFmpeg.FileOutput outFile)
                     flat) >>= \case
@@ -119,6 +126,14 @@ timelineMode gui model = do
             continueWithStatusMessage "Cannot render a composition without video clips."
       CommandKeyMappedEvent Preview ->
         previewFocusedComposition gui model >>> continue
+      CommandKeyMappedEvent Undo ->
+        case model & projectHistory %%~ undo of
+          Just m -> timelineMode gui m
+          Nothing -> beep gui >> timelineMode gui model
+      CommandKeyMappedEvent Redo ->
+        case model & projectHistory %%~ redo of
+          Just m -> timelineMode gui m
+          Nothing -> beep gui >> timelineMode gui model
       CommandKeyMappedEvent Cancel -> continue
       CommandKeyMappedEvent Help ->
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
@@ -145,10 +160,12 @@ insertIntoTimeline
   -> InsertPosition
   -> t m (n .== State (t m) 'TimelineMode) Empty ()
 insertIntoTimeline gui model type' position =
-  case (type', atFocus (model ^. currentFocus) (model ^. project . timeline)) of
+  case (type', atFocus (model ^. currentFocus) (currentProject model ^. timeline)) of
     (InsertComposition, Just (FocusedSequence _)) ->
       model
-      & project . timeline %~ insert_ (model ^. currentFocus) (InsertParallel (Parallel () [] [])) RightOf
+      & projectHistory %~ edit (timeline %~ insert_
+                                              (model ^. currentFocus)
+                                              (InsertParallel (Parallel () [] [])) RightOf)
       & timelineMode gui
     (InsertClip (Just mt), Just FocusedParallel {}) ->
       case mt of
@@ -208,8 +225,7 @@ insertGap gui model mediaType' position = do
   case gapDuration of
     Just seconds ->
       model
-        &  project . timeline
-        %~ insert_ (model ^. currentFocus) (gapInsertion seconds) position
+        &  projectHistory %~ edit (timeline %~ insert_ (model ^. currentFocus) (gapInsertion seconds) position)
         &  ireturn
     Nothing -> ireturn model
 
@@ -229,17 +245,17 @@ previewFocusedComposition
        '[n := Remain (State (t m) TimelineMode)]
        r
        TimelineModel
-previewFocusedComposition gui model =  
+previewFocusedComposition gui model =
   case flatComposition of
     Just flat -> do
        let streamingProcess =
              void $
              Render.renderComposition
-               (model ^. project . proxyVideoSettings)
+               (currentProject model ^. proxyVideoSettings)
                Render.VideoProxy
                (FFmpeg.HttpStreamingOutput "localhost" 12345)
                flat
-       _ <- previewStream gui "http://localhost:12345" streamingProcess (model ^. project . proxyVideoSettings)
+       _ <- previewStream gui "http://localhost:12345" streamingProcess (currentProject model ^. proxyVideoSettings)
        ireturn model
     Nothing -> do
       beep gui
@@ -249,7 +265,7 @@ previewFocusedComposition gui model =
   where
     flatComposition :: Maybe Render.Composition
     flatComposition = do
-      atFocus (model ^. currentFocus) (model ^. project . timeline) Prelude.>>= \case
+      atFocus (model ^. currentFocus) (currentProject model ^. timeline) Prelude.>>= \case
         FocusedSequence s -> Render.flattenSequence s
         FocusedParallel p -> Render.flattenParallel p
         _  -> Nothing

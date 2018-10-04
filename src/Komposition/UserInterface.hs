@@ -19,12 +19,13 @@ import           Komposition.Prelude            hiding (State)
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
-import           Motor.FSM                  hiding (Delete)
+import           Motor.FSM                      hiding (Delete)
 import           Pipes
-import           Pipes.Safe                 (SafeT)
+import           Pipes.Safe                     (SafeT)
 
 import           Komposition.Composition.Insert
 import           Komposition.Focus
+import           Komposition.History
 import           Komposition.KeyMap
 import           Komposition.Library
 import           Komposition.MediaType
@@ -71,6 +72,8 @@ data Command (mode :: Mode) where
   Import :: Command TimelineMode
   Render :: Command TimelineMode
   Preview :: Command TimelineMode
+  Undo :: Command TimelineMode
+  Redo :: Command TimelineMode
   Exit :: Command TimelineMode
 
 deriving instance Eq (Command mode)
@@ -101,6 +104,8 @@ commandName =
     Import -> "Import Assets"
     Render -> "Render"
     Preview -> "Preview"
+    Undo -> "Undo"
+    Redo -> "Redo"
     Exit -> "Exit"
   where
     insertTypeName :: InsertType -> Text
@@ -149,13 +154,16 @@ data PromptMode ret where
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
-  { _project       :: Project
-  , _currentFocus  :: Focus SequenceFocusType
-  , _statusMessage :: Maybe Text
-  , _zoomLevel     :: ZoomLevel
+  { _projectHistory :: History Project
+  , _currentFocus   :: Focus SequenceFocusType
+  , _statusMessage  :: Maybe Text
+  , _zoomLevel      :: ZoomLevel
   }
 
 makeLenses ''TimelineModel
+
+currentProject :: TimelineModel -> Project
+currentProject = current . view projectHistory
 
 data ImportFileModel = ImportFileModel
   { autoSplitValue     :: Bool

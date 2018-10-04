@@ -44,7 +44,6 @@ keymaps =
       , ([KeyLeft], Mapping (FocusCommand FocusLeft))
       , ([KeyRight], Mapping (FocusCommand FocusRight))
       , ([KeyChar 'i'], Mapping Import)
-      , ([KeyChar 'r'], Mapping Render)
       , ([KeySpace], Mapping Preview)
       , ([KeyChar 'p'], insertBindings LeftOf)
       , ([KeyChar 'P'], insertBindings LeftMost)
@@ -52,6 +51,8 @@ keymaps =
       , ([KeyChar 'A'], insertBindings RightMost)
       , ([KeyChar 'd'], Mapping Delete)
       , ([KeyChar 's'], Mapping Split)
+      , ([KeyChar 'u'], Mapping Undo)
+      , ([KeyModifier Ctrl, KeyChar 'r'], Mapping Redo)
       , ([KeyChar '?'], Mapping Help)
       , ([KeyChar 'q'], Mapping Exit)
       ]
