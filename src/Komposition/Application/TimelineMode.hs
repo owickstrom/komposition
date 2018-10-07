@@ -1,22 +1,22 @@
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PolyKinds         #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RebindableSyntax  #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ScopedTypeVariables     #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedLabels    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RebindableSyntax    #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators       #-}
 module Komposition.Application.TimelineMode where
 
 import           Komposition.Application.Base
 import qualified Prelude
 
 import           Control.Lens
-import           Data.Row.Records                hiding (split)
-import           Data.String                     (fromString)
+import           Data.Row.Records                    hiding (split)
+import           Data.String                         (fromString)
 import           System.Directory
 import           Text.Printf
 
@@ -25,13 +25,14 @@ import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Split
 import           Komposition.Duration
+import qualified Komposition.FFmpeg.Command          as FFmpeg
 import           Komposition.Focus
+import           Komposition.History
 import           Komposition.MediaType
 import           Komposition.Project
-import qualified Komposition.FFmpeg.Command          as FFmpeg
+import           Komposition.Project.Store
 import qualified Komposition.Render.Composition      as Render
 import qualified Komposition.Render.FFmpeg           as Render
-import Komposition.History
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
@@ -83,18 +84,18 @@ timelineMode gui model = do
                 continueWithStatusMessage "Delete failed."
               Right newFocus ->
                 model
-                  & projectHistory %~ edit (timeline .~ timeline')
+                  & existingProject . projectHistory %~ edit (timeline .~ timeline')
                   & currentFocus .~ newFocus
                   & timelineMode gui
           Just (timeline', Nothing) ->
             model
-              & projectHistory %~ edit (timeline .~ timeline')
+              & existingProject . projectHistory %~ edit (timeline .~ timeline')
               & timelineMode gui
       CommandKeyMappedEvent Split ->
         case split (model ^. currentFocus) (currentProject model ^. timeline) of
           Just (timeline', newFocus) ->
             model
-              & projectHistory %~ edit (timeline .~ timeline')
+              & existingProject . projectHistory %~ edit (timeline .~ timeline')
               & currentFocus .~ newFocus
               & timelineMode gui
           Nothing -> do
@@ -106,7 +107,7 @@ timelineMode gui model = do
         case Render.flattenTimeline (currentProject model ^. timeline) of
           Just flat -> do
             outDir <- iliftIO getUserDocumentsDirectory
-            chooseFile gui Save "Render To File" outDir >>>= \case
+            chooseFile gui (Save File) "Render To File" outDir >>>= \case
               Just outFile -> do
                 progressBar
                   gui
@@ -127,13 +128,16 @@ timelineMode gui model = do
       CommandKeyMappedEvent Preview ->
         previewFocusedComposition gui model >>> continue
       CommandKeyMappedEvent Undo ->
-        case model & projectHistory %%~ undo of
-          Just m -> timelineMode gui m
+        case model & existingProject . projectHistory %%~ undo of
+          Just m  -> timelineMode gui m
           Nothing -> beep gui >> timelineMode gui model
       CommandKeyMappedEvent Redo ->
-        case model & projectHistory %%~ redo of
-          Just m -> timelineMode gui m
+        case model & existingProject . projectHistory %%~ redo of
+          Just m  -> timelineMode gui m
           Nothing -> beep gui >> timelineMode gui model
+      CommandKeyMappedEvent SaveProject -> do
+        iliftIO (saveExistingProject (model ^. existingProject)) >>= \case
+          _ -> continue
       CommandKeyMappedEvent Cancel -> continue
       CommandKeyMappedEvent Help ->
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
@@ -163,7 +167,7 @@ insertIntoTimeline gui model type' position =
   case (type', atFocus (model ^. currentFocus) (currentProject model ^. timeline)) of
     (InsertComposition, Just (FocusedSequence _)) ->
       model
-      & projectHistory %~ edit (timeline %~ insert_
+      & existingProject . projectHistory %~ edit (timeline %~ insert_
                                               (model ^. currentFocus)
                                               (InsertParallel (Parallel () [] [])) RightOf)
       & timelineMode gui
@@ -225,7 +229,7 @@ insertGap gui model mediaType' position = do
   case gapDuration of
     Just seconds ->
       model
-        &  projectHistory %~ edit (timeline %~ insert_ (model ^. currentFocus) (gapInsertion seconds) position)
+        &  existingProject . projectHistory %~ edit (timeline %~ insert_ (model ^. currentFocus) (gapInsertion seconds) position)
         &  ireturn
     Nothing -> ireturn model
 

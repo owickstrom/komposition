@@ -34,23 +34,27 @@ import           Komposition.Project
 import           Komposition.VideoSettings
 
 data Mode
-  = TimelineMode
+  = WelcomeScreenMode
+  | TimelineMode
   | LibraryMode
   | ImportMode
 
 data SMode m where
+  SWelcomeScreenMode :: SMode WelcomeScreenMode
   STimelineMode :: SMode TimelineMode
   SLibraryMode :: SMode LibraryMode
   SImportMode :: SMode ImportMode
 
 modeTitle :: SMode m -> Text
 modeTitle = \case
+  SWelcomeScreenMode -> "Welcome Screen Mode"
   STimelineMode -> "Timeline Mode"
   SLibraryMode  -> "Library Mode"
   SImportMode   -> "Import Mode"
 
 class ReturnsToTimeline (mode :: Mode)
 
+instance ReturnsToTimeline WelcomeScreenMode
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
 
@@ -74,6 +78,7 @@ data Command (mode :: Mode) where
   Preview :: Command TimelineMode
   Undo :: Command TimelineMode
   Redo :: Command TimelineMode
+  SaveProject :: Command TimelineMode
   Exit :: Command TimelineMode
 
 deriving instance Eq (Command mode)
@@ -106,6 +111,7 @@ commandName =
     Preview -> "Preview"
     Undo -> "Undo"
     Redo -> "Redo"
+    SaveProject -> "Save Project"
     Exit -> "Exit"
   where
     insertTypeName :: InsertType -> Text
@@ -128,6 +134,8 @@ commandName =
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
+  CreateNewProjectClicked :: Event WelcomeScreenMode
+  OpenExistingProjectClicked :: Event WelcomeScreenMode
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
@@ -143,9 +151,13 @@ type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 class Enum c => DialogChoice c where
   toButtonLabel :: c -> Text
 
+data FileChooserType
+  = File
+  | Directory
+
 data FileChooserMode
-  = Open
-  | Save
+  = Open FileChooserType
+  | Save FileChooserType
 
 data PromptMode ret where
   NumberPrompt :: (Double, Double) -> PromptMode Double
@@ -154,16 +166,16 @@ data PromptMode ret where
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
-  { _projectHistory :: History Project
-  , _currentFocus   :: Focus SequenceFocusType
-  , _statusMessage  :: Maybe Text
-  , _zoomLevel      :: ZoomLevel
+  { _existingProject :: ExistingProject
+  , _currentFocus    :: Focus SequenceFocusType
+  , _statusMessage   :: Maybe Text
+  , _zoomLevel       :: ZoomLevel
   }
 
 makeLenses ''TimelineModel
 
 currentProject :: TimelineModel -> Project
-currentProject = current . view projectHistory
+currentProject = current . view (existingProject . projectHistory)
 
 data ImportFileModel = ImportFileModel
   { autoSplitValue     :: Bool
@@ -183,8 +195,10 @@ class MonadFSM m =>
   start ::
        Name n
     -> KeyMaps
-    -> TimelineModel
-    -> Actions m '[ n !+ State m TimelineMode] r ()
+    -> Actions m '[ n !+ State m WelcomeScreenMode] r ()
+  updateWelcomeScreen
+    :: Name n
+    -> Actions m '[ n := State m WelcomeScreenMode !--> State m WelcomeScreenMode] r ()
   updateTimeline
     :: Name n
     -> TimelineModel

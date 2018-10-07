@@ -176,6 +176,7 @@ renderMenu :: Widget (Event TimelineMode)
 renderMenu =
   container MenuBar [] $ do
     subMenu "Project" $ do
+      labelledItem SaveProject
       labelledItem Import
       labelledItem Render
       labelledItem Exit

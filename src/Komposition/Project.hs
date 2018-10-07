@@ -12,8 +12,9 @@ module Komposition.Project where
 import           Komposition.Prelude
 
 import           Control.Lens
-import           Data.Text             (Text)
+import           Data.Text                 (Text)
 
+import           Komposition.History
 import           Komposition.Composition
 import           Komposition.Library
 import           Komposition.VideoSettings
@@ -22,9 +23,20 @@ data Project = Project
   { _projectName        :: Text
   , _timeline           :: Timeline ()
   , _library            :: Library
-  , _workingDirectory   :: FilePath
   , _videoSettings      :: VideoSettings
   , _proxyVideoSettings :: VideoSettings
   } deriving (Eq, Show, Generic)
 
 makeLenses ''Project
+
+newtype ProjectPath = ProjectPath { _unProjectPath :: FilePath }
+   deriving (Eq, Show, Generic)
+
+makeLenses ''ProjectPath
+
+data ExistingProject = ExistingProject
+  { _projectPath :: ProjectPath
+  , _projectHistory :: History Project
+  } deriving (Eq, Show)
+
+makeLenses ''ExistingProject

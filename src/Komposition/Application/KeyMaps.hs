@@ -34,6 +34,11 @@ insertBindings position =
 keymaps :: SMode m -> KeyMap (Command m)
 keymaps =
   \case
+    SWelcomeScreenMode ->
+      [ ([KeyChar 'q'], Mapping Cancel)
+      , ([KeyEscape], Mapping Cancel)
+      , ([KeyChar '?'], Mapping Help)
+      ]
     STimelineMode ->
       [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
       , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))

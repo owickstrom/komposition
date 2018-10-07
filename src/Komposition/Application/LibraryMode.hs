@@ -95,7 +95,7 @@ selectAssetAndInsert gui model mediaType' position =
     Just assets -> do
       i <- insertionOf assets
       model
-        & projectHistory %~ (edit (\p -> p & timeline %~ insert_ (model ^. currentFocus) i position))
+        & existingProject . projectHistory %~ edit (\p -> p & timeline %~ insert_ (model ^. currentFocus) i position)
         & ireturn
     Nothing -> do
       beep gui
@@ -119,7 +119,7 @@ selectAssetAndInsert gui model mediaType' position =
            VideoProxy
            videoAsset
            ts
-           (currentProject model ^. workingDirectory)
+           (model ^. existingProject . projectPath . unProjectPath)
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =

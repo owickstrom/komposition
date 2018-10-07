@@ -83,13 +83,13 @@ importAsset gui timelineModel (filepath, autoSplit)
               importVideoFileAutoSplit
                 (currentProject timelineModel ^. proxyVideoSettings)
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
+                (timelineModel ^. existingProject . projectPath . unProjectPath)
             False ->
               (: []) <$>
               importVideoFile
                 (currentProject timelineModel ^. proxyVideoSettings)
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
+                (timelineModel ^. existingProject . projectPath . unProjectPath)
     in progressBar gui "Importing Video" action >>>= \case
          Nothing -> do
            ireturn timelineModel
@@ -101,12 +101,12 @@ importAsset gui timelineModel (filepath, autoSplit)
             True ->
               importAudioFileAutoSplit
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
+                (timelineModel ^. existingProject . projectPath . unProjectPath)
             False ->
               (: []) <$>
               importAudioFile
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
+                (timelineModel ^. existingProject . projectPath . unProjectPath)
     in progressBar gui "Importing Audio" action >>>= \case
       Nothing -> ireturn timelineModel
       Just (assets :: Either AudioImportError [AudioAsset]) ->
@@ -134,9 +134,9 @@ handleImportResult gui model mediaType result = case (mediaType, result) of
     ireturn model
   (SVideo, Right assets) ->
     model
-      & projectHistory %~ edit (library . videoAssets %~ (<> assets))
+      & existingProject . projectHistory %~ edit (library . videoAssets %~ (<> assets))
       & ireturn
   (SAudio, Right assets) ->
     model
-      & projectHistory %~ edit (library . audioAssets %~ (<> assets))
+      & existingProject . projectHistory %~ edit (library . audioAssets %~ (<> assets))
       & ireturn

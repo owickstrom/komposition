@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Komposition.History (History, initialise, current, edit, undo, redo) where
 
 import           Komposition.Prelude
@@ -8,7 +9,7 @@ data History a = History
     , current :: a   -- ^ The current version of the 'a'.
     , future  :: [a] -- ^ All future versions of the 'a' (after a
                            --   series of 'undo' operations).
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 -- | Create a 'History' comprising only the current version of the 'a'.
 initialise :: a -> History a
