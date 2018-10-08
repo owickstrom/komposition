@@ -79,6 +79,7 @@ data Command (mode :: Mode) where
   Undo :: Command TimelineMode
   Redo :: Command TimelineMode
   SaveProject :: Command TimelineMode
+  CloseProject :: Command TimelineMode
   Exit :: Command TimelineMode
 
 deriving instance Eq (Command mode)
@@ -111,7 +112,8 @@ commandName =
     Preview -> "Preview"
     Undo -> "Undo"
     Redo -> "Redo"
-    SaveProject -> "Save Project"
+    SaveProject -> "Save"
+    CloseProject -> "Close"
     Exit -> "Exit"
   where
     insertTypeName :: InsertType -> Text
@@ -188,6 +190,11 @@ data SelectAssetsModel mt = SelectAssetsModel
   , selectedAssets :: [Asset mt]
   }
 
+data Ok = Ok deriving (Eq, Enum)
+
+instance DialogChoice Ok where
+  toButtonLabel Ok = "OK"
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
@@ -199,6 +206,9 @@ class MonadFSM m =>
   updateWelcomeScreen
     :: Name n
     -> Actions m '[ n := State m WelcomeScreenMode !--> State m WelcomeScreenMode] r ()
+  returnToWelcomeScreen
+    :: Name n
+    -> Actions m '[ n := State m TimelineMode !--> State m WelcomeScreenMode] r ()
   updateTimeline
     :: Name n
     -> TimelineModel
@@ -274,16 +284,18 @@ class MonadFSM m =>
 -- | Convenient type for actions that transition from one mode (of
 -- type 'mode1') into another mode (of type 'mode2'), doing some user
 -- interactions, and returning back to the first mode with a value of
--- type 'a'.
-type ThroughMode mode1 mode2 m n a
-   = forall i o state2 state1.
+-- type 'a' using the supplied continuation.
+type ThroughMode origin mode m n a
+   = forall r1 r2 r3 state2 state1 b.
    ( UserInterface m
-     , HasType n state1 i
-     , HasType n state1 o
-     , (Modify n state2 i .! n) ~ state2
-     , Modify n state1 (Modify n state2 i) ~ o
-     , Modify n state2 (Modify n state2 i) ~ Modify n state2 i
-     , state1 ~ State m mode1
-     , state2 ~ State m mode2
+     , HasType n state1 r1
+     , HasType n state1 r3
+     , Modify n state2 r1 ~ r2
+     , HasType n state2 r2
+     , Modify n state1 r2 ~ r3
+     , Modify n state2 r2 ~ r2
+     , state1 ~ State m origin
+     , state2 ~ State m mode
      )
-   => m i o a
+   => (a -> m r2 r3 b)
+   -> m r1 r3 b

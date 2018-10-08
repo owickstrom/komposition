@@ -345,6 +345,9 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   updateWelcomeScreen n =
     switchView' n (TopView welcomeScreenView) SWelcomeScreenMode
 
+  returnToWelcomeScreen n =
+    switchView' n (TopView welcomeScreenView) SWelcomeScreenMode
+
   updateTimeline n model =
     switchView' n (TopView (timelineView model)) STimelineMode
 

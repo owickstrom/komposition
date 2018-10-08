@@ -68,7 +68,26 @@ toTimelineWithProject
 toTimelineWithProject gui project = do
   let model = TimelineModel project initialFocus Nothing (ZoomLevel 1)
   returnToTimeline gui model
-  timelineMode gui model
+  runTimeline model
+  where
+    runTimeline model =
+      timelineMode gui model >>= \case
+        TimelineExit ->
+          dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
+            Just Yes -> exit gui
+            Just No -> runTimeline model
+            Nothing -> runTimeline model
+        TimelineClose -> returnToWelcomeScreen gui >>> welcomeScreenMode gui
+
+data Confirmation
+  = Yes
+  | No
+  deriving (Show, Eq, Enum)
+
+instance DialogChoice Confirmation where
+  toButtonLabel = \case
+    Yes -> "Yes"
+    No -> "No"
 
 initialProject :: Project
 initialProject =
