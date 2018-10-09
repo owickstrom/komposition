@@ -17,10 +17,10 @@
   background-color: #ccc;
   border-top: 1pt solid #aaa;
   border-bottom: 1pt solid #aaa;
-  padding: 2pt;
+  padding: 1pt;
 }
 .timeline .sequence {
-  border: 2pt solid #aaa;
+  border: 1pt solid #aaa;
   margin-left: 5pt;
   background-color: #aaa;
 }
@@ -28,9 +28,9 @@
   margin-left: 0;
 }
 .timeline .parallel {
-  border: 2pt solid #888;
+  border: 1pt solid #888;
   background-color: #bbb;
-  margin-left: 2pt;
+  margin-left: 1pt;
 }
 .timeline .parallel:first-child {
   margin-left: 0;
@@ -46,10 +46,10 @@
 
 .timeline .sequence .video,
 .timeline .sequence .audio {
-  min-height: 2.5em;
+  min-height: 15pt;
 }
 .timeline .sequence .video {
-  border-bottom: 2pt solid #888;
+  border-bottom: 1pt solid #888;
 }
 .timeline .sequence .video .clip button {
   background-image: none;
@@ -74,7 +74,7 @@
 .timeline .gap button {
   padding: 0;
   min-width: 0;
-  box-shadow: inset 0pt 0pt 2pt #000;
+  box-shadow: inset 0pt 0pt 1pt #000;
   border-radius: 0;
 }
 .timeline .gap button {
@@ -85,7 +85,7 @@
 }
 .timeline .clip.focused button,
 .timeline .gap.focused button {
-  border: 2pt solid #eee;
+  border: 1pt solid #eee;
 }
 .timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);
@@ -95,7 +95,7 @@
 }
 
 .import-view {
-  padding: 1em;
+  padding: 10pt;
 }
 
 .library,
@@ -103,7 +103,7 @@
 .prompt,
 .progress-bar,
 .help-container {
-  padding: 1em;
+  padding: 10pt;
 }
 
 .preview.dialog {
@@ -134,7 +134,7 @@
   font-size: 90%;
 }
 .zoom-level {
-  min-width: 5em;
+  min-width: 50pt;
 }
 
 .welcome-screen .title {
