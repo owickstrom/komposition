@@ -2,75 +2,66 @@ version: 2
 
 jobs:
   build:
+    working_directory: ~/project
     docker:
       - image: owickstrom/komposition-stack-builder:lts-12.4
     steps:
       - checkout
 
+      - run:
+          name: Query resolver & ghc version
+          command: |
+            ./ci/resolver > resolver.version
+            ./ci/ghc-version $(cat resolver.version) >  ghc.version
+
       - restore_cache:
           keys:
-            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "komposition.cabal" }}
-            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}
+                - stack--{{ arch }}--{{ checksum "ghc.version" }}--{{ checksum "resolver.version" }}--{{ checksum "komposition.cabal" }}--{{ checksum "stack.yaml" }}
+                - stack--{{ arch }}--{{ checksum "ghc.version" }}--{{ checksum "resolver.version" }}--{{ checksum "komposition.cabal" }}
+                - stack--{{ arch }}--{{ checksum "ghc.version" }}--{{ checksum "resolver.version" }}--resolver
+                - stack--{{ arch }}--{{ checksum "ghc.version" }}--ghc
+
+      - run: stack setup
+
+      - save_cache:
+          key:    stack--{{ arch }}--{{ checksum "ghc.version" }}--ghc
+          paths:  [~/.stack, ~/project/.stack-work]
 
       - run:
           command: stack build --no-terminal --test --bench --only-dependencies -j1
 
       - save_cache:
-          key: stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "komposition.cabal" }}
-          paths:
-            - ~/.stack
+          key:    stack--{{ arch }}--{{ checksum "ghc.version" }}--{{ checksum "resolver.version" }}--resolver
+          paths:  [~/.stack, ~/project/.stack-work]
+
+      - save_cache:
+          key:    stack--{{ arch }}--{{ checksum "ghc.version" }}--{{ checksum "resolver.version" }}--{{ checksum "komposition.cabal" }}
+          paths:  [~/.stack, ~/project/.stack-work]
 
       - run:
           command: stack build --no-terminal --test --no-run-tests --bench --no-run-benchmarks
 
       - save_cache:
-          key: stack-work-{{ arch }}-{{ .Revision }}
-          paths:
-            - .stack-work
+          key:    stack--{{ arch }}--{{ checksum "ghc.version" }}--{{ checksum "resolver.version" }}--{{ checksum "komposition.cabal" }}--{{ checksum "stack.yaml" }}
+          paths:  [~/.stack, ~/project/.stack-work]
 
-  test:
-    docker:
-      - image: owickstrom/komposition-stack-builder:lts-12.4
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "komposition.ca" }}
-            - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}
-      - restore_cache:
-          key: stack-work-{{ arch }}-{{ .Revision }}
       - run:
+          name: Running unit tests
           command: stack test
 
-  # haddock:
-  #   docker:
-  #     - image: owickstrom/komposition-stack-builder:lts-12.4
-  #   steps:
-  #     - checkout
-  #     - restore_cache:
-  #         keys:
-  #           - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}-{{ checksum "package.yaml" }}
-  #           - stack-dependencies-{{ arch }}-{{ checksum "stack.yaml" }}
-  #     - restore_cache:
-  #         key: stack-work-{{ arch }}-{{ .Revision }}
-  #     - run:
-  #         command: stack haddock --no-haddock-deps
-  #     - run:
-  #         name: Move haddock files to a temporary directory
-  #         command: |
-  #           mkdir -p /tmp/haddock
-  #           mv $(stack path --local-install-root)/doc /tmp/haddock
-  #     - store_artifacts:
-  #         path: /tmp/haddock
+      - deploy:
+          command: |
+            if [ "$CIRCLE_PROJECT_USERNAME" == "owickstrom" ]; then
+              if [[ "$CIRCLE_BRANCH" == "master" ]]; then
+                release
+              fi
+            fi
 
 workflows:
   version: 2
   build-test:
     jobs:
       - build
-      - test:
-          requires:
-            - build
       # - haddock:
       #     requires:
       #       - build

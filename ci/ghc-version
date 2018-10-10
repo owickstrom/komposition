@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+_resolver="$1"
+
+download_snapshot () {
+  local _resolver="$1"
+
+  if [[ $_resolver == lts-* ]]; then
+    curl -s https://raw.githubusercontent.com/fpco/lts-haskell/master/${_resolver}.yaml \
+      | grep 'ghc:' | head -n 1 | cut -d ':' -f 2 | xargs echo -n 2> /dev/null
+  elif [[ $_resolver == nightly-* ]]; then
+    curl -s https://raw.githubusercontent.com/fpco/stackage-nightly/master/${_resolver}.yaml \
+      | grep 'ghc:' | head -n 1 | cut -d ':' -f 2 | xargs echo -n 2> /dev/null
+  fi
+}
+
+download_snapshot "${_resolver}"
