@@ -13,7 +13,8 @@
 {-# LANGUAGE TypeOperators       #-}
 module Komposition.Application.ImportMode
   ( ImportError(..)
-  , importFile
+  , selectFileToImport
+  , importSelectedFile
   ) where
 
 import           Komposition.Application.Base
@@ -40,17 +41,16 @@ data ImportFileForm = ImportFileForm
   , autoSplit    :: Bool
   }
 
-importFile
+selectFileToImport
   :: ( Application t m)
   => Name n
-  -> ExistingProject
-  -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
-importFile gui project returnToOrigin = do
+  -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (FilePath, Bool))
+selectFileToImport gui returnToOrigin = do
   let initialModel = ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
   enterImport gui initialModel
   result <- fillForm initialModel ImportFileForm {selectedFile = Nothing, autoSplit = False}
   case result of
-    Just f -> toAssets gui project f >>>= returnToOrigin
+    Just f -> returnToOrigin (Just f)
     Nothing -> returnToOrigin Nothing
   where
     fillForm model mf = do
@@ -72,13 +72,13 @@ importFile gui project returnToOrigin = do
         (ImportAutoSplitSet s, form) ->
           fillForm model { autoSplitValue = s } form { autoSplit = s }
 
-toAssets
+importSelectedFile
   :: (UserInterface m, IxMonadIO m, (r .! n) ~ State m s)
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
   -> m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
-toAssets gui project (filepath, autoSplit)
+importSelectedFile gui project (filepath, autoSplit)
   | isSupportedVideoFile filepath = do
     let action =
           case autoSplit of

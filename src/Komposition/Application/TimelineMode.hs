@@ -111,7 +111,7 @@ timelineMode gui model = do
             beep gui
             continueWithStatusMessage "Can't split composition at current focus."
       CommandKeyMappedEvent Import ->
-        importFile gui (model ^. existingProject) (addImportedAssetsToLibrary gui model)
+        selectFileToImport gui (addImportedAssetsToLibrary gui model)
       CommandKeyMappedEvent Render ->
         case Render.flattenTimeline (currentProject model ^. timeline) of
           Just flat -> do
@@ -361,23 +361,25 @@ addImportedAssetsToLibrary ::
   )
   => Name n
   -> TimelineModel
-  -> Maybe (Either ImportError (Either [VideoAsset] [AudioAsset]))
+  -> Maybe (FilePath, Bool)
   -> t m i o TimelineModeResult
-addImportedAssetsToLibrary gui model result = do
-  model' <-
-    case result of
-            Just (Left err) -> do
-              iliftIO (print err)
-              _ <- dialog gui "Import Failed!" (show err) [Ok]
-              ireturn model
-            Just (Right (Left vs)) ->
-              model
-                & existingProject . projectHistory %~ edit (library . videoAssets %~ (<> vs))
-                & ireturn
-            Just (Right (Right as)) ->
-              model
-                & existingProject . projectHistory %~ edit (library . audioAssets %~ (<> as))
-                & ireturn
-            Nothing -> ireturn model
-  returnToTimeline gui model'
+addImportedAssetsToLibrary gui model (Just selected) = do
+  returnToTimeline gui model
+  model' <- importSelectedFile gui (model ^. existingProject) selected >>>= \case
+    Just (Left err) -> do
+      iliftIO (print err)
+      _ <- dialog gui "Import Failed!" (show err) [Ok]
+      ireturn model
+    Just (Right (Left vs)) ->
+      model
+        & existingProject . projectHistory %~ edit (library . videoAssets %~ (<> vs))
+        & ireturn
+    Just (Right (Right as)) ->
+      model
+        & existingProject . projectHistory %~ edit (library . audioAssets %~ (<> as))
+        & ireturn
+    Nothing -> ireturn model
   timelineMode gui model'
+addImportedAssetsToLibrary gui model Nothing = do
+  returnToTimeline gui model
+  timelineMode gui model
