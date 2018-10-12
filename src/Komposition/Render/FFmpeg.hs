@@ -334,20 +334,18 @@ renderComposition
   -> Command.Output
   -> Composition
   -> Producer ProgressUpdate m ()
-renderComposition videoSettings videoSource target c@(Composition video audio) = do
-  -- TODO: bracket to make sure temp directory is deleted
-  canonical <- liftIO getCanonicalTemporaryDirectory
-  tmpDir <- liftIO (createTempDirectory canonical "komposition.render")
-  videoInput <-
-    liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
-  audioInput <-
-    liftIO
-      (toCommandInput
-         SAudio
-         tmpDir
-         videoSettings
-         AudioOriginal
-         (length (inputs videoInput))
-         audio)
-  let renderCmd = toRenderCommand videoSettings target videoInput audioInput
-  runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd
+renderComposition videoSettings videoSource target c@(Composition video audio) =
+  liftIO . withSystemTempDirectory "komposition.render" $ \tmpDir -> do
+    videoInput <-
+      liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
+    audioInput <-
+      liftIO
+        (toCommandInput
+           SAudio
+           tmpDir
+           videoSettings
+           AudioOriginal
+           (length (inputs videoInput))
+           audio)
+    let renderCmd = toRenderCommand videoSettings target videoInput audioInput
+    runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd
