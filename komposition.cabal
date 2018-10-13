@@ -66,6 +66,7 @@ library
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView
                       , Komposition.Timestamp
                       , Komposition.VideoSettings
+                      , Komposition.WindowUserInterface
   build-depends:        base >=4.10 && <4.12
                       , async
                       , binary
