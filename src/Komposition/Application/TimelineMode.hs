@@ -281,7 +281,7 @@ noAssetsMessage mt =
       SAudio -> "audio"
 
 selectAssetAndInsert ::
-     (Application t m, r ~ (n .== State (t m) 'TimelineMode))
+     (Application t m, r ~ (n .== State (t m) 'TimelineMode), IxPointed (t m))
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -292,11 +292,22 @@ selectAssetAndInsert gui model mediaType' position =
     SVideo ->
       case NonEmpty.nonEmpty (currentProject model ^. library . videoAssets) of
         Just vs -> selectAsset gui (SelectAssetsModel SVideo vs []) (insertSelectedAssets gui model SVideo position)
-        Nothing -> timelineMode gui model
+        Nothing -> onNoAssets gui SVideo
     SAudio ->
       case NonEmpty.nonEmpty (currentProject model ^. library . audioAssets) of
         Just as -> selectAsset gui (SelectAssetsModel SAudio as []) (insertSelectedAssets gui model SAudio position)
-        Nothing -> timelineMode gui model
+        Nothing -> onNoAssets gui SAudio
+  where
+    onNoAssets ::
+        (Application t m, r ~ (n .== State (t m) 'TimelineMode), IxPointed (t m))
+      => Name n
+      -> SMediaType mt
+      -> t m r r TimelineModeResult
+    onNoAssets gui mediaType' = do
+      beep gui
+      model
+        & statusMessage ?~ noAssetsMessage mediaType'
+        & timelineMode gui
 
 insertSelectedAssets ::
   ( ReturnsToTimeline mode

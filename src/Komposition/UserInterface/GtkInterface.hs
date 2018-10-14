@@ -443,36 +443,38 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
         Save Directory -> Gtk.FileChooserActionCreateFolder
 
   progressBar n title producer =
-    let setUp d content = do
-          pb <- Gtk.new Gtk.ProgressBar [#showText := True]
-          msgLabel <- Gtk.new Gtk.Label []
-          let updateProgress = forever $ do
-                ProgressUpdate msg fraction <- await
-                liftIO . runUI $ do
-                  Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction ]
-                  Gtk.set msgLabel [#label := msg]
-          #packStart content pb False False 10
-          #packStart content msgLabel False False 10
-          Gtk.set content [#widthRequest := 300]
+    FSM.get n >>>= \s -> iliftIO $ do
+      result <- newEmptyMVar
+      runUI $ do
+        d <- Gtk.new Gtk.Dialog
+                    [#title := title, #transientFor := lowest (currentViewParent s), #modal := True]
 
-          async $ do
-            result <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
-            runUI (#destroy d)
-            return result
+        content      <- Gtk.dialogGetContentArea d
+        contentStyle <- Gtk.widgetGetStyleContext content
+        Gtk.styleContextAddClass contentStyle "progress-bar"
 
-        toResponse d job r = do
-          when (r < 0) (#destroy d)
-          poll job >>= \case
-            Just (Left (SomeException e)) -> do
-              print e
-              return Nothing
-            Just (Right a) ->
-              return (Just a)
-            Nothing ->
-              return Nothing
-        tearDown _ _ = return ()
-        classes = HashSet.fromList ["progress-bar"]
-    in inNewModalDialog n ModalDialog { message = Nothing, .. }
+        pb <- Gtk.new Gtk.ProgressBar [#showText := True]
+        msgLabel <- Gtk.new Gtk.Label []
+        let updateProgress = forever $ do
+              ProgressUpdate msg fraction <- await
+              liftIO . runUI $ do
+                Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction ]
+                Gtk.set msgLabel [#label := msg]
+        #packStart content pb False False 10
+        #packStart content msgLabel False False 10
+        Gtk.set content [#widthRequest := 300]
+        #showAll d
+
+        a <- async $ do
+          r <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
+          void (tryPutMVar result (Just r))
+          runUI $ #destroy d
+
+        void . Gtk.on d #destroy $ do
+          cancel a
+          void (tryPutMVar result Nothing)
+
+      readMVar result
 
   previewStream n uri streamingProcess videoSettings =
     let setUp d content = do
