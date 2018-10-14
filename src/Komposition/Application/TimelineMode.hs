@@ -59,7 +59,7 @@ timelineMode gui model = do
     continue = timelineMode gui model
     continueWithStatusMessage msg =
       model
-      & statusMessage .~ Just msg
+      & statusMessage ?~ msg
       & timelineMode gui
     resetStatusMessage =
       model
@@ -117,7 +117,7 @@ timelineMode gui model = do
           Just flat -> do
             outDir <- iliftIO getUserDocumentsDirectory
             chooseFile gui (Save File) "Render To File" outDir >>>= \case
-              Just outFile -> do
+              Just outFile ->
                 progressBar
                   gui
                   "Rendering"
@@ -144,7 +144,7 @@ timelineMode gui model = do
         case model & existingProject . projectHistory %%~ redo of
           Just m  -> timelineMode gui m
           Nothing -> beep gui >> timelineMode gui model
-      CommandKeyMappedEvent SaveProject -> do
+      CommandKeyMappedEvent SaveProject ->
         iliftIO (saveExistingProject (model ^. existingProject)) >>= \case
           _ -> continue
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
@@ -197,7 +197,7 @@ insertIntoTimeline gui model type' position =
       insertGap gui model SAudio position >>>= timelineMode gui
     (c, Just f) -> do
       let msg = "Cannot perform " <> show c <> " when focused at " <> prettyFocusedAt f
-      timelineMode gui (model & statusMessage .~ Just msg)
+      timelineMode gui (model & statusMessage ?~ msg)
     (_, Nothing) -> do
       iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
       continue
@@ -262,11 +262,11 @@ previewFocusedComposition gui model =
     Nothing -> do
       beep gui
       model
-        & statusMessage .~ Just "Cannot preview a composition without video clips."
+        & statusMessage ?~ "Cannot preview a composition without video clips."
         & ireturn
   where
     flatComposition :: Maybe Render.Composition
-    flatComposition = do
+    flatComposition =
       atFocus (model ^. currentFocus) (currentProject model ^. timeline) Prelude.>>= \case
         FocusedSequence s -> Render.flattenSequence s
         FocusedParallel p -> Render.flattenParallel p
@@ -322,7 +322,7 @@ insertSelectedAssets gui model mediaType' position result = do
         Nothing -> do
           beep gui
           model
-            & statusMessage .~ Just (noAssetsMessage mediaType')
+            & statusMessage ?~ noAssetsMessage mediaType'
             & ireturn
   returnToTimeline gui model'
   timelineMode gui model'
