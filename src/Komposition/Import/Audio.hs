@@ -89,8 +89,8 @@ normalizeAudio tempDir sourcePath = do
     , outPath
     , "compand"
     , ".1,.2"
-    , "−inf,−50.1,−inf,−50,−50", "0"
-    , "−90"
+    , "-inf,-50.1,-inf,-50,-50", "0"
+    , "-90"
     , ".1"
     ]
   return outPath
@@ -200,7 +200,7 @@ getAudioFileMaxAmplitude inPath = do
          readDouble ampStr
     ExitFailure c -> throwIO (ProcessFailed "sox" c (Just (toS err)))
 
-transcodeAudioFileToWav 
+transcodeAudioFileToWav
   :: (MonadIO m, MonadSafe m)
   => FilePath
   -> Duration
