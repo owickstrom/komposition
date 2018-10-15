@@ -8,5 +8,5 @@ source-repository-package
 source-repository-package
     type:       git
     location:   https://github.com/owickstrom/gi-gtk-declarative.git
-    tag:        0bcc55e675659e4d266caf2662bad63deb6a4196
+    tag:        74bc5bdf5134ad7187fd96cc94ded52b7b4ca3b9
     subdir:     gi-gtk-declarative
