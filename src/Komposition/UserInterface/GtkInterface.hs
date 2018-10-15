@@ -27,32 +27,33 @@ module Komposition.UserInterface.GtkInterface
   )
 where
 
-import           Komposition.Prelude                                  hiding (state)
+import           Komposition.Prelude                                      hiding (state)
 import qualified Prelude
 
 import           Control.Lens
-import           Control.Monad                                    (void)
-import           Control.Monad.Indexed                            ()
+import           Control.Monad                                            (void)
+import           Control.Monad.Indexed                                    ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
-import qualified Data.GI.Base.Properties                          as GI
-import qualified Data.HashSet                                     as HashSet
-import           Data.Row.Records                                 (Empty)
+import qualified Data.GI.Base.Properties                                  as GI
+import qualified Data.HashSet                                             as HashSet
+import           Data.Row.Records                                         (Empty)
 import           Data.String
-import qualified Data.Text                                        as Text
-import           Data.Time.Clock                                  (diffTimeToPicoseconds)
-import qualified GI.Gdk                                           as Gdk
+import qualified Data.Text                                                as Text
+import           Data.Time.Clock                                          (diffTimeToPicoseconds)
+import qualified GI.Gdk                                                   as Gdk
 import qualified GI.GLib
-import qualified GI.GLib.Constants                                as GLib
-import qualified GI.Gst                                           as Gst
-import           GI.Gtk                                           (AttrOp (..))
-import qualified GI.Gtk                                           as Gtk
-import qualified GI.Gtk.Declarative                               as Declarative
-import           Motor.FSM                                        hiding ((:=))
-import qualified Motor.FSM                                        as FSM
+import qualified GI.GLib.Constants                                        as GLib
+import qualified GI.Gst                                                   as Gst
+import           GI.Gtk                                                   (AttrOp (..))
+import qualified GI.Gtk                                                   as Gtk
+import qualified GI.Gtk.Declarative                                       as Declarative
+import           Motor.FSM                                                hiding
+                                                                           ((:=))
+import qualified Motor.FSM                                                as FSM
 import           Pipes
-import           Pipes.Safe                                       (runSafeT,
-                                                                   tryP)
+import           Pipes.Safe                                               (runSafeT,
+                                                                           tryP)
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
@@ -63,6 +64,7 @@ import           Komposition.UserInterface.GtkInterface.HelpView
 import           Komposition.UserInterface.GtkInterface.ImportView
 import           Komposition.UserInterface.GtkInterface.LibraryView
 import           Komposition.UserInterface.GtkInterface.TimelineView
+import           Komposition.UserInterface.GtkInterface.WelcomeScreenView
 import           Komposition.VideoSettings
 
 data Env = Env
@@ -335,10 +337,16 @@ inNewModalDialog n ModalDialog {..} = FSM.get n >>>= \s -> iliftIO $ do
 instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
-  start n keyMaps model =
+  start n keyMaps =
     ilift ask
-    >>>= iliftIO . renderFirst (timelineView model) STimelineMode keyMaps
+    >>>= iliftIO . renderFirst welcomeScreenView SWelcomeScreenMode keyMaps
     >>>= FSM.new n
+
+  updateWelcomeScreen n =
+    switchView' n (TopView welcomeScreenView) SWelcomeScreenMode
+
+  returnToWelcomeScreen n =
+    switchView' n (TopView welcomeScreenView) SWelcomeScreenMode
 
   updateTimeline n model =
     switchView' n (TopView (timelineView model)) STimelineMode
@@ -429,40 +437,44 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     takeMVar response
     where
       modeToAction = \case
-        Open ->  Gtk.FileChooserActionOpen
-        Save -> Gtk.FileChooserActionSave
+        Open File ->  Gtk.FileChooserActionOpen
+        Save File -> Gtk.FileChooserActionSave
+        Open Directory ->  Gtk.FileChooserActionSelectFolder
+        Save Directory -> Gtk.FileChooserActionCreateFolder
 
   progressBar n title producer =
-    let setUp d content = do
-          pb <- Gtk.new Gtk.ProgressBar [#showText := True]
-          msgLabel <- Gtk.new Gtk.Label []
-          let updateProgress = forever $ do
-                ProgressUpdate msg fraction <- await
-                liftIO . runUI $ do
-                  Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction ]
-                  Gtk.set msgLabel [#label := msg]
-          #packStart content pb False False 10
-          #packStart content msgLabel False False 10
-          Gtk.set content [#widthRequest := 300]
+    FSM.get n >>>= \s -> iliftIO $ do
+      result <- newEmptyMVar
+      runUI $ do
+        d <- Gtk.new Gtk.Dialog
+                    [#title := title, #transientFor := lowest (currentViewParent s), #modal := True]
 
-          async $ do
-            result <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
-            runUI (#destroy d)
-            return result
+        content      <- Gtk.dialogGetContentArea d
+        contentStyle <- Gtk.widgetGetStyleContext content
+        Gtk.styleContextAddClass contentStyle "progress-bar"
 
-        toResponse d job r = do
-          when (r < 0) (#destroy d)
-          poll job >>= \case
-            Just (Left (SomeException e)) -> do
-              print e
-              return Nothing
-            Just (Right a) ->
-              return (Just a)
-            Nothing ->
-              return Nothing
-        tearDown _ _ = return ()
-        classes = HashSet.fromList ["progress-bar"]
-    in inNewModalDialog n ModalDialog { message = Nothing, .. }
+        pb <- Gtk.new Gtk.ProgressBar [#showText := True]
+        msgLabel <- Gtk.new Gtk.Label []
+        let updateProgress = forever $ do
+              ProgressUpdate msg fraction <- await
+              liftIO . runUI $ do
+                Gtk.set pb [#fraction := fraction, #text := printFractionAsPercent fraction ]
+                Gtk.set msgLabel [#label := msg]
+        #packStart content pb False False 10
+        #packStart content msgLabel False False 10
+        Gtk.set content [#widthRequest := 300]
+        #showAll d
+
+        a <- async $ do
+          r <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
+          void (tryPutMVar result (Just r))
+          runUI $ #destroy d
+
+        void . Gtk.on d #destroy $ do
+          cancel a
+          void (tryPutMVar result Nothing)
+
+      readMVar result
 
   previewStream n uri streamingProcess videoSettings =
     let setUp d content = do

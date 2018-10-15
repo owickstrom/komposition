@@ -37,27 +37,33 @@ parallelWithClips = Parallel () <$> vs <*> as
   isClip VideoClip{} = True
   isClip VideoGap{}  = False
 
+videoAsset :: MonadGen m => m VideoAsset
+videoAsset = do
+  meta <- assetMetadata
+  proxyPath <- ProxyPath <$> Gen.string (linear 1 50) Gen.unicode
+  pure (VideoAsset meta proxyPath Nothing)
+
+audioAsset :: MonadGen m => m AudioAsset
+audioAsset = AudioAsset <$> assetMetadata
+
 videoPart :: MonadGen m => m (CompositionPart Video ())
 videoPart = Gen.choice [clip, gap]
   where
     clip = do
-      meta <- assetMetadata
-      let maxDuration = floor (durationToSeconds (meta ^. duration)) :: Int
+      asset <- videoAsset
+      let maxDuration = floor (durationToSeconds (asset ^. videoAssetMetadata . duration)) :: Int
       spanStart' <- duration' (linear 0 maxDuration)
       spanEnd' <-
         duration'
           (linear (ceiling (durationToSeconds spanStart') + 1) maxDuration)
-      proxyPath <- ProxyPath <$> Gen.string (linear 1 50) Gen.unicode
-      VideoClip () (VideoAsset meta proxyPath Nothing) (TimeSpan spanStart' spanEnd') <$>
+      VideoClip () asset (TimeSpan spanStart' spanEnd') <$>
         Gen.string (linear 1 50) Gen.unicode
     gap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
 
 audioPart :: MonadGen m => m (CompositionPart Audio ())
 audioPart = Gen.choice [clip, gap]
   where
-    clip = do
-      meta <- assetMetadata
-      pure (AudioClip () (AudioAsset meta))
+    clip = AudioClip () <$> audioAsset
     gap = AudioGap () <$> duration' (linear 1 10 :: Range Int)
 
 duration' :: Integral n => MonadGen m => Range n -> m Duration

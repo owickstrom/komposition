@@ -136,3 +136,19 @@
 .zoom-level {
   min-width: 5em;
 }
+
+.welcome-screen .title {
+  margin: 2em 0 .5em;
+  font-weight: bold;
+  font-size: 175%;
+}
+.welcome-screen .subtitle {
+  margin-bottom: 1em;
+  font-size: 125%;
+}
+.welcome-screen .actions {
+  padding: 2em;
+}
+.welcome-screen .actions button {
+  margin: .5em 0;
+}

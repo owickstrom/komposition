@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
@@ -10,40 +11,47 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
-module Komposition.Application.ImportMode where
+module Komposition.Application.ImportMode
+  ( ImportError(..)
+  , selectFileToImport
+  , importSelectedFile
+  ) where
 
 import           Komposition.Application.Base
 
 import           Control.Lens
-import           Data.String                 (fromString)
+import           Data.Row.Records
+import           Data.String                     (fromString)
 
+import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
-import           Komposition.MediaType
 import           Komposition.Project
-import           Komposition.History
 
 import           Komposition.Application.KeyMaps
+
+data ImportError
+  = VideoImportError VideoImportError
+  | AudioImportError AudioImportError
+  deriving (Eq, Show)
 
 data ImportFileForm = ImportFileForm
   { selectedFile :: Maybe FilePath
   , autoSplit    :: Bool
   }
 
-importFile
-  :: Application t m
+selectFileToImport
+  :: ( Application t m)
   => Name n
-  -> TimelineModel
-  -> ThroughMode TimelineMode ImportMode (t m) n TimelineModel
-importFile gui timelineModel = do
-  let initialModel =
-        ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
+  -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (FilePath, Bool))
+selectFileToImport gui returnToOrigin = do
+  let initialModel = ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
   enterImport gui initialModel
-  f <- fillForm initialModel
-                ImportFileForm {selectedFile = Nothing, autoSplit = False}
-  returnToTimeline gui timelineModel
-  maybe (ireturn timelineModel) (importAsset gui timelineModel) f
+  result <- fillForm initialModel ImportFileForm {selectedFile = Nothing, autoSplit = False}
+  case result of
+    Just f -> returnToOrigin (Just f)
+    Nothing -> returnToOrigin Nothing
   where
     fillForm model mf = do
       updateImport gui model
@@ -64,53 +72,43 @@ importFile gui timelineModel = do
         (ImportAutoSplitSet s, form) ->
           fillForm model { autoSplitValue = s } form { autoSplit = s }
 
-data Ok = Ok deriving (Eq, Enum)
-
-instance DialogChoice Ok where
-  toButtonLabel Ok = "OK"
-
-importAsset
-  :: (UserInterface m, IxMonadIO m)
+importSelectedFile
+  :: (UserInterface m, IxMonadIO m, (r .! n) ~ State m s)
   => Name n
-  -> TimelineModel
+  -> ExistingProject
   -> (FilePath, Bool)
-  -> Actions m '[n := Remain (State m TimelineMode)] r TimelineModel
-importAsset gui timelineModel (filepath, autoSplit)
-  | isSupportedVideoFile filepath =
+  -> m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
+importSelectedFile gui project (filepath, autoSplit)
+  | isSupportedVideoFile filepath = do
     let action =
           case autoSplit of
             True ->
               importVideoFileAutoSplit
-                (currentProject timelineModel ^. proxyVideoSettings)
+                (current (project ^. projectHistory) ^. proxyVideoSettings)
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
+                (project ^. projectPath . unProjectPath)
             False ->
               (: []) <$>
               importVideoFile
-                (currentProject timelineModel ^. proxyVideoSettings)
+                (current (project ^. projectHistory) ^. proxyVideoSettings)
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
-    in progressBar gui "Importing Video" action >>>= \case
-         Nothing -> do
-           ireturn timelineModel
-         Just (assets :: Either VideoImportError [VideoAsset]) ->
-          handleImportResult gui timelineModel SVideo assets
-  | isSupportedAudioFile filepath =
+                (project ^. projectPath . unProjectPath)
+    result <- progressBar gui "Importing Video" action
+    ireturn (bimap VideoImportError Left <$> result)
+  | isSupportedAudioFile filepath = do
     let action =
           case autoSplit of
             True ->
               importAudioFileAutoSplit
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
+                (project ^. projectPath . unProjectPath)
             False ->
               (: []) <$>
               importAudioFile
                 filepath
-                (currentProject timelineModel ^. workingDirectory)
-    in progressBar gui "Importing Audio" action >>>= \case
-      Nothing -> ireturn timelineModel
-      Just (assets :: Either AudioImportError [AudioAsset]) ->
-        handleImportResult gui timelineModel SAudio assets
+                (project ^. projectPath . unProjectPath)
+    result <- progressBar gui "Importing Audio" action
+    ireturn (bimap AudioImportError Right <$> result)
   | otherwise = do
     _ <-
       dialog
@@ -118,25 +116,4 @@ importAsset gui timelineModel (filepath, autoSplit)
         "Unsupported File"
         "The file extension of the file you've selected is not supported."
         [Ok]
-    ireturn timelineModel
-
-handleImportResult
-  :: (UserInterface m, IxMonadIO m, Show err)
-  => Name n
-  -> TimelineModel
-  -> SMediaType mt
-  -> Either err [Asset mt]
-  -> Actions m '[n := Remain (State m TimelineMode)] r TimelineModel
-handleImportResult gui model mediaType result = case (mediaType, result) of
-  (_, Left err) -> do
-    iliftIO (print err)
-    _ <- dialog gui "Import Failed!" (show err) [Ok]
-    ireturn model
-  (SVideo, Right assets) ->
-    model
-      & projectHistory %~ edit (library . videoAssets %~ (<> assets))
-      & ireturn
-  (SAudio, Right assets) ->
-    model
-      & projectHistory %~ edit (library . audioAssets %~ (<> assets))
-      & ireturn
+    ireturn Nothing

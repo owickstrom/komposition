@@ -34,23 +34,27 @@ import           Komposition.Project
 import           Komposition.VideoSettings
 
 data Mode
-  = TimelineMode
+  = WelcomeScreenMode
+  | TimelineMode
   | LibraryMode
   | ImportMode
 
 data SMode m where
+  SWelcomeScreenMode :: SMode WelcomeScreenMode
   STimelineMode :: SMode TimelineMode
   SLibraryMode :: SMode LibraryMode
   SImportMode :: SMode ImportMode
 
 modeTitle :: SMode m -> Text
 modeTitle = \case
+  SWelcomeScreenMode -> "Welcome Screen Mode"
   STimelineMode -> "Timeline Mode"
   SLibraryMode  -> "Library Mode"
   SImportMode   -> "Import Mode"
 
 class ReturnsToTimeline (mode :: Mode)
 
+instance ReturnsToTimeline WelcomeScreenMode
 instance ReturnsToTimeline LibraryMode
 instance ReturnsToTimeline ImportMode
 
@@ -74,6 +78,8 @@ data Command (mode :: Mode) where
   Preview :: Command TimelineMode
   Undo :: Command TimelineMode
   Redo :: Command TimelineMode
+  SaveProject :: Command TimelineMode
+  CloseProject :: Command TimelineMode
   Exit :: Command TimelineMode
 
 deriving instance Eq (Command mode)
@@ -106,6 +112,8 @@ commandName =
     Preview -> "Preview"
     Undo -> "Undo"
     Redo -> "Redo"
+    SaveProject -> "Save"
+    CloseProject -> "Close"
     Exit -> "Exit"
   where
     insertTypeName :: InsertType -> Text
@@ -128,6 +136,8 @@ commandName =
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
+  CreateNewProjectClicked :: Event WelcomeScreenMode
+  OpenExistingProjectClicked :: Event WelcomeScreenMode
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
@@ -143,9 +153,13 @@ type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 class Enum c => DialogChoice c where
   toButtonLabel :: c -> Text
 
+data FileChooserType
+  = File
+  | Directory
+
 data FileChooserMode
-  = Open
-  | Save
+  = Open FileChooserType
+  | Save FileChooserType
 
 data PromptMode ret where
   NumberPrompt :: (Double, Double) -> PromptMode Double
@@ -154,16 +168,16 @@ data PromptMode ret where
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
-  { _projectHistory :: History Project
-  , _currentFocus   :: Focus SequenceFocusType
-  , _statusMessage  :: Maybe Text
-  , _zoomLevel      :: ZoomLevel
+  { _existingProject :: ExistingProject
+  , _currentFocus    :: Focus SequenceFocusType
+  , _statusMessage   :: Maybe Text
+  , _zoomLevel       :: ZoomLevel
   }
 
 makeLenses ''TimelineModel
 
 currentProject :: TimelineModel -> Project
-currentProject = current . view projectHistory
+currentProject = current . view (existingProject . projectHistory)
 
 data ImportFileModel = ImportFileModel
   { autoSplitValue     :: Bool
@@ -176,6 +190,11 @@ data SelectAssetsModel mt = SelectAssetsModel
   , selectedAssets :: [Asset mt]
   }
 
+data Ok = Ok deriving (Eq, Enum)
+
+instance DialogChoice Ok where
+  toButtonLabel Ok = "OK"
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
@@ -183,8 +202,13 @@ class MonadFSM m =>
   start ::
        Name n
     -> KeyMaps
-    -> TimelineModel
-    -> Actions m '[ n !+ State m TimelineMode] r ()
+    -> Actions m '[ n !+ State m WelcomeScreenMode] r ()
+  updateWelcomeScreen
+    :: Name n
+    -> Actions m '[ n := State m WelcomeScreenMode !--> State m WelcomeScreenMode] r ()
+  returnToWelcomeScreen
+    :: Name n
+    -> Actions m '[ n := State m TimelineMode !--> State m WelcomeScreenMode] r ()
   updateTimeline
     :: Name n
     -> TimelineModel
@@ -260,16 +284,18 @@ class MonadFSM m =>
 -- | Convenient type for actions that transition from one mode (of
 -- type 'mode1') into another mode (of type 'mode2'), doing some user
 -- interactions, and returning back to the first mode with a value of
--- type 'a'.
-type ThroughMode mode1 mode2 m n a
-   = forall i o state2 state1.
+-- type 'a' using the supplied continuation.
+type ThroughMode origin mode m n a
+   = forall r1 r2 r3 state2 state1 b.
    ( UserInterface m
-     , HasType n state1 i
-     , HasType n state1 o
-     , (Modify n state2 i .! n) ~ state2
-     , Modify n state1 (Modify n state2 i) ~ o
-     , Modify n state2 (Modify n state2 i) ~ Modify n state2 i
-     , state1 ~ State m mode1
-     , state2 ~ State m mode2
+     , HasType n state1 r1
+     , HasType n state1 r3
+     , Modify n state2 r1 ~ r2
+     , HasType n state2 r2
+     , Modify n state1 r2 ~ r3
+     , Modify n state2 r2 ~ r2
+     , state1 ~ State m origin
+     , state2 ~ State m mode
      )
-   => m i o a
+   => (a -> m r2 r3 b)
+   -> m r1 r3 b
