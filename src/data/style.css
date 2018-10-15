@@ -111,21 +111,21 @@
 }
 
 .help {
-  min-width: 25em;
-  min-height: 50em;
+  min-width: 250pt;
+  min-height: 500pt;
 }
 
 .key-map-entry {
-  margin: .5em 0;
+  margin: 5pt 0;
 }
 .key-combo {
   font-family: monospace;
   font-weight: bold;
   border: 1pt solid #999;
-  margin-right: .5em;
-  padding: .5em .75em;
+  margin-right: 5pt;
+  padding: 4pt 6pt;
   background: #ddd;
-  border-radius: .3em;
+  border-radius: 2pt;
   box-shadow: inset 1pt 1pt 1pt #fff;
 }
 

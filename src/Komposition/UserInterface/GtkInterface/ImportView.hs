@@ -27,7 +27,6 @@ importView ImportFileModel {..} =
     [ #title := "Import File"
     , on #destroy (CommandKeyMappedEvent Cancel)
     , #defaultWidth := 300
-    , #defaultHeight := 400
     ] $
   container Box [classes ["import-view"], #orientation := OrientationVertical] $ do
     boxChild False False 10 $
