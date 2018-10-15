@@ -8,13 +8,31 @@ part of a project:
 * the library with its media assets
 * video rendering settings
 * proxy media settings
-* directory path to store intermediate files in
+* directories to store intermediate files in
 
-All these things belong to the project. Very important to note, however, is
-that in the current version of Komposition projects are _implicit_. When
-you start the application a new project is implicitly created for you. There
-is no way to save and reopen projects, so when you exit the application your
-implicit project will be lost.
+## The Welcome Screen
+
+When launching Komposition, you will be presented with the welcome screen.
+From there, you can either create a new project, or opening an existing
+project.
+
+When creating a new project, you will be prompted for a directory in which
+the project files will be saved. Depending on your operating system's file
+selector dialog, you might need to create a directory manually and select
+that.
+
+To open an existing project, use the file selector to select the same
+directory you specified when creating the project.
+
+## Saving Projects
+
+When a project is open, and you are in the timeline mode, you can save the
+current project. Click *Save* in the *Project* menu, and it will be
+persisted. Note that undo and redo information is also available after
+saving and loading projects.
 
 !!! note
-    Support for explicitly creating, saving, and reopening projects is planned for future versions of Komposition.
+    The project directory format and file selection dialogs might change
+    drastically in the early versions of Komposition, as the current state
+    is not ideal. However, project conversion utilities should be added to
+    make the transitions smoother.
