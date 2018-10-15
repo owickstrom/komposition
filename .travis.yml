@@ -10,9 +10,7 @@ script:
 - nix-env -if https://github.com/cachix/cachix/tarball/master --extra-substituters https://cachix.cachix.org --trusted-public-keys 'cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cachix.cachix.org-1:eWNHQldwUO7G2VkjpnjDbWwy4KQ/HNxht7H4SSoMckM='
 - cachix use komposition
 - |
-  # Only push if branch to Cachix is from origin, and thus having the
-  # required secure environment variable set.
-  if [ -n "$CACHIX_SIGNING_KEY"]; then
+  if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
      cachix push komposition --watch-store&
      nix-build -j2 -A komposition | cachix push komposition
   else
