@@ -187,7 +187,7 @@ render newView state =
       (Top topWindow, Top (AnyDeclarative newTopView), ) <$>
         patchIn topWindow oldTopView newTopView
     -- We had a modal, and patch it with a new one.
-    (Child topWindow modalWindow, Child (AnyDeclarative oldTopView) (AnyDeclarative oldModalView), ModalView newModalView) -> do
+    (Child topWindow modalWindow, Child (AnyDeclarative oldTopView) (AnyDeclarative oldModalView), ModalView newModalView) ->
       case Declarative.patch oldModalView newModalView of
         Declarative.Modify f -> do
           widget <- Gtk.toWidget modalWindow
@@ -488,7 +488,7 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
                 (gError, _) <- Gst.messageParseError msg
                 gErrorText     <- Gst.gerrorMessage gError
                 liftIO . putStrLn $ show gError <> ": " <> gErrorText
-              [Gst.MessageTypeStateChanged] -> do
+              [Gst.MessageTypeStateChanged] ->
                 -- (oldState, newState, _) <- Gst.messageParseStateChanged msg
                 -- putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
                 return ()

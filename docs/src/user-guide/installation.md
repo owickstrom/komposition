@@ -82,7 +82,17 @@ komposition
 
 ## macOS
 
-*These instructions will be available soon.*
+```shell
+brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer  gst-plugins-base gst-libav
+brew install gst-plugins-good --with-gtk+3
+
+export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig"
+
+# if you get an error in the next step about 'happy' not being on your
+# PATH, run this command first:
+stack build happy
+stack install
+```
 
 ## Windows
 
