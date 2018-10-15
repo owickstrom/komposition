@@ -1,1 +1,12 @@
-packages:       komposition.cabal
+packages:        komposition.cabal 
+
+source-repository-package
+    type:       git
+    location:   https://github.com/reinerp/indexed-extras.git
+    tag:        8b38e7503c030644154e844cd932003d9438cfa2
+
+source-repository-package
+    type:       git
+    location:   https://github.com/owickstrom/gi-gtk-declarative.git
+    tag:        0bcc55e675659e4d266caf2662bad63deb6a4196
+    subdir:     gi-gtk-declarative
