@@ -288,6 +288,18 @@
 
 
   <li class="md-nav__item">
+    <a href="../undo-redo/" title="Undo & Redo" class="md-nav__link">
+      Undo & Redo
+    </a>
+  </li>
+
+        
+          
+          
+          
+
+
+  <li class="md-nav__item">
     <a href="../library/" title="Library" class="md-nav__link">
       Library
     </a>
@@ -344,9 +356,45 @@
       
     
     
+      <label class="md-nav__link md-nav__link--active" for="__toc">
+        Projects
+      </label>
+    
     <a href="./" title="Projects" class="md-nav__link md-nav__link--active">
       Projects
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-welcome-screen" title="The Welcome Screen" class="md-nav__link">
+    The Welcome Screen
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saving-projects" title="Saving Projects" class="md-nav__link">
+    Saving Projects
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
+</nav>
     
   </li>
 
@@ -414,6 +462,29 @@
     
   
   
+    <label class="md-nav__title" for="__toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-welcome-screen" title="The Welcome Screen" class="md-nav__link">
+    The Welcome Screen
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#saving-projects" title="Saving Projects" class="md-nav__link">
+    Saving Projects
+  </a>
+  
+</li>
+      
+      
+      
+      
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -434,16 +505,29 @@ part of a project:</p>
 <li>the library with its media assets</li>
 <li>video rendering settings</li>
 <li>proxy media settings</li>
-<li>directory path to store intermediate files in</li>
+<li>directories to store intermediate files in</li>
 </ul>
-<p>All these things belong to the project. Very important to note, however, is
-that in the current version of Komposition projects are <em>implicit</em>. When
-you start the application a new project is implicitly created for you. There
-is no way to save and reopen projects, so when you exit the application your
-implicit project will be lost.</p>
+<h2 id="the-welcome-screen">The Welcome Screen</h2>
+<p>When launching Komposition, you will be presented with the welcome screen.
+From there, you can either create a new project, or opening an existing
+project.</p>
+<p>When creating a new project, you will be prompted for a directory in which
+the project files will be saved. Depending on your operating system's file
+selector dialog, you might need to create a directory manually and select
+that.</p>
+<p>To open an existing project, use the file selector to select the same
+directory you specified when creating the project.</p>
+<h2 id="saving-projects">Saving Projects</h2>
+<p>When a project is open, and you are in the timeline mode, you can save the
+current project. Click <em>Save</em> in the <em>Project</em> menu, and it will be
+persisted. Note that <a href="../undo-redo/">undo and redo</a> information is also
+available after saving and loading projects.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Support for explicitly creating, saving, and reopening projects is planned for future versions of Komposition.</p>
+<p>The project directory format and file selection dialogs might change
+drastically in the early versions of Komposition, as the current state
+is not ideal. However, project conversion utilities should be added to
+make the transitions smoother.</p>
 </div>
                 
                   
