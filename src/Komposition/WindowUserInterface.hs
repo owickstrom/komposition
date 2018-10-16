@@ -43,7 +43,12 @@ data DetailEvent = DetailClose
 
 data ConfirmEvent = Yes | No
 
-class WindowUserInterface m where
+class UserInterfaceMarkup markup where
+  mainView :: Text -> markup MainEvent
+  detailView :: markup DetailEvent
+  confirmDialogView :: Text -> markup ConfirmEvent
+
+class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   type Window m :: Type -> Type
   type WindowMarkup m :: Type -> Type
 
@@ -74,10 +79,6 @@ class WindowUserInterface m where
     :: HasType n (Window m e) r
     => FSM.Name n
     -> m r r e
-
-  mainView :: Text -> m i i (WindowMarkup m MainEvent)
-  detailView :: m i i (WindowMarkup m DetailEvent)
-  confirmDialogView :: Text -> m i i (WindowMarkup m ConfirmEvent)
 
 newtype GtkUserInterface m i o a = GtkUserInterface
   (FSM m i o a) deriving (IxFunctor, IxPointed, IxApplicative, IxMonad, MonadFSM, IxMonadTrans)
@@ -162,8 +163,9 @@ instance MonadIO m => WindowUserInterface (GtkUserInterface m) where
         parentWindow <- asGtkWindow parent
         Gtk.windowSetTransientFor childWindow (Just parentWindow)
 
+instance UserInterfaceMarkup GtkWindowMarkup where
   mainView msg =
-    ireturn $ GtkWindowMarkup $
+    GtkWindowMarkup $
     bin
         Gtk.Window
         [ #title := "Main View"
@@ -180,7 +182,7 @@ instance MonadIO m => WindowUserInterface (GtkUserInterface m) where
                 [#label := "Show Details", on #clicked ShowDetailsClicked]
 
   detailView =
-    ireturn . GtkWindowMarkup $
+    GtkWindowMarkup $
     bin
         Gtk.Window
         [ #title := "Details"
@@ -197,7 +199,7 @@ instance MonadIO m => WindowUserInterface (GtkUserInterface m) where
             $ widget Gtk.Button [#label := "OK", on #clicked DetailClose]
 
   confirmDialogView msg =
-    ireturn . GtkWindowMarkup $
+    GtkWindowMarkup $
     bin
         Gtk.Window
         [ #title := "Confirm"
@@ -222,17 +224,17 @@ test = do
   Gtk.main
   cancel fsm
   where
-    app      = (newWindow #main =<<< mainView "Welcome!") >>> mainLoop
+    app      = newWindow #main (mainView "Welcome!") >>> mainLoop
 
     mainLoop = nextEvent #main >>>= \case
       ShowDetailsClicked -> showDetails >>> mainLoop
       ExitRequested      -> confirmExit >>>= \case
         True -> destroyWindow #main
         False ->
-          (patchWindow #main =<<< mainView "Thanks for staying around!") >>> mainLoop
+          patchWindow #main (mainView "Thanks for staying around!") >>> mainLoop
 
     confirmExit =
-      (newWindow #confirm =<<< confirmDialogView "Exit?")
+      newWindow #confirm (confirmDialogView "Exit?")
         >>>  setTransientFor #confirm #main
         >>>  nextEvent #confirm
         >>>= \case
@@ -240,10 +242,10 @@ test = do
                No  -> destroyWindow #confirm >>> ireturn False
 
     showDetails =
-      (newWindow #details =<<< detailView)
+      newWindow #details detailView
         >>>  setTransientFor #details #main
         >>>  nextEvent #details
         >>>= \case
                DetailClose ->
-                 (patchWindow #main =<<< mainView "Guess those details weren't that great, huh?")
+                 patchWindow #main (mainView "Guess those details weren't that great, huh?")
                    >>> destroyWindow #details
