@@ -14,9 +14,12 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeInType                 #-}
 {-# LANGUAGE TypeOperators              #-}
-module Komposition.WindowUserInterface (test) where
+module Komposition.WindowUserInterface
+  ( test
+  )
+where
 
-import           Komposition.Prelude hiding (on)
+import           Komposition.Prelude            hiding (on)
 
 import           Control.Monad.Indexed
 import           Control.Monad.Indexed.IO
@@ -25,46 +28,56 @@ import           Data.Row.Records
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GLib                        as GLib
 import qualified GI.Gtk                         as Gtk
-import           GI.Gtk.Declarative             (bin, container, boxChild, widget, on)
+import           GI.Gtk.Declarative             (bin, boxChild, container, on,
+                                                 widget)
 import           GI.Gtk.Declarative             as Declarative
 import qualified GI.Gtk.Declarative.Bin         as Declarative
 import qualified GI.Gtk.Declarative.EventSource as Declarative
-import           Motor.FSM                      (type (!+), type (!-), FSM,
+import           Motor.FSM                      (type (!-), FSM,
                                                  MonadFSM, (>>>), (>>>=))
 import qualified Motor.FSM                      as FSM
 
+data MainEvent = ExitRequested | ShowDetailsClicked
+
+data DetailEvent = DetailClose
+
+data ConfirmEvent = Yes | No
+
 class WindowUserInterface m where
-  type Window m :: Type -> Type -> Type
+  type Window m :: Type -> Type
+  type WindowMarkup m :: Type -> Type
 
   newWindow
-    :: Declarative.BinChild window Widget
-    => FSM.Name n
-    -> Declarative.Bin window Declarative.Widget event
-    -> FSM.Actions m '[ n !+ Window m window event] r ()
+    :: FSM.Name n
+    -> WindowMarkup m event
+    -> m r (Extend n (Window m event) r) ()
 
   patchWindow
-    :: Declarative.BinChild window Widget
-    => HasType n (Window m window event) r
-    => Modify n (Window m window event) r ~ r
+    :: HasType n (Window m event) r
+    => Modify n (Window m event) r ~ r
     => FSM.Name n
-    -> Declarative.Bin window Declarative.Widget event
+    -> WindowMarkup m event
     -> m r r ()
 
   setTransientFor
-    :: HasType child (Window m w1 e1) r
-    => HasType parent (Window m w2 e2) r
+    :: HasType child (Window m e1) r
+    => HasType parent (Window m e2) r
     => FSM.Name child
     -> FSM.Name parent
     -> m r r ()
 
   destroyWindow
     :: FSM.Name n
-    -> FSM.Actions m '[ n !- Window m w e] r ()
+    -> FSM.Actions m '[ n !- Window m e] r ()
 
   nextEvent
-    :: HasType n (Window m w e) r
+    :: HasType n (Window m e) r
     => FSM.Name n
     -> m r r e
+
+  mainView :: Text -> m i i (WindowMarkup m MainEvent)
+  detailView :: m i i (WindowMarkup m DetailEvent)
+  confirmDialogView :: Text -> m i i (WindowMarkup m ConfirmEvent)
 
 newtype GtkUserInterface m i o a = GtkUserInterface
   (FSM m i o a) deriving (IxFunctor, IxPointed, IxApplicative, IxMonad, MonadFSM, IxMonadTrans)
@@ -79,11 +92,20 @@ deriving instance Monad m => Functor (GtkUserInterface m i i)
 deriving instance Monad m => Applicative (GtkUserInterface m i i)
 deriving instance Monad m => Monad (GtkUserInterface m i i)
 
-data GtkWindow window event = GtkWindow
-  { declarativeWidget :: Declarative.Bin window Declarative.Widget event
-  , gtkWidget         :: Gtk.Widget
-  , events            :: Chan event
+data GtkWindow event = GtkWindow
+  { markup    :: GtkWindowMarkup event
+  , gtkWidget :: Gtk.Widget
+  , events    :: Chan event
   }
+
+data GtkWindowMarkup event where
+   GtkWindowMarkup
+    :: Declarative.BinChild Gtk.Window Declarative.Widget 
+    => Declarative.Bin Gtk.Window Declarative.Widget event
+    -> GtkWindowMarkup event
+
+unGtkWindowMarkup :: GtkWindowMarkup event -> Declarative.Bin Gtk.Window Declarative.Widget event
+unGtkWindowMarkup (GtkWindowMarkup decl) = decl
 
 runUI :: IO a -> IO a
 runUI f = do
@@ -96,24 +118,25 @@ runUI f = do
 irunUI :: IxMonadIO m => IO a -> m i i a
 irunUI = iliftIO . runUI
 
-asGtkWindow :: GtkWindow window event -> IO Gtk.Window
+asGtkWindow :: GtkWindow event -> IO Gtk.Window
 asGtkWindow (GtkWindow _ w _) = Gtk.unsafeCastTo Gtk.Window w
 
 instance MonadIO m => WindowUserInterface (GtkUserInterface m) where
   type Window (GtkUserInterface m) = GtkWindow
+  type WindowMarkup (GtkUserInterface m) = GtkWindowMarkup
 
-  newWindow name decl =
+  newWindow name markup'@(GtkWindowMarkup decl) =
     FSM.new name =<<< irunUI (do
       w <- Declarative.create decl
       events' <- newChan
       _ <- Declarative.subscribe decl w (writeChan events')
       #showAll w
-      return (GtkWindow decl w events'))
+      return (GtkWindow markup' w events'))
 
-  patchWindow name decl =
+  patchWindow name (GtkWindowMarkup decl) =
     FSM.get name >>>= \w ->
       FSM.enter name =<<<
-        case Declarative.patch (declarativeWidget w) decl of
+        case Declarative.patch (unGtkWindowMarkup (markup w)) decl of
           Modify f -> irunUI $ do
             f (gtkWidget w)
             return w
@@ -122,7 +145,7 @@ instance MonadIO m => WindowUserInterface (GtkUserInterface m) where
             gtkWidget' <- create'
             events' <- newChan
             _ <- Declarative.subscribe decl gtkWidget' (writeChan events')
-            return (GtkWindow decl gtkWidget' events')
+            return (GtkWindow (GtkWindowMarkup decl) gtkWidget' events')
           Keep -> return w
 
   destroyWindow name =
@@ -139,11 +162,58 @@ instance MonadIO m => WindowUserInterface (GtkUserInterface m) where
         parentWindow <- asGtkWindow parent
         Gtk.windowSetTransientFor childWindow (Just parentWindow)
 
-data MainEvent = ExitRequested | ShowDetailsClicked
+  mainView msg =
+    ireturn $ GtkWindowMarkup $
+    bin
+        Gtk.Window
+        [ #title := "Main View"
+        , on #deleteEvent (const (True, ExitRequested))
+        , #widthRequest := 400
+        , #heightRequest := 300
+        ]
+      $ container Gtk.Box [#orientation := Gtk.OrientationVertical]
+      $ do
+          boxChild True True 10 $ widget Gtk.Label [#label := msg]
+          boxChild False False 10
+            $ widget
+                Gtk.Button
+                [#label := "Show Details", on #clicked ShowDetailsClicked]
 
-data DetailEvent = DetailClose
+  detailView =
+    ireturn . GtkWindowMarkup $
+    bin
+        Gtk.Window
+        [ #title := "Details"
+        , #modal := True
+        , on #deleteEvent (const (True, DetailClose))
+        , #widthRequest := 400
+        , #heightRequest := 300
+        ]
+      $ container Gtk.Box [#orientation := Gtk.OrientationVertical]
+      $ do
+          boxChild True True 10
+            $ widget Gtk.Label [#label := "Details about something..."]
+          boxChild False False 10
+            $ widget Gtk.Button [#label := "OK", on #clicked DetailClose]
 
-data ConfirmEvent = Yes | No
+  confirmDialogView msg =
+    ireturn . GtkWindowMarkup $
+    bin
+        Gtk.Window
+        [ #title := "Confirm"
+        , #modal := True
+        , #widthRequest := 200
+        , #heightRequest := 100
+        , on #deleteEvent (const (True, No))
+        ]
+      $ container Gtk.Box [#orientation := Gtk.OrientationVertical]
+      $ do
+          boxChild False False 10 $ widget Gtk.Label [#label := msg]
+          boxChild False False 10 $ container Gtk.Box [] $ do
+            boxChild True True 10
+              $ widget Gtk.Button [#label := "No", on #clicked No]
+            boxChild True True 10
+              $ widget Gtk.Button [#label := "Yes", on #clicked Yes]
 
 test :: IO ()
 test = do
@@ -151,63 +221,29 @@ test = do
   fsm <- async (runGtkUserInterface app >> Gtk.mainQuit)
   Gtk.main
   cancel fsm
-
   where
-    app =
-      newWindow #main (mainView "Welcome!")
-      >>> mainLoop
+    app      = (newWindow #main =<<< mainView "Welcome!") >>> mainLoop
 
-    mainLoop =
-      nextEvent #main >>>= \case
-        ShowDetailsClicked -> showDetails >>> mainLoop
-        ExitRequested -> confirmExit >>>= \case
-          True -> destroyWindow #main
-          False ->
-            patchWindow #main (mainView "Thanks for staying around!") 
-            >>> mainLoop
+    mainLoop = nextEvent #main >>>= \case
+      ShowDetailsClicked -> showDetails >>> mainLoop
+      ExitRequested      -> confirmExit >>>= \case
+        True -> destroyWindow #main
+        False ->
+          (patchWindow #main =<<< mainView "Thanks for staying around!") >>> mainLoop
 
     confirmExit =
-      newWindow #confirm (confirmDialogView "Exit?")
-      >>> setTransientFor #confirm #main
-      >>> nextEvent #confirm >>>= \case
-        Yes -> destroyWindow #confirm >>> ireturn True
-        No -> destroyWindow #confirm >>> ireturn False
+      (newWindow #confirm =<<< confirmDialogView "Exit?")
+        >>>  setTransientFor #confirm #main
+        >>>  nextEvent #confirm
+        >>>= \case
+               Yes -> destroyWindow #confirm >>> ireturn True
+               No  -> destroyWindow #confirm >>> ireturn False
 
     showDetails =
-          newWindow #details detailView
-          >>> setTransientFor #details #main
-          >>> nextEvent #details >>>= \case
-            DetailClose -> 
-              patchWindow #main (mainView "Guess those details weren't that great, huh?") 
-              >>> destroyWindow #details
-
-mainView :: Text -> Declarative.Bin Gtk.Window Declarative.Widget MainEvent
-mainView msg =
-  bin Gtk.Window [#title := "Main View", on #deleteEvent (const (True, ExitRequested)), #widthRequest := 400, #heightRequest := 300] $
-    container Gtk.Box [#orientation := Gtk.OrientationVertical] $ do
-      boxChild True True 10 $
-        widget Gtk.Label [#label := msg]
-      boxChild False False 10 $
-        widget Gtk.Button [#label := "Show Details", on #clicked ShowDetailsClicked]
-
-detailView :: Declarative.Bin Gtk.Window Declarative.Widget DetailEvent
-detailView =
-  bin Gtk.Window [#title := "Details", #modal := True, on #deleteEvent (const (True, DetailClose)), #widthRequest := 400, #heightRequest := 300] $
-    container Gtk.Box [#orientation := Gtk.OrientationVertical] $ do
-      boxChild True True 10 $
-        widget Gtk.Label [#label := "Details about something..."]
-      boxChild False False 10 $
-        widget Gtk.Button [#label := "OK", on #clicked DetailClose]
-
-confirmDialogView :: Text -> Declarative.Bin Gtk.Window Declarative.Widget ConfirmEvent
-confirmDialogView msg =
-  bin Gtk.Window [#title := "Confirm", #modal := True, #widthRequest := 200, #heightRequest := 100, on #deleteEvent (const (True, No)) ] $
-    container Gtk.Box [#orientation := Gtk.OrientationVertical] $ do
-      boxChild False False 10 $
-        widget Gtk.Label [#label := msg]
-      boxChild False False 10 $
-        container Gtk.Box [] $ do
-          boxChild True True 10 $
-            widget Gtk.Button [#label := "No", on #clicked No]
-          boxChild True True 10 $
-            widget Gtk.Button [#label := "Yes", on #clicked Yes]
+      (newWindow #details =<<< detailView)
+        >>>  setTransientFor #details #main
+        >>>  nextEvent #details
+        >>>= \case
+               DetailClose ->
+                 (patchWindow #main =<<< mainView "Guess those details weren't that great, huh?")
+                   >>> destroyWindow #details
