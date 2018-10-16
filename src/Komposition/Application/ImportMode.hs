@@ -2,7 +2,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -42,24 +41,24 @@ data ImportFileForm = ImportFileForm
   }
 
 selectFileToImport
-  :: ( Application t m)
-  => Name n
-  -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (FilePath, Bool))
-selectFileToImport gui returnToOrigin = do
+  :: ( Application t m
+     )
+  => t m r r (Maybe (FilePath, Bool))
+selectFileToImport =
   let initialModel = ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
-  enterImport gui initialModel
-  result <- fillForm initialModel ImportFileForm {selectedFile = Nothing, autoSplit = False}
-  case result of
-    Just f -> returnToOrigin (Just f)
-    Nothing -> returnToOrigin Nothing
+  in
+    withNewWindow
+      #import
+      (importView initialModel)
+      (CommandKeyMappedEvent <$> keymaps SImportMode)
+      (fillForm initialModel ImportFileForm {selectedFile = Nothing, autoSplit = False})
   where
     fillForm model mf = do
-      updateImport gui model
-      cmd <- nextEvent gui
+      patchWindow #import (importView model)
+      cmd <- nextEvent #import
       case (cmd, mf) of
-        (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
         (CommandKeyMappedEvent Help  , _) -> do
-          help gui [ModeKeyMap SImportMode (keymaps SImportMode)]
+          help [ModeKeyMap SImportMode (keymaps SImportMode)]
           fillForm model mf
         (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
           ireturn (Just (file, autoSplit))
@@ -71,14 +70,18 @@ selectFileToImport gui returnToOrigin = do
           form { selectedFile = file }
         (ImportAutoSplitSet s, form) ->
           fillForm model { autoSplitValue = s } form { autoSplit = s }
+        (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
+        (WindowClosed, _) -> ireturn Nothing
 
 importSelectedFile
-  :: (UserInterface m, IxMonadIO m, (r .! n) ~ State m s)
+  :: ( Application t m
+     , r ~ (n .== Window (t m) e)
+     )
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
-  -> m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
-importSelectedFile gui project (filepath, autoSplit)
+  -> t m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
+importSelectedFile parent project (filepath, autoSplit)
   | isSupportedVideoFile filepath = do
     let action =
           case autoSplit of
@@ -93,7 +96,7 @@ importSelectedFile gui project (filepath, autoSplit)
                 (current (project ^. projectHistory) ^. proxyVideoSettings)
                 filepath
                 (project ^. projectPath . unProjectPath)
-    result <- progressBar gui "Importing Video" action
+    result <- progressBar parent "Importing Video" action
     ireturn (bimap VideoImportError Left <$> result)
   | isSupportedAudioFile filepath = do
     let action =
@@ -107,12 +110,11 @@ importSelectedFile gui project (filepath, autoSplit)
               importAudioFile
                 filepath
                 (project ^. projectPath . unProjectPath)
-    result <- progressBar gui "Importing Audio" action
+    result <- progressBar parent "Importing Audio" action
     ireturn (bimap AudioImportError Right <$> result)
   | otherwise = do
     _ <-
       dialog
-        gui
         "Unsupported File"
         "The file extension of the file you've selected is not supported."
         [Ok]

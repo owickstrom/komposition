@@ -9,30 +9,47 @@
 
 module Komposition.UserInterface.GtkInterface.WelcomeScreenView
   ( welcomeScreenView
-  ) where
+  )
+where
 
 import           Komposition.Prelude       hiding (on)
 
 import           GI.Gtk                    (Box (..), Button (..), Label (..),
-                                            Orientation (..))
+                                            Orientation (..), Window (..))
 import           GI.Gtk.Declarative
 
-import           Komposition.UserInterface
+import           Komposition.UserInterface (Event(..), Mode(..))
 
-welcomeScreenView :: Widget (Event WelcomeScreenMode)
+welcomeScreenView :: Bin Window Widget (Event WelcomeScreenMode)
 welcomeScreenView =
-  container Box [ #orientation := OrientationVertical
-                , classes ["welcome-screen"]
-                , #widthRequest := 400
-                , #heightRequest := 300
-                ] $ do
-    boxChild False False 0 $ do
-      widget Label [ classes ["title"], #label := "Komposition"]
-    boxChild False False 0 $ do
-      widget Label [ classes ["subtitle"], #label := "The video editor built for screencasters"]
-    boxChild False False 0 $ do
-      container Box [#orientation := OrientationVertical, classes ["actions"]] $ do
-        boxChild False False 0 $
-          widget Button [#label := "Create New Project", on #clicked CreateNewProjectClicked]
-        boxChild False False 0 $
-          widget Button [#label := "Open Existing Project", on #clicked OpenExistingProjectClicked]
+  bin Window []
+    $ container
+        Box
+        [ #orientation := OrientationVertical
+        , classes ["welcome-screen"]
+        , #widthRequest := 400
+        , #heightRequest := 300
+        ]
+    $ do
+        boxChild False False 0
+          $ widget Label [classes ["title"], #label := "Komposition"]
+        boxChild False False 0 $ widget
+          Label
+          [ classes ["subtitle"]
+          , #label := "The video editor built for screencasters"
+          ]
+        boxChild False False 0
+          $ container
+              Box
+              [#orientation := OrientationVertical, classes ["actions"]]
+          $ do
+              boxChild False False 0 $ widget
+                Button
+                [ #label := "Create New Project"
+                , on #clicked CreateNewProjectClicked
+                ]
+              boxChild False False 0 $ widget
+                Button
+                [ #label := "Open Existing Project"
+                , on #clicked OpenExistingProjectClicked
+                ]

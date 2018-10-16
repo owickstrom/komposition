@@ -27,67 +27,63 @@ import           Komposition.VideoSettings
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
-welcomeScreenMode
-  :: Application t m
-  => Name n
-  -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
-welcomeScreenMode gui = do
-  updateWelcomeScreen gui
-  nextEvent gui >>= \case
-    OpenExistingProjectClicked -> do
-      userDir <- iliftIO getUserDocumentsDirectory
-      chooseFile gui (Open Directory) "Open Project Directory" userDir >>= \case
-        Just path' -> do
-          iliftIO (openExistingProject path') >>= \case
-            Left err -> do
-              iliftIO (putStrLn ("Opening existing project failed: " <> show err :: Text))
-              welcomeScreenMode gui
-            Right existingProject' -> toTimelineWithProject gui existingProject'
-        Nothing -> welcomeScreenMode gui
-    CreateNewProjectClicked -> do
-      userDir <- iliftIO getUserDocumentsDirectory
-      chooseFile gui (Save Directory) "Choose Project Directory" userDir >>= \case
-        Just path' ->
-          iliftIO (createNewProject path' initialProject) >>= \case
-            Left err -> do
-              beep gui
-              iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
-              welcomeScreenMode gui
-            Right newProject -> toTimelineWithProject gui newProject
-        Nothing -> welcomeScreenMode gui
-    CommandKeyMappedEvent Cancel -> exit gui
-    CommandKeyMappedEvent Help -> do
-      help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)]
-      welcomeScreenMode gui
+welcomeScreenMode :: Application t m => t m Empty Empty ()
+welcomeScreenMode = do
+  newWindow #welcome welcomeView (CommandKeyMappedEvent <$> keymaps SWelcomeScreenMode)
+  inWelcomeScreenMode
+  where
+    inWelcomeScreenMode = do
+      patchWindow #welcome welcomeView
+      nextEvent #welcome >>= \case
+        OpenExistingProjectClicked -> do
+          userDir <- iliftIO getUserDocumentsDirectory
+          chooseFile #welcome (Open Directory) "Open Project Directory" userDir >>= \case
+            Just path' ->
+              iliftIO (openExistingProject path') >>= \case
+                Left err -> do
+                  iliftIO (putStrLn ("Opening existing project failed: " <> show err :: Text))
+                  inWelcomeScreenMode
+                Right existingProject' -> toTimelineWithProject existingProject'
+            Nothing -> inWelcomeScreenMode
+        CreateNewProjectClicked -> do
+          userDir <- iliftIO getUserDocumentsDirectory
+          chooseFile #welcome (Save Directory) "Choose Project Directory" userDir >>= \case
+            Just path' ->
+              iliftIO (createNewProject path' initialProject) >>= \case
+                Left err -> do
+                  beep #welcome
+                  iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
+                  inWelcomeScreenMode
+                Right newProject -> toTimelineWithProject newProject
+            Nothing -> inWelcomeScreenMode
+        CommandKeyMappedEvent Cancel -> destroyWindow #welcome
+        CommandKeyMappedEvent Help -> do
+          help [ModeKeyMap STimelineMode (keymaps STimelineMode)]
+          inWelcomeScreenMode
 
 toTimelineWithProject
   :: Application t m
-  => Name n
-  -> ExistingProject
-  -> t m (n .== State (t m) 'WelcomeScreenMode) Empty ()
-toTimelineWithProject gui project = do
+  => ExistingProject
+  -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
+toTimelineWithProject project = do
   let model = TimelineModel project initialFocus Nothing (ZoomLevel 1)
-  returnToTimeline gui model
+  destroyWindow #welcome
+  newWindow
+    #timeline
+    (timelineView model)
+    (CommandKeyMappedEvent <$> keymaps STimelineMode)
   runTimeline model
   where
     runTimeline model =
-      timelineMode gui model >>= \case
+      timelineMode #timeline model >>= \case
         TimelineExit ->
-          dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
-            Just Yes -> exit gui
+          dialog "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
+            Just Yes -> destroyWindow #timeline
             Just No -> runTimeline model
             Nothing -> runTimeline model
-        TimelineClose -> returnToWelcomeScreen gui >>> welcomeScreenMode gui
-
-data Confirmation
-  = Yes
-  | No
-  deriving (Show, Eq, Enum)
-
-instance DialogChoice Confirmation where
-  toButtonLabel = \case
-    Yes -> "Yes"
-    No -> "No"
+        TimelineClose -> do
+          destroyWindow #timeline
+          welcomeScreenMode
 
 initialProject :: Project
 initialProject =

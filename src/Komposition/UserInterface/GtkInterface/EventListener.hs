@@ -11,7 +11,6 @@ import qualified Data.HashSet                   as HashSet
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GObject.Functions           as GObject
 import qualified GI.Gtk                         as Gtk
-import qualified GI.Gtk.Declarative             as Declarative
 import qualified GI.Gtk.Declarative.EventSource as Declarative
 
 import           Komposition.KeyMap
@@ -25,7 +24,7 @@ readEvent :: EventListener e -> IO e
 readEvent = readChan . events
 
 subscribeToDeclarativeWidget
-  :: Declarative.Widget e -> Gtk.Widget -> IO (EventListener e)
+  :: Declarative.EventSource s => s e -> Gtk.Widget -> IO (EventListener e)
 subscribeToDeclarativeWidget declWidget gtkWidget = do
   events       <- newChan
   _subscription <- Declarative.subscribe declWidget gtkWidget (writeChan events)
@@ -48,7 +47,7 @@ mergeEvents a b = do
     }
   where readInto c el = forkIO (forever (readEvent el >>= writeChan c))
 
-subscribeKeyEvents :: Gtk.Window -> IO (EventListener KeyCombo)
+subscribeKeyEvents :: Gtk.Widget -> IO (EventListener KeyCombo)
 subscribeKeyEvents w = do
   events <- newChan
   sid <-

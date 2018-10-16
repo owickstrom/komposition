@@ -18,14 +18,14 @@ import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
                                         toggleButtonGetActive)
 import           GI.Gtk.Declarative    as Gtk
 
-import           Komposition.UserInterface
+import           Komposition.UserInterface hiding (importView, Window)
 
-importView :: ImportFileModel -> Widget (Event ImportMode)
+importView :: ImportFileModel -> Bin Window Widget (Event ImportMode)
 importView ImportFileModel {..} =
   bin
     Window
     [ #title := "Import File"
-    , on #destroy (CommandKeyMappedEvent Cancel)
+    , on #deleteEvent (const (True, WindowClosed))
     , #defaultWidth := 300
     ] $
   container Box [classes ["import-view"], #orientation := OrientationVertical] $ do

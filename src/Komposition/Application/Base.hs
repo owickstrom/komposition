@@ -18,8 +18,9 @@ import           Motor.FSM                   as X hiding (Delete, delete)
 
 type Application t m
    = ( IxPointed (t m)
-     , UserInterface (t m)
+     , IxMonad (t m)
      , IxMonadIO (t m)
      , IxMonadTrans t
      , Monad m
+     , WindowUserInterface (t m)
      )
