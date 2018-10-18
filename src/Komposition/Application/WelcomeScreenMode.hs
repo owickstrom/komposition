@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
@@ -22,12 +23,16 @@ import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
-welcomeScreenMode :: Application t m => t m Empty Empty ()
+welcomeScreenMode
+  :: DialogView (WindowMarkup (t m))
+  => Application t m
+  => t m Empty Empty ()
 welcomeScreenMode = do
   newWindow #welcome welcomeView (CommandKeyMappedEvent <$> keymaps SWelcomeScreenMode)
   inWelcomeScreenMode
@@ -56,13 +61,15 @@ welcomeScreenMode = do
                   inWelcomeScreenMode
                 Right newProject -> toTimelineWithProject newProject
             Nothing -> inWelcomeScreenMode
+        WindowClosed -> destroyWindow #welcome
         CommandKeyMappedEvent Cancel -> destroyWindow #welcome
         CommandKeyMappedEvent Help -> do
           help [ModeKeyMap STimelineMode (keymaps STimelineMode)]
           inWelcomeScreenMode
 
 toTimelineWithProject
-  :: Application t m
+  :: DialogView (WindowMarkup (t m))
+  => Application t m
   => ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project = do
@@ -76,11 +83,7 @@ toTimelineWithProject project = do
   where
     runTimeline model =
       timelineMode #timeline model >>= \case
-        TimelineExit ->
-          dialog "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
-            Just Yes -> destroyWindow #timeline
-            Just No -> runTimeline model
-            Nothing -> runTimeline model
+        TimelineExit -> destroyWindow #timeline
         TimelineClose -> do
           destroyWindow #timeline
           welcomeScreenMode

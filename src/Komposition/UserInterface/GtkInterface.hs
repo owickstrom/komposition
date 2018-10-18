@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -26,42 +27,47 @@ module Komposition.UserInterface.GtkInterface
   )
 where
 
-import           Komposition.Prelude                                      hiding (state)
+import           Komposition.Prelude     hiding ( state )
 import qualified Prelude
 
-import           Control.Monad                                            (void)
-import           Control.Monad.Indexed                                    ()
+import           Control.Monad                  ( void )
+import           Control.Monad.Indexed          ( )
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
-import           Data.Row.Records                                         (Empty)
+import           Data.Row.Records               ( Empty )
 import           Data.String
-import qualified Data.Text                                                as Text
-import           Data.Time.Clock                                          (diffTimeToPicoseconds)
-import qualified GI.Gdk                                                   as Gdk
-import qualified GI.GLib.Constants                                        as GLib
-import qualified GI.Gst                                                   as Gst
-import           GI.Gtk                                                   (AttrOp (..))
-import qualified GI.Gtk                                                   as Gtk
-import qualified GI.Gtk.Declarative                                       as Declarative
-import qualified GI.Gtk.Declarative.Bin                                   as Declarative
-import           Motor.FSM                                                hiding
-                                                                           ((:=))
-import qualified Motor.FSM                                                as FSM
+import qualified Data.Text                     as Text
+import           Data.Time.Clock                ( diffTimeToPicoseconds )
+import qualified GI.Gdk                        as Gdk
+import qualified GI.GLib.Constants             as GLib
+import qualified GI.Gst                        as Gst
+import           GI.Gtk                         ( AttrOp(..) )
+import qualified GI.Gtk                        as Gtk
+import qualified GI.Gtk.Declarative            as Declarative
+import           Motor.FSM               hiding ( (:=) )
+import qualified Motor.FSM                     as FSM
 import           Pipes
-import           Pipes.Safe                                               (runSafeT,
-                                                                           tryP)
+import           Pipes.Safe                     ( runSafeT
+                                                , tryP
+                                                )
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
 import           Komposition.Progress
 import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
+import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 
-import qualified Komposition.UserInterface.GtkInterface.HelpView          as View
-import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
-import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
-import qualified Komposition.UserInterface.GtkInterface.TimelineView      as View
-import qualified Komposition.UserInterface.GtkInterface.WelcomeScreenView as View
+import qualified Komposition.UserInterface.GtkInterface.HelpView
+                                               as View
+import qualified Komposition.UserInterface.GtkInterface.ImportView
+                                               as View
+import qualified Komposition.UserInterface.GtkInterface.LibraryView
+                                               as View
+import qualified Komposition.UserInterface.GtkInterface.TimelineView
+                                               as View
+import qualified Komposition.UserInterface.GtkInterface.WelcomeScreenView
+                                               as View
 
 -- initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> IO Gtk.Window
 -- initializeWindow Env {cssPath, screen} obj =
@@ -121,17 +127,6 @@ data GtkWindow event = GtkWindow
   , windowEvents :: EventListener event
   }
 
-data GtkWindowMarkup event where
-   GtkWindowMarkup
-    :: Declarative.BinChild Gtk.Window Declarative.Widget
-    => Declarative.Bin Gtk.Window Declarative.Widget event
-    -> GtkWindowMarkup event
-
-unGtkWindowMarkup
-  :: GtkWindowMarkup event
-  -> Declarative.Bin Gtk.Window Declarative.Widget event
-unGtkWindowMarkup (GtkWindowMarkup decl) = decl
-
 asGtkWindow :: GtkWindow event -> IO Gtk.Window
 asGtkWindow (GtkWindow _ w _) = Gtk.unsafeCastTo Gtk.Window w
 
@@ -180,6 +175,17 @@ instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface
       >>>= \x ->
         destroyWindow name
         >>> ireturn x
+
+  withNewModalWindow parent name markup keymap action =
+    FSM.get parent >>>= \p ->
+      call $
+        newWindow name markup keymap
+        >>> FSM.get name
+        >>>= \w -> irunUI (Gtk.windowSetTransientFor (gtkWidget w) (Just (gtkWidget p)))
+        >>> action
+        >>>= \x ->
+          destroyWindow name
+          >>> ireturn x
 
   nextEvent name =
     FSM.get name >>>= (iliftIO . readEvent . windowEvents)
@@ -273,7 +279,6 @@ instance UserInterfaceMarkup GtkWindowMarkup where
   timelineView = GtkWindowMarkup . View.timelineView
   libraryView = GtkWindowMarkup . View.libraryView
   importView = GtkWindowMarkup . View.importView
-  -- dialogView = GtkWindowMarkup . View.dialogView
   helpView = GtkWindowMarkup . View.helpView
 
 runGtkUserInterface

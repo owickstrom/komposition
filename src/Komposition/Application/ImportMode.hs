@@ -20,13 +20,14 @@ import           Komposition.Application.Base
 
 import           Control.Lens
 import           Data.Row.Records
-import           Data.String                     (fromString)
+import           Data.String                      (fromString)
 
 import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
+import           Komposition.UserInterface.Dialog
 
 import           Komposition.Application.KeyMaps
 
@@ -76,6 +77,7 @@ selectFileToImport =
 importSelectedFile
   :: ( Application t m
      , r ~ (n .== Window (t m) e)
+     , DialogView (WindowMarkup (t m))
      )
   => Name n
   -> ExistingProject
@@ -115,7 +117,10 @@ importSelectedFile parent project (filepath, autoSplit)
   | otherwise = do
     _ <-
       dialog
-        "Unsupported File"
-        "The file extension of the file you've selected is not supported."
-        [Ok]
+        parent
+        DialogProperties
+          { dialogTitle = "Unsupported File"
+          , dialogMessage = "The file extension of the file you've selected is not supported."
+          , dialogChoices = [Ok]
+          }
     ireturn Nothing

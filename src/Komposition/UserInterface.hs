@@ -145,24 +145,6 @@ data ModeKeyMap where
 
 type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
 
-class Enum c => DialogChoice c where
-  toButtonLabel :: c -> Text
-
-data Ok = Ok deriving (Eq, Enum)
-
-instance DialogChoice Ok where
-  toButtonLabel Ok = "OK"
-
-data Confirmation
-  = Yes
-  | No
-  deriving (Show, Eq, Enum)
-
-instance DialogChoice Confirmation where
-  toButtonLabel = \case
-    Yes -> "Yes"
-    No -> "No"
-
 data FileChooserType
   = File
   | Directory
@@ -204,10 +186,6 @@ class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
 
-
-data DialogEvent c
-  = DialogChoiceSelected c
-  | DialogClosed
 
 class UserInterfaceMarkup markup where
   welcomeView :: markup (Event WelcomeScreenMode)
@@ -254,6 +232,17 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> m r' r' a
     -> m r r a
 
+  withNewModalWindow
+    :: ( HasType parent (Window m parentEvent) r
+       , r' ~ (modal .== Window m event)
+       )
+    => Name parent
+    -> Name modal
+    -> WindowMarkup m event
+    -> KeyMap event
+    -> m r' r' a
+    -> m r r a
+
   nextEvent
     :: HasType n (Window m e) r
     => Name n
@@ -289,18 +278,8 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> VideoSettings
     -> m r r (Maybe ())
 
-dialog
-  :: DialogChoice c
-  => WindowUserInterface m
-  => Text -- ^ Dialog window title.
-  -> Text -- ^ Dialog message.
-  -> [c] -- ^ Choices of the dialog, rendered as buttons.
-  -> m r r (Maybe c)
-dialog = undefined
-
 prompt
-  :: WindowUserInterface m
-  => Text -- ^ Prompt window title.
+  :: Text -- ^ Prompt window title.
   -> Text -- ^ Prompt message.
   -> Text -- ^ Button text for confirming the choice.
   -> PromptMode ret -- ^ Type of prompt, decides the return value type.

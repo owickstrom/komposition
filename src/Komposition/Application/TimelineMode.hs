@@ -36,6 +36,7 @@ import           Komposition.Project
 import           Komposition.Project.Store
 import qualified Komposition.Render.Composition      as Render
 import qualified Komposition.Render.FFmpeg           as Render
+import           Komposition.UserInterface.Dialog
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
@@ -46,7 +47,10 @@ data TimelineModeResult
   | TimelineClose
 
 timelineMode
-  :: (Application t m, r ~ (n .== (Window (t m) (Event TimelineMode))))
+  :: ( Application t m
+     , r ~ (n .== (Window (t m) (Event TimelineMode)))
+     , DialogView (WindowMarkup (t m))
+     )
   => Name n
   -> TimelineModel
   -> t m r r TimelineModeResult
@@ -59,14 +63,18 @@ timelineMode gui model = do
       model & statusMessage ?~ msg & timelineMode gui
     resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
     confirmExit =
-      dialog "Confirm Exit"
-              "Are you sure you want to exit Komposition?"
-              [Yes, No]
+      dialog
+          gui
+          DialogProperties
+            { dialogTitle   = "Confirm Exit"
+            , dialogMessage = "Are you sure you want to exit Komposition?"
+            , dialogChoices = [No, Yes]
+            }
         >>= \case
               Just Yes -> ireturn TimelineExit
               Just No  -> continue
               Nothing  -> continue
-    onNextEvent        = \case
+    onNextEvent = \case
       CommandKeyMappedEvent (FocusCommand cmd) ->
         case
             modifyFocus (currentProject model ^. timeline)
@@ -174,8 +182,8 @@ timelineMode gui model = do
       CommandKeyMappedEvent Help ->
         help [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
       CommandKeyMappedEvent Exit -> confirmExit
-      ZoomLevelChanged zl -> model & zoomLevel .~ zl & timelineMode gui
-      WindowClosed -> confirmExit
+      ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
+      WindowClosed               -> confirmExit
     printUnexpectedFocusError err cmd = case err of
       UnhandledFocusModification{} -> iliftIO
         (printf "Error: could not handle focus modification %s\n"
@@ -184,7 +192,10 @@ timelineMode gui model = do
       _ -> ireturn ()
 
 insertIntoTimeline
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m
+     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , DialogView (WindowMarkup (t m))
+     )
   => Name n
   -> TimelineModel
   -> InsertType
@@ -310,7 +321,10 @@ noAssetsMessage mt =
       SAudio -> "audio"
 
 selectAssetAndInsert
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m
+     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , DialogView (WindowMarkup (t m))
+     )
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -331,7 +345,10 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       Nothing -> onNoAssets gui SAudio
   where
     onNoAssets
-      :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+      :: ( Application t m
+         , r ~ (n .== Window (t m) (Event TimelineMode))
+         , DialogView (WindowMarkup (t m))
+         )
       => Name n
       -> SMediaType mt
       -> t m r r TimelineModeResult
@@ -340,7 +357,10 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       model & statusMessage ?~ noAssetsMessage mt & timelineMode gui'
 
 insertSelectedAssets
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m
+     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , DialogView (WindowMarkup (t m))
+     )
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -386,7 +406,10 @@ toVideoClip model videoAsset =
         (model ^. existingProject . projectPath . unProjectPath)
 
 addImportedAssetsToLibrary
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m
+     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , DialogView (WindowMarkup (t m))
+     )
   => Name n
   -> TimelineModel
   -> Maybe (FilePath, Bool)
@@ -396,7 +419,13 @@ addImportedAssetsToLibrary gui model (Just selected) = do
     importSelectedFile gui (model ^. existingProject) selected >>>= \case
       Just (Left err) -> do
         iliftIO (print err)
-        _ <- dialog "Import Failed!" (show err) [Ok]
+        _ <- dialog
+          gui
+          DialogProperties
+            { dialogTitle   = "Import Failed!"
+            , dialogMessage = show err
+            , dialogChoices = [Ok]
+            }
         ireturn model
       Just (Right (Left vs)) ->
         model

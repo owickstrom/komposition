@@ -99,7 +99,6 @@
 }
 
 .library,
-.dialog,
 .prompt,
 .progress-bar,
 .help-container {
@@ -151,4 +150,17 @@
 }
 .welcome-screen .actions button {
   margin: .5em 0;
+}
+
+.dialog {
+  padding: 10pt;
+}
+.dialog .choices {
+  margin-top: 10pt;
+}
+.dialog .choice {
+  margin-left: 2pt;
+}
+.dialog .choice:first-child {
+  margin-left: 0;
 }

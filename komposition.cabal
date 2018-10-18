@@ -56,8 +56,11 @@ library
                       , Komposition.Render.Composition
                       , Komposition.Render.FFmpeg
                       , Komposition.UserInterface
+                      , Komposition.UserInterface.Dialog
                       , Komposition.UserInterface.GtkInterface
+                      , Komposition.UserInterface.GtkInterface.DialogView
                       , Komposition.UserInterface.GtkInterface.EventListener
+                      , Komposition.UserInterface.GtkInterface.GtkWindowMarkup
                       , Komposition.UserInterface.GtkInterface.HelpView
                       , Komposition.UserInterface.GtkInterface.ImportView
                       , Komposition.UserInterface.GtkInterface.LibraryView

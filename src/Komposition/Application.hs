@@ -18,9 +18,11 @@ import           Komposition.Application.Base
 import           Data.Row.Records (Empty)
 
 import           Komposition.Application.WelcomeScreenMode
+import           Komposition.UserInterface.Dialog
 
 komposition
   :: Application t m
+  => DialogView (WindowMarkup (t m))
   => WindowUserInterface (t m)
   => t m Empty Empty ()
 komposition = welcomeScreenMode
