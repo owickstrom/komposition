@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -28,6 +29,7 @@ import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.UserInterface.Dialog
+import           Komposition.UserInterface.Help
 
 import           Komposition.Application.KeyMaps
 
@@ -58,9 +60,10 @@ selectFileToImport =
       patchWindow #import (importView model)
       cmd <- nextEvent #import
       case (cmd, mf) of
-        (CommandKeyMappedEvent Help  , _) -> do
-          help [ModeKeyMap SImportMode (keymaps SImportMode)]
-          fillForm model mf
+        (CommandKeyMappedEvent Help  , _) ->
+          help #import [ModeKeyMap SImportMode (keymaps SImportMode)] >>>= \case
+            Just HelpClosed -> fillForm model mf
+            Nothing -> fillForm model mf
         (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
           ireturn (Just (file, autoSplit))
         (ImportClicked          , form) -> fillForm model form

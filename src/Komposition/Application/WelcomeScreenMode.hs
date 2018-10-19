@@ -28,6 +28,7 @@ import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
+import           Komposition.UserInterface.Help
 
 welcomeScreenMode
   :: Application t m
@@ -72,8 +73,9 @@ welcomeScreenMode = do
         WindowClosed -> destroyWindow #welcome
         CommandKeyMappedEvent Cancel -> destroyWindow #welcome
         CommandKeyMappedEvent Help -> do
-          help [ModeKeyMap STimelineMode (keymaps STimelineMode)]
-          inWelcomeScreenMode
+          help #welcome [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
+            Just HelpClosed -> inWelcomeScreenMode
+            Nothing -> inWelcomeScreenMode
 
 toTimelineWithProject
   :: Application t m

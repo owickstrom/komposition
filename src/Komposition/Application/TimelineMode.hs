@@ -37,6 +37,7 @@ import           Komposition.Project.Store
 import qualified Komposition.Render.Composition      as Render
 import qualified Komposition.Render.FFmpeg           as Render
 import           Komposition.UserInterface.Dialog
+import           Komposition.UserInterface.Help
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
@@ -47,9 +48,7 @@ data TimelineModeResult
   | TimelineClose
 
 timelineMode
-  :: ( Application t m
-     , r ~ (n .== (Window (t m) (Event TimelineMode)))
-     )
+  :: (Application t m, r ~ (n .== (Window (t m) (Event TimelineMode))))
   => Name n
   -> TimelineModel
   -> t m r r TimelineModeResult
@@ -179,7 +178,9 @@ timelineMode gui model = do
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
       CommandKeyMappedEvent Cancel       -> continue
       CommandKeyMappedEvent Help ->
-        help [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
+        help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
+          Just HelpClosed -> continue
+          Nothing         -> continue
       CommandKeyMappedEvent Exit -> confirmExit
       ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
       WindowClosed               -> confirmExit
@@ -191,9 +192,7 @@ timelineMode gui model = do
       _ -> ireturn ()
 
 insertIntoTimeline
-  :: ( Application t m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
-     )
+  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
   => Name n
   -> TimelineModel
   -> InsertType
@@ -244,22 +243,18 @@ insertIntoTimeline gui model type' position =
   where continue = timelineMode gui model
 
 insertGap
-  :: ( Application t m
-     , HasType parent (Window (t m) parentEvent) r
-     )
+  :: (Application t m, HasType parent (Window (t m) parentEvent) r)
   => Name parent
   -> TimelineModel
   -> SMediaType mt
   -> InsertPosition
   -> t m r r TimelineModel
 insertGap parent model mediaType' position = do
-  gapDuration <-
-    prompt
-      parent
-      "Insert Gap"
-      "Please specify a gap duration in seconds."
-      "Insert Gap"
-      (PromptNumber (0.1, 10e10, 0.1))
+  gapDuration <- prompt parent
+                        "Insert Gap"
+                        "Please specify a gap duration in seconds."
+                        "Insert Gap"
+                        (PromptNumber (0.1, 10e10, 0.1))
   let gapInsertion seconds = case mediaType' of
         SVideo ->
           (InsertVideoParts [VideoGap () (durationFromSeconds seconds)])
@@ -325,9 +320,7 @@ noAssetsMessage mt =
       SAudio -> "audio"
 
 selectAssetAndInsert
-  :: ( Application t m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
-     )
+  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -348,9 +341,7 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       Nothing -> onNoAssets gui SAudio
   where
     onNoAssets
-      :: ( Application t m
-         , r ~ (n .== Window (t m) (Event TimelineMode))
-         )
+      :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
       => Name n
       -> SMediaType mt
       -> t m r r TimelineModeResult
@@ -359,9 +350,7 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       model & statusMessage ?~ noAssetsMessage mt & timelineMode gui'
 
 insertSelectedAssets
-  :: ( Application t m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
-     )
+  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -407,9 +396,7 @@ toVideoClip model videoAsset =
         (model ^. existingProject . projectPath . unProjectPath)
 
 addImportedAssetsToLibrary
-  :: ( Application t m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
-     )
+  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
   => Name n
   -> TimelineModel
   -> Maybe (FilePath, Bool)

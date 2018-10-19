@@ -17,6 +17,7 @@ import           Komposition.Library
 import           Komposition.MediaType
 
 import           Komposition.Application.KeyMaps
+import           Komposition.UserInterface.Help
 
 selectAssetFromList
   :: ( Application t m
@@ -39,7 +40,7 @@ selectAssetFromList model = do
     LibrarySelectionConfirmed    -> ireturn (Just (selectedAssets model))
     CommandKeyMappedEvent Cancel -> ireturn Nothing
     CommandKeyMappedEvent Help ->
-      help [ModeKeyMap SLibraryMode (keymaps SLibraryMode)]
+      help #library [ModeKeyMap SLibraryMode (keymaps SLibraryMode)]
         >>> continueWith model
     WindowClosed -> ireturn Nothing
   where continueWith = selectAssetFromList

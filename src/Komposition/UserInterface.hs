@@ -191,8 +191,6 @@ class UserInterfaceMarkup markup where
   timelineView :: TimelineModel -> markup (Event TimelineMode)
   libraryView :: SelectAssetsModel mediaType -> markup (Event LibraryMode)
   importView :: ImportFileModel -> markup (Event ImportMode)
-  -- dialogView :: DialogChoice c => Text -> [c] -> markup (DialogEvent c)
-  helpView :: Typeable mode => [ModeKeyMap] -> markup (Event mode)
 
 class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   type Window m :: Type -> Type
@@ -285,9 +283,3 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
     -> VideoSettings
     -> m r r (Maybe ())
-
-help
-  :: WindowUserInterface m
-  => [ModeKeyMap]
-  -> m r r ()
-help = undefined

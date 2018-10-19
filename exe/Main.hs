@@ -6,6 +6,7 @@ import           Komposition.Application
 import           Komposition.Import.Video
 import           Komposition.UserInterface.GtkInterface
 import           Komposition.UserInterface.GtkInterface.DialogView ()
+import           Komposition.UserInterface.GtkInterface.HelpView ()
 import           Paths_komposition
 
 main :: IO ()

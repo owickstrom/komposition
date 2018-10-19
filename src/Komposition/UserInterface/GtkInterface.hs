@@ -60,7 +60,6 @@ import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 
-import qualified Komposition.UserInterface.GtkInterface.HelpView          as View
 import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
 import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
 import qualified Komposition.UserInterface.GtkInterface.TimelineView      as View
@@ -303,7 +302,6 @@ instance UserInterfaceMarkup GtkWindowMarkup where
   timelineView = GtkWindowMarkup . View.timelineView
   libraryView = GtkWindowMarkup . View.libraryView
   importView = GtkWindowMarkup . View.importView
-  helpView = GtkWindowMarkup . View.helpView
 
 runGtkUserInterface
   :: FilePath -> GtkUserInterface (ReaderT Env IO) Empty Empty () -> IO ()

@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
 module Komposition.Application.Base
   ( (>>)
   , (>>=)
@@ -20,6 +21,7 @@ import           Control.Monad.Indexed.IO      as X
 import           Control.Monad.Indexed.Trans   as X
 import           Komposition.UserInterface     as X
 import           Komposition.UserInterface.Dialog
+import           Komposition.UserInterface.Help
 import           Motor.FSM                     as X
                                          hiding ( Delete
                                                 , delete
@@ -39,4 +41,5 @@ type Application t m
      , Monad m
      , WindowUserInterface (t m)
      , DialogView (WindowMarkup (t m))
+     , HelpView (WindowMarkup (t m))
      )
