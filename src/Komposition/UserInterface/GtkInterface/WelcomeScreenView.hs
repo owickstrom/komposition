@@ -22,7 +22,9 @@ import           Komposition.UserInterface (Event(..), Mode(..))
 
 welcomeScreenView :: Bin Window Widget (Event WelcomeScreenMode)
 welcomeScreenView =
-  bin Window []
+  bin Window [ #title := "Komposition"
+             , on #deleteEvent (const (True, WindowClosed))
+             ]
     $ container
         Box
         [ #orientation := OrientationVertical

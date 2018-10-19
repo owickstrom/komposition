@@ -153,10 +153,6 @@ data FileChooserMode
   = Open FileChooserType
   | Save FileChooserType
 
-data PromptMode ret where
-  NumberPrompt :: (Double, Double) -> PromptMode Double
-  TextPrompt :: PromptMode Text
-
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
@@ -182,10 +178,13 @@ data SelectAssetsModel mt = SelectAssetsModel
   , selectedAssets :: [Asset mt]
   }
 
+data PromptMode ret where
+  PromptNumber :: (Double, Double, Double) -> PromptMode Double
+  PromptText :: PromptMode Text
+
 class MonadFSM m =>
       UserInterface m where
   type State m :: Mode -> Type
-
 
 class UserInterfaceMarkup markup where
   welcomeView :: markup (Event WelcomeScreenMode)
@@ -256,6 +255,15 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   beep :: Name n -> m r r ()
 
+  prompt
+    :: HasType n (Window m event) r
+    => Name n
+    -> Text -- ^ Prompt window title.
+    -> Text -- ^ Prompt message.
+    -> Text -- ^ Button text for confirming the choice.
+    -> PromptMode ret -- ^ Type of prompt, decides the return value type.
+    -> m r r (Maybe ret)
+
   -- TODO: Move these to separate functions or widgets
 
   chooseFile
@@ -277,14 +285,6 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
     -> VideoSettings
     -> m r r (Maybe ())
-
-prompt
-  :: Text -- ^ Prompt window title.
-  -> Text -- ^ Prompt message.
-  -> Text -- ^ Button text for confirming the choice.
-  -> PromptMode ret -- ^ Type of prompt, decides the return value type.
-  -> m r r (Maybe ret)
-prompt = undefined
 
 help
   :: WindowUserInterface m

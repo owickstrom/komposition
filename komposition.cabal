@@ -58,6 +58,7 @@ library
                       , Komposition.UserInterface
                       , Komposition.UserInterface.Dialog
                       , Komposition.UserInterface.GtkInterface
+                      , Komposition.UserInterface.GtkInterface.CustomWidget
                       , Komposition.UserInterface.GtkInterface.DialogView
                       , Komposition.UserInterface.GtkInterface.EventListener
                       , Komposition.UserInterface.GtkInterface.GtkWindowMarkup

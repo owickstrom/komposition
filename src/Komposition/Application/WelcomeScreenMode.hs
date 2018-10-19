@@ -14,6 +14,7 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
+import           Control.Lens
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
 import           System.Directory
@@ -23,15 +24,13 @@ import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
-import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
 welcomeScreenMode
-  :: DialogView (WindowMarkup (t m))
-  => Application t m
+  :: Application t m
   => t m Empty Empty ()
 welcomeScreenMode = do
   newWindow #welcome welcomeView (CommandKeyMappedEvent <$> keymaps SWelcomeScreenMode)
@@ -50,16 +49,25 @@ welcomeScreenMode = do
                   inWelcomeScreenMode
                 Right existingProject' -> toTimelineWithProject existingProject'
             Nothing -> inWelcomeScreenMode
-        CreateNewProjectClicked -> do
-          userDir <- iliftIO getUserDocumentsDirectory
-          chooseFile #welcome (Save Directory) "Choose Project Directory" userDir >>= \case
-            Just path' ->
-              iliftIO (createNewProject path' initialProject) >>= \case
-                Left err -> do
-                  beep #welcome
-                  iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
-                  inWelcomeScreenMode
-                Right newProject -> toTimelineWithProject newProject
+        CreateNewProjectClicked ->
+          prompt
+            #welcome
+            "New Project Name"
+            "What do you want to name your new project?"
+            "OK"
+            PromptText >>>= \case
+            Just projectName' -> do
+              userDir <- iliftIO getUserDocumentsDirectory
+              let defaultDir = userDir
+              chooseFile #welcome (Save Directory) "Choose Project Directory" defaultDir >>= \case
+                Just path' ->
+                  iliftIO (createNewProject path' (initialProject & projectName .~ projectName')) >>= \case
+                    Left err -> do
+                      beep #welcome
+                      iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
+                      inWelcomeScreenMode
+                    Right newProject -> toTimelineWithProject newProject
+                Nothing -> inWelcomeScreenMode
             Nothing -> inWelcomeScreenMode
         WindowClosed -> destroyWindow #welcome
         CommandKeyMappedEvent Cancel -> destroyWindow #welcome
@@ -68,8 +76,7 @@ welcomeScreenMode = do
           inWelcomeScreenMode
 
 toTimelineWithProject
-  :: DialogView (WindowMarkup (t m))
-  => Application t m
+  :: Application t m
   => ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project = do

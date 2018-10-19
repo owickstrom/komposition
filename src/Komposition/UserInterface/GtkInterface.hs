@@ -27,29 +27,31 @@ module Komposition.UserInterface.GtkInterface
   )
 where
 
-import           Komposition.Prelude     hiding ( state )
+import           Komposition.Prelude                                      hiding (state)
 import qualified Prelude
 
-import           Control.Monad                  ( void )
-import           Control.Monad.Indexed          ( )
+import           Control.Monad                                            (void)
+import           Control.Monad.Indexed                                    ()
 import           Control.Monad.Indexed.Trans
 import           Control.Monad.Reader
-import           Data.Row.Records               ( Empty )
+import qualified Data.HashSet                                             as HashSet
+import           Data.Row.Records                                         (Empty,
+                                                                           HasType)
 import           Data.String
-import qualified Data.Text                     as Text
-import           Data.Time.Clock                ( diffTimeToPicoseconds )
-import qualified GI.Gdk                        as Gdk
-import qualified GI.GLib.Constants             as GLib
-import qualified GI.Gst                        as Gst
-import           GI.Gtk                         ( AttrOp(..) )
-import qualified GI.Gtk                        as Gtk
-import qualified GI.Gtk.Declarative            as Declarative
-import           Motor.FSM               hiding ( (:=) )
-import qualified Motor.FSM                     as FSM
+import qualified Data.Text                                                as Text
+import           Data.Time.Clock                                          (diffTimeToPicoseconds)
+import qualified GI.Gdk                                                   as Gdk
+import qualified GI.GLib.Constants                                        as GLib
+import qualified GI.Gst                                                   as Gst
+import           GI.Gtk                                                   (AttrOp (..))
+import qualified GI.Gtk                                                   as Gtk
+import qualified GI.Gtk.Declarative                                       as Declarative
+import           Motor.FSM                                                hiding
+                                                                           ((:=))
+import qualified Motor.FSM                                                as FSM
 import           Pipes
-import           Pipes.Safe                     ( runSafeT
-                                                , tryP
-                                                )
+import           Pipes.Safe                                               (runSafeT,
+                                                                           tryP)
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
@@ -58,16 +60,11 @@ import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 
-import qualified Komposition.UserInterface.GtkInterface.HelpView
-                                               as View
-import qualified Komposition.UserInterface.GtkInterface.ImportView
-                                               as View
-import qualified Komposition.UserInterface.GtkInterface.LibraryView
-                                               as View
-import qualified Komposition.UserInterface.GtkInterface.TimelineView
-                                               as View
-import qualified Komposition.UserInterface.GtkInterface.WelcomeScreenView
-                                               as View
+import qualified Komposition.UserInterface.GtkInterface.HelpView          as View
+import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
+import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
+import qualified Komposition.UserInterface.GtkInterface.TimelineView      as View
+import qualified Komposition.UserInterface.GtkInterface.WelcomeScreenView as View
 
 -- initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> IO Gtk.Window
 -- initializeWindow Env {cssPath, screen} obj =
@@ -155,12 +152,14 @@ instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface
         case Declarative.patch (unGtkWindowMarkup (markup w)) decl of
           Declarative.Modify f -> irunUI $ do
             f =<< Gtk.toWidget (gtkWidget w)
+            #showAll (gtkWidget w)
             return w
           Declarative.Replace create' -> irunUI $ do
             Gtk.widgetDestroy (gtkWidget w)
             gtkWidget' <- create'
             gtkWindow' <- Gtk.unsafeCastTo Gtk.Window gtkWidget'
             viewEvents <- subscribeToDeclarativeWidget decl gtkWidget'
+            #showAll gtkWidget'
             return (GtkWindow (GtkWindowMarkup decl) gtkWindow' viewEvents)
           Declarative.Keep -> return w
 
@@ -204,6 +203,31 @@ instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface
         childWindow <- asGtkWindow child'
         parentWindow <- asGtkWindow parent
         Gtk.windowSetTransientFor childWindow (Just parentWindow)
+
+  prompt n title message okText mode =
+    let cancelResponse = fromIntegral (fromEnum Gtk.ResponseTypeCancel)
+        acceptResponse = fromIntegral (fromEnum Gtk.ResponseTypeAccept)
+        okResponse = fromIntegral (fromEnum Gtk.ResponseTypeOk)
+        setUp d content = do
+          void (Gtk.dialogAddButton d "Cancel" cancelResponse)
+          void (Gtk.dialogAddButton d okText okResponse)
+          case mode of
+            PromptNumber (min', max', step) -> do
+              input <- Gtk.spinButtonNewWithRange min' max' step
+              Gtk.boxPackStart content input True True 10
+              void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
+              return (Just <$> Gtk.spinButtonGetValue input)
+            PromptText -> do
+              input <- Gtk.entryNew
+              Gtk.boxPackStart content input True True 10
+              void (Gtk.onEntryActivate input (Gtk.dialogResponse d okResponse))
+              return (Just <$> Gtk.entryGetText input)
+        toResponse _ getReturnValue r
+          | r `elem` [acceptResponse, okResponse] = getReturnValue
+          | otherwise = return Nothing
+        tearDown d _ = #destroy d
+        classes = HashSet.fromList ["prompt"]
+    in inNewModalDialog n ModalDialog { message = Just message, .. }
 
   chooseFile n mode title defaultDir =
     FSM.get n >>>= \w -> iliftIO $ do
@@ -333,3 +357,46 @@ loadCss Env { cssPath, screen } window' = do
           runUI (Gtk.styleContextRemoveProviderForScreen screen p)
         _ -> return ()
       putMVar var (Just cssProvider)
+
+data ModalDialog ctx t = ModalDialog
+  { title      :: Text
+  , message    :: Maybe Text
+  , classes    :: Declarative.ClassSet
+  , setUp      :: Gtk.Dialog -> Gtk.Box -> IO ctx
+  , toResponse :: Gtk.Dialog -> ctx -> Int32 -> IO (Maybe t)
+  , tearDown   :: Gtk.Dialog -> ctx -> IO ()
+  }
+
+inNewModalDialog
+  :: (IxMonadIO m, MonadFSM m)
+  => HasType n (GtkWindow event) r
+  => Name n
+  -> ModalDialog ctx t
+  -> m r r (Maybe t)
+inNewModalDialog n ModalDialog {..} =
+  FSM.get n >>>= \parentWindow -> iliftIO $ do
+    response <- newEmptyMVar
+    runUI $ do
+      d <- Gtk.new
+        Gtk.Dialog
+        [ #title := title
+        , #transientFor := gtkWidget parentWindow
+        , #modal := True
+        ]
+
+      content      <- Gtk.dialogGetContentArea d
+      contentStyle <- Gtk.widgetGetStyleContext content
+      traverse_ (Gtk.styleContextAddClass contentStyle) (HashSet.toList classes)
+
+      case message of
+        Just m -> do
+          label <- Gtk.new Gtk.Label []
+          Gtk.labelSetLabel label m
+          Gtk.boxPackStart content label True True 10
+        Nothing -> return ()
+
+      ctx <- setUp d content
+      #showAll content
+      putMVar response =<< toResponse d ctx =<< #run d
+      tearDown d ctx
+    takeMVar response

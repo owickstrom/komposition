@@ -49,7 +49,6 @@ data TimelineModeResult
 timelineMode
   :: ( Application t m
      , r ~ (n .== (Window (t m) (Event TimelineMode)))
-     , DialogView (WindowMarkup (t m))
      )
   => Name n
   -> TimelineModel
@@ -194,7 +193,6 @@ timelineMode gui model = do
 insertIntoTimeline
   :: ( Application t m
      , r ~ (n .== Window (t m) (Event TimelineMode))
-     , DialogView (WindowMarkup (t m))
      )
   => Name n
   -> TimelineModel
@@ -226,12 +224,12 @@ insertIntoTimeline gui model type' position =
       (InsertClip Nothing, Just FocusedAudioPart{}) ->
         selectAssetAndInsert gui model SAudio position
       (InsertGap (Just mt), Just FocusedParallel{}) -> case mt of
-        Video -> insertGap model SVideo position >>>= timelineMode gui
-        Audio -> insertGap model SAudio position >>>= timelineMode gui
+        Video -> insertGap gui model SVideo position >>>= timelineMode gui
+        Audio -> insertGap gui model SAudio position >>>= timelineMode gui
       (InsertGap Nothing, Just FocusedVideoPart{}) ->
-        insertGap model SVideo position >>>= timelineMode gui
+        insertGap gui model SVideo position >>>= timelineMode gui
       (InsertGap Nothing, Just FocusedAudioPart{}) ->
-        insertGap model SAudio position >>>= timelineMode gui
+        insertGap gui model SAudio position >>>= timelineMode gui
       (c, Just f) -> do
         let
           msg =
@@ -246,16 +244,22 @@ insertIntoTimeline gui model type' position =
   where continue = timelineMode gui model
 
 insertGap
-  :: Application t m
-  => TimelineModel
+  :: ( Application t m
+     , HasType parent (Window (t m) parentEvent) r
+     )
+  => Name parent
+  -> TimelineModel
   -> SMediaType mt
   -> InsertPosition
   -> t m r r TimelineModel
-insertGap model mediaType' position = do
-  gapDuration <- prompt "Insert Gap"
-                        "Please specify a gap duration in seconds."
-                        "Insert Gap"
-                        (NumberPrompt (0.1, 10e10))
+insertGap parent model mediaType' position = do
+  gapDuration <-
+    prompt
+      parent
+      "Insert Gap"
+      "Please specify a gap duration in seconds."
+      "Insert Gap"
+      (PromptNumber (0.1, 10e10, 0.1))
   let gapInsertion seconds = case mediaType' of
         SVideo ->
           (InsertVideoParts [VideoGap () (durationFromSeconds seconds)])
@@ -323,7 +327,6 @@ noAssetsMessage mt =
 selectAssetAndInsert
   :: ( Application t m
      , r ~ (n .== Window (t m) (Event TimelineMode))
-     , DialogView (WindowMarkup (t m))
      )
   => Name n
   -> TimelineModel
@@ -347,7 +350,6 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
     onNoAssets
       :: ( Application t m
          , r ~ (n .== Window (t m) (Event TimelineMode))
-         , DialogView (WindowMarkup (t m))
          )
       => Name n
       -> SMediaType mt
@@ -359,7 +361,6 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
 insertSelectedAssets
   :: ( Application t m
      , r ~ (n .== Window (t m) (Event TimelineMode))
-     , DialogView (WindowMarkup (t m))
      )
   => Name n
   -> TimelineModel
@@ -408,7 +409,6 @@ toVideoClip model videoAsset =
 addImportedAssetsToLibrary
   :: ( Application t m
      , r ~ (n .== Window (t m) (Event TimelineMode))
-     , DialogView (WindowMarkup (t m))
      )
   => Name n
   -> TimelineModel
