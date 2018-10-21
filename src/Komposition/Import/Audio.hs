@@ -159,8 +159,8 @@ importAudioFileAutoSplit audioFilePath outDir = do
   bracket
     (do
       canonical <- liftIO getCanonicalTemporaryDirectory
-      liftIO createTempDirectory canonical "komposition.audio.import")
-    removeDirectoryRecursive
+      liftIO $ createTempDirectory canonical "komposition.audio.import")
+    (liftIO . removeDirectoryRecursive)
     $ \tempDir -> do
       fullLength <- getAudioFileDuration audioFilePath
       -- TODO: use file md5 digest in filename (or for a subdirectory) to avoid collisions

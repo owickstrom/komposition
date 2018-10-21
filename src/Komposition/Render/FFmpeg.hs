@@ -338,8 +338,8 @@ renderComposition videoSettings videoSource target c@(Composition video audio) =
   bracket
     (do
       canonical <- liftIO getCanonicalTemporaryDirectory
-      liftIO (createTempDirectory canonical "komposition.render"))
-    removeDirectoryRecursive
+      liftIO $ createTempDirectory canonical "komposition.render")
+    (liftIO . removeDirectoryRecursive)
     $ \tmpDir -> do
       videoInput <-
         liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
