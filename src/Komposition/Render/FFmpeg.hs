@@ -18,7 +18,7 @@ module Komposition.Render.FFmpeg
   )
 where
 
-import           Komposition.Prelude
+import           Komposition.Prelude        hiding (bracket)
 import qualified Prelude
 
 import           Control.Lens

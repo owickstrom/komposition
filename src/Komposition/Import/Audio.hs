@@ -4,11 +4,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Komposition.Import.Audio where
 
-import           Komposition.Prelude        hiding (catch)
+import           Komposition.Prelude        hiding (bracket, catch)
 import qualified Prelude
 
 import qualified Codec.FFmpeg.Probe     as Probe
-import           Control.Monad.Catch
+import           Control.Monad.Catch        hiding (bracket)
 import qualified Data.Char              as Char
 import qualified Data.Text              as Text
 import           Data.Time.Clock
