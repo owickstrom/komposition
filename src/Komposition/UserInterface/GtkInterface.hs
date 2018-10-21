@@ -65,43 +65,6 @@ import qualified Komposition.UserInterface.GtkInterface.LibraryView       as Vie
 import qualified Komposition.UserInterface.GtkInterface.TimelineView      as View
 import qualified Komposition.UserInterface.GtkInterface.WelcomeScreenView as View
 
--- initializeWindow :: Typeable mode => Env -> Declarative.Widget (Event mode) -> IO Gtk.Window
--- initializeWindow Env {cssPath, screen} obj =
---   runUI $ do
---     window' <- Gtk.windowNew Gtk.WindowTypeToplevel
---     Gtk.windowSetTitle window' "Komposition"
---     void $ Gtk.onWidgetDestroy window' Gtk.mainQuit
---     cssProviderVar <- newMVar Nothing
---     reloadCssProvider cssProviderVar
---     void $
---       window' `Gtk.onWidgetKeyPressEvent` \eventKey -> do
---         keyVal <- Gdk.getEventKeyKeyval eventKey
---         case keyVal of
---           Gdk.KEY_F5 -> reloadCssProvider cssProviderVar
---           _          -> return ()
---         return False
---     windowStyle <- Gtk.widgetGetStyleContext window'
---     Gtk.styleContextAddClass windowStyle "komposition"
---     Gtk.containerAdd window' =<< Gtk.toWidget =<< Declarative.create obj
---     Gtk.widgetShowAll window'
---     return window'
---   where
---     cssPriority = fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER
---     reloadCssProvider var =
---       void . forkIO $ do
---         cssProvider <-
---           runUI $ do
---             p <- Gtk.cssProviderNew
---             flip catch (\(e :: SomeException) -> print e) $ do
---               Gtk.cssProviderLoadFromPath p (Text.pack cssPath)
---               Gtk.styleContextAddProviderForScreen screen p cssPriority
---             return p
---         tryTakeMVar var >>= \case
---           Just (Just p) ->
---             runUI (Gtk.styleContextRemoveProviderForScreen screen p)
---           _ -> return ()
---         putMVar var (Just cssProvider)
-
 data Env = Env { cssPath :: FilePath, screen :: Gdk.Screen }
 
 newtype GtkUserInterface m i o a = GtkUserInterface
@@ -149,18 +112,22 @@ instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface
     FSM.get name >>>= \w ->
       FSM.enter name =<<<
         case Declarative.patch (unGtkWindowMarkup (markup w)) decl of
-          Declarative.Modify f -> irunUI $ do
-            f =<< Gtk.toWidget (gtkWidget w)
-            #showAll (gtkWidget w)
+          Declarative.Modify f -> iliftIO $ do
+            putStrLn ("Modify" :: Text)
+            w' <- Gtk.toWidget (gtkWidget w)
+            runUI_ (f w' >> #showAll w')
             return w
           Declarative.Replace create' -> irunUI $ do
+            putStrLn ("Replace" :: Text)
             Gtk.widgetDestroy (gtkWidget w)
             gtkWidget' <- create'
             gtkWindow' <- Gtk.unsafeCastTo Gtk.Window gtkWidget'
             viewEvents <- subscribeToDeclarativeWidget decl gtkWidget'
             #showAll gtkWidget'
             return (GtkWindow (GtkWindowMarkup decl) gtkWindow' viewEvents)
-          Declarative.Keep -> return w
+          Declarative.Keep -> do
+            iliftIO (putStrLn ("Keep" :: Text))
+            ireturn w
 
   destroyWindow name =
     FSM.get name >>>= \w ->
@@ -285,7 +252,7 @@ instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface
         a <- async $ do
           r <- runSafeT (runEffect (tryP (producer >-> updateProgress)))
           void (tryPutMVar result (Just r))
-          runUI $ #destroy d
+          runUI (#destroy d)
 
         void . Gtk.on d #destroy $ do
           cancel a
@@ -295,7 +262,7 @@ instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface
 
   previewStream = undefined
 
-  beep _ = iliftIO (runUI Gdk.beep)
+  beep _ = irunUI Gdk.beep
 
 instance UserInterfaceMarkup GtkWindowMarkup where
   welcomeView = GtkWindowMarkup View.welcomeScreenView
@@ -320,13 +287,18 @@ printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =
   toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
 
+runUI_ :: IO () -> IO ()
+runUI_ ma =
+  void (Gdk.threadsAddIdle GLib.PRIORITY_HIGH (ma *> return False))
+
 runUI :: IO a -> IO a
-runUI f = do
+runUI ma = do
   ret <- newEmptyMVar
-  void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-    f >>= putMVar ret
-    return False
+  runUI_ (ma >>= putMVar ret)
   takeMVar ret
+
+irunUI_ :: IxMonadIO m => IO () -> m i i ()
+irunUI_ = iliftIO . runUI_
 
 irunUI :: IxMonadIO m => IO a -> m i i a
 irunUI = iliftIO . runUI
