@@ -27,7 +27,7 @@ import qualified Data.Text                  as Text
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as Vector
 import           Pipes                      (Producer)
-import           Pipes.Safe                 (MonadSafe)
+import           Pipes.Safe                 (MonadSafe, bracket)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
@@ -335,17 +335,22 @@ renderComposition
   -> Composition
   -> Producer ProgressUpdate m ()
 renderComposition videoSettings videoSource target c@(Composition video audio) =
-  liftIO . withSystemTempDirectory "komposition.render" $ \tmpDir -> do
-    videoInput <-
-      liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
-    audioInput <-
-      liftIO
-        (toCommandInput
-           SAudio
-           tmpDir
-           videoSettings
-           AudioOriginal
-           (length (inputs videoInput))
-           audio)
-    let renderCmd = toRenderCommand videoSettings target videoInput audioInput
-    runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd
+  bracket
+    (do
+      canonical <- liftIO getCanonicalTemporaryDirectory
+      liftIO (createTempDirectory canonical "komposition.render"))
+    removeDirectoryRecursive
+    $ \tmpDir -> do
+      videoInput <-
+        liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
+      audioInput <-
+        liftIO
+          (toCommandInput
+             SAudio
+             tmpDir
+             videoSettings
+             AudioOriginal
+             (length (inputs videoInput))
+             audio)
+      let renderCmd = toRenderCommand videoSettings target videoInput audioInput
+      runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd

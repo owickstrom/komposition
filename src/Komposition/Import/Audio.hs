@@ -156,16 +156,21 @@ importAudioFileAutoSplit ::
   -> Producer ProgressUpdate m [Asset Audio]
 importAudioFileAutoSplit audioFilePath outDir = do
   liftIO (createDirectoryIfMissing True outDir)
-  withSystemTempDirectory "komposition.audio.import" $ \tempDir -> do
-    fullLength <- getAudioFileDuration audioFilePath
-    -- TODO: use file md5 digest in filename (or for a subdirectory) to avoid collisions
-    chunks <-
-      divideProgress4
-        (transcodeAudioFileToWav tempDir fullLength audioFilePath)
-        (normalizeAudio tempDir)
-        (splitAudioBySilence (outDir </> "audio-chunks") (takeBaseName audioFilePath <> "-%5n.wav"))
-        dropSilentChunks
-    lift (mapM (filePathToAudioAsset outDir) chunks)
+  bracket
+    (do
+      canonical <- liftIO getCanonicalTemporaryDirectory
+      liftIO createTempDirectory canonical "komposition.audio.import")
+    removeDirectoryRecursive
+    $ \tempDir -> do
+      fullLength <- getAudioFileDuration audioFilePath
+      -- TODO: use file md5 digest in filename (or for a subdirectory) to avoid collisions
+      chunks <-
+        divideProgress4
+          (transcodeAudioFileToWav tempDir fullLength audioFilePath)
+          (normalizeAudio tempDir)
+          (splitAudioBySilence (outDir </> "audio-chunks") (takeBaseName audioFilePath <> "-%5n.wav"))
+          dropSilentChunks
+      lift (mapM (filePathToAudioAsset outDir) chunks)
 
 isSupportedAudioFile :: FilePath -> Bool
 isSupportedAudioFile p = takeExtension p `elem` [".wav", ".mp3", ".m4a", ".aiff", ".aac"]
@@ -197,7 +202,7 @@ getAudioFileMaxAmplitude inPath = do
          readDouble ampStr
     ExitFailure c -> throwIO (ProcessFailed "sox" c (Just (toS err)))
 
-transcodeAudioFileToWav 
+transcodeAudioFileToWav
   :: (MonadIO m, MonadSafe m)
   => FilePath
   -> Duration
