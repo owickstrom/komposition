@@ -17,10 +17,10 @@
   background-color: #ccc;
   border-top: 1pt solid #aaa;
   border-bottom: 1pt solid #aaa;
-  padding: 1pt;
+  padding: 2pt;
 }
 .timeline .sequence {
-  border: 1pt solid #aaa;
+  border: 2pt solid #aaa;
   margin-left: 5pt;
   background-color: #aaa;
 }
@@ -28,9 +28,9 @@
   margin-left: 0;
 }
 .timeline .parallel {
-  border: 1pt solid #888;
+  border: 2pt solid #888;
   background-color: #bbb;
-  margin-left: 1pt;
+  margin-left: 2pt;
 }
 .timeline .parallel:first-child {
   margin-left: 0;
@@ -46,10 +46,10 @@
 
 .timeline .sequence .video,
 .timeline .sequence .audio {
-  min-height: 15pt;
+  min-height: 25pt;
 }
 .timeline .sequence .video {
-  border-bottom: 1pt solid #888;
+  border-bottom: 2pt solid #888;
 }
 .timeline .sequence .video .clip button {
   background-image: none;
@@ -74,7 +74,7 @@
 .timeline .gap button {
   padding: 0;
   min-width: 0;
-  box-shadow: inset 0pt 0pt 1pt #000;
+  box-shadow: inset 0pt 0pt 2pt #000;
   border-radius: 0;
 }
 .timeline .gap button {
@@ -85,7 +85,7 @@
 }
 .timeline .clip.focused button,
 .timeline .gap.focused button {
-  border: 1pt solid #eee;
+  border: 2pt solid #eee;
 }
 .timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);
@@ -95,7 +95,7 @@
 }
 
 .import-view {
-  padding: 10pt;
+  padding: 1em;
 }
 
 .library,
@@ -103,7 +103,7 @@
 .prompt,
 .progress-bar,
 .help-container {
-  padding: 10pt;
+  padding: 1em;
 }
 
 .preview.dialog {
@@ -111,21 +111,21 @@
 }
 
 .help {
-  min-width: 250pt;
-  min-height: 500pt;
+  min-width: 25em;
+  min-height: 50em;
 }
 
 .key-map-entry {
-  margin: 5pt 0;
+  margin: .5em 0;
 }
 .key-combo {
   font-family: monospace;
   font-weight: bold;
   border: 1pt solid #999;
-  margin-right: 5pt;
-  padding: 4pt 6pt;
+  margin-right: .5em;
+  padding: .5em .75em;
   background: #ddd;
-  border-radius: 2pt;
+  border-radius: .3em;
   box-shadow: inset 1pt 1pt 1pt #fff;
 }
 
@@ -134,7 +134,7 @@
   font-size: 90%;
 }
 .zoom-level {
-  min-width: 50pt;
+  min-width: 5em;
 }
 
 .welcome-screen .title {
