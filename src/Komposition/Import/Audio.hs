@@ -4,11 +4,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Komposition.Import.Audio where
 
-import           Komposition.Prelude        hiding (catch)
+import           Komposition.Prelude        hiding (bracket, catch)
 import qualified Prelude
 
 import qualified Codec.FFmpeg.Probe     as Probe
-import           Control.Monad.Catch
+import           Control.Monad.Catch        hiding (bracket)
 import qualified Data.Char              as Char
 import qualified Data.Text              as Text
 import           Data.Time.Clock
@@ -156,19 +156,21 @@ importAudioFileAutoSplit ::
   -> Producer ProgressUpdate m [Asset Audio]
 importAudioFileAutoSplit audioFilePath outDir = do
   liftIO (createDirectoryIfMissing True outDir)
-  -- TODO: bracket to make sure temp directory is deleted
-  tempDir <- liftIO $ do
-    canonical <- getCanonicalTemporaryDirectory
-    createTempDirectory canonical "komposition.audio.import"
-  fullLength <- getAudioFileDuration audioFilePath
-  -- TODO: use file md5 digest in filename (or for a subdirectory) to avoid collisions
-  chunks <-
-    divideProgress4
-      (transcodeAudioFileToWav tempDir fullLength audioFilePath)
-      (normalizeAudio tempDir)
-      (splitAudioBySilence (outDir </> "audio-chunks") (takeBaseName audioFilePath <> "-%5n.wav"))
-      dropSilentChunks
-  lift (mapM (filePathToAudioAsset outDir) chunks)
+  bracket
+    (do
+      canonical <- liftIO getCanonicalTemporaryDirectory
+      liftIO $ createTempDirectory canonical "komposition.audio.import")
+    (liftIO . removeDirectoryRecursive)
+    $ \tempDir -> do
+      fullLength <- getAudioFileDuration audioFilePath
+      -- TODO: use file md5 digest in filename (or for a subdirectory) to avoid collisions
+      chunks <-
+        divideProgress4
+          (transcodeAudioFileToWav tempDir fullLength audioFilePath)
+          (normalizeAudio tempDir)
+          (splitAudioBySilence (outDir </> "audio-chunks") (takeBaseName audioFilePath <> "-%5n.wav"))
+          dropSilentChunks
+      lift (mapM (filePathToAudioAsset outDir) chunks)
 
 isSupportedAudioFile :: FilePath -> Bool
 isSupportedAudioFile p = takeExtension p `elem` [".wav", ".mp3", ".m4a", ".aiff", ".aac"]

@@ -18,7 +18,7 @@ module Komposition.Render.FFmpeg
   )
 where
 
-import           Komposition.Prelude
+import           Komposition.Prelude        hiding (bracket)
 import qualified Prelude
 
 import           Control.Lens
@@ -27,7 +27,7 @@ import qualified Data.Text                  as Text
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as Vector
 import           Pipes                      (Producer)
-import           Pipes.Safe                 (MonadSafe)
+import           Pipes.Safe                 (MonadSafe, bracket)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
@@ -334,20 +334,23 @@ renderComposition
   -> Command.Output
   -> Composition
   -> Producer ProgressUpdate m ()
-renderComposition videoSettings videoSource target c@(Composition video audio) = do
-  -- TODO: bracket to make sure temp directory is deleted
-  canonical <- liftIO getCanonicalTemporaryDirectory
-  tmpDir <- liftIO (createTempDirectory canonical "komposition.render")
-  videoInput <-
-    liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
-  audioInput <-
-    liftIO
-      (toCommandInput
-         SAudio
-         tmpDir
-         videoSettings
-         AudioOriginal
-         (length (inputs videoInput))
-         audio)
-  let renderCmd = toRenderCommand videoSettings target videoInput audioInput
-  runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd
+renderComposition videoSettings videoSource target c@(Composition video audio) =
+  bracket
+    (do
+      canonical <- liftIO getCanonicalTemporaryDirectory
+      liftIO $ createTempDirectory canonical "komposition.render")
+    (liftIO . removeDirectoryRecursive)
+    $ \tmpDir -> do
+      videoInput <-
+        liftIO (toCommandInput SVideo tmpDir videoSettings videoSource 0 video)
+      audioInput <-
+        liftIO
+          (toCommandInput
+             SAudio
+             tmpDir
+             videoSettings
+             AudioOriginal
+             (length (inputs videoInput))
+             audio)
+      let renderCmd = toRenderCommand videoSettings target videoInput audioInput
+      runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd
