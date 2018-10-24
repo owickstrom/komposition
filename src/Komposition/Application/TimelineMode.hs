@@ -54,17 +54,18 @@ timelineMode
   -> t m tm tm TimelineModeResult
 timelineMode gui model = do
   updateTimeline gui model
-  nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
+  nextEvent gui >>>= onNextEvent
+  -- nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
     continue = timelineMode gui model
     continueWithStatusMessage msg =
       model
       & statusMessage ?~ msg
       & timelineMode gui
-    resetStatusMessage =
-      model
-      & statusMessage .~ Nothing
-      & timelineMode gui
+    -- resetStatusMessage =
+    --   model
+    --   & statusMessage .~ Nothing
+    --   & timelineMode gui
     onNextEvent = \case
       CommandKeyMappedEvent (FocusCommand cmd) ->
         case modifyFocus (currentProject model ^. timeline) cmd (model ^. currentFocus) of
