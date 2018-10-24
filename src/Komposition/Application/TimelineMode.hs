@@ -42,7 +42,7 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.LibraryMode
 
 data TimelineModeResult
-  = TimelineExit
+  = TimelineExit TimelineModel
   | TimelineClose
 
 timelineMode
@@ -152,7 +152,7 @@ timelineMode gui model = do
       CommandKeyMappedEvent Cancel -> continue
       CommandKeyMappedEvent Help ->
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
-      CommandKeyMappedEvent Exit -> ireturn TimelineExit
+      CommandKeyMappedEvent Exit -> ireturn (TimelineExit model)
       ZoomLevelChanged zl -> model & zoomLevel .~ zl & timelineMode gui
     printUnexpectedFocusError err cmd =
       case err of

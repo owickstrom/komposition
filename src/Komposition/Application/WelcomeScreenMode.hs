@@ -72,11 +72,11 @@ toTimelineWithProject gui project = do
   where
     runTimeline model =
       timelineMode gui model >>= \case
-        TimelineExit ->
+        TimelineExit model' ->
           dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
             Just Yes -> exit gui
-            Just No -> runTimeline model
-            Nothing -> runTimeline model
+            Just No -> runTimeline model'
+            Nothing -> runTimeline model'
         TimelineClose -> returnToWelcomeScreen gui >>> welcomeScreenMode gui
 
 data Confirmation
