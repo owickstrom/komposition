@@ -250,15 +250,15 @@ previewFocusedComposition
 previewFocusedComposition gui model =
   case flatComposition of
     Just flat -> do
-       let streamingProcess =
-             void $
-             Render.renderComposition
-               (currentProject model ^. proxyVideoSettings)
-               Render.VideoProxy
-               (FFmpeg.HttpStreamingOutput "localhost" 12345)
-               flat
-       _ <- previewStream gui "http://localhost:12345" streamingProcess (currentProject model ^. proxyVideoSettings)
-       ireturn model
+      let streamingProcess =
+            void $
+            Render.renderComposition
+              (currentProject model ^. proxyVideoSettings)
+              Render.VideoProxy
+              (FFmpeg.HttpStreamingOutput "localhost" 12345)
+              flat
+      _ <- previewStream gui "http://localhost:12345" streamingProcess (currentProject model ^. proxyVideoSettings)
+      ireturn model
     Nothing -> do
       beep gui
       model

@@ -507,7 +507,14 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
           GI.setObjectPropertyBool playbin "force-aspect-ratio" True
           void $ GI.setObjectPropertyString playbin "uri" (Just uri)
 
-          let updateProgress = forever (void await)
+          streamingStarted <- newEmptyMVar
+
+          let updateProgress = do
+                -- We await the first progress update so that we know the
+                -- streaming has started.
+                void await
+                liftIO (putMVar streamingStarted ())
+                forever (void await)
           ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
           void . Gtk.onWidgetRealize content $ do
@@ -517,6 +524,8 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
               videoWidget
               (fromIntegral (videoSettings ^. resolution . width))
               (fromIntegral (videoSettings ^. resolution . height))
+            takeMVar streamingStarted
+            -- Start streaming once the server is ready.
             void $ Gst.elementSetState playbin Gst.StatePlaying
 
           void . Gtk.onWidgetDestroy d $ do
