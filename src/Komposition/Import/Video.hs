@@ -256,8 +256,8 @@ writeSplitVideoFiles settings outDir = Pipes.evalStateT (go (Left (), 1 :: Int, 
 classifyMovingScenes ::
      Monad m
   => Duration
-  -> Producer (Classified (Timed Frame)) m ()
-  -> Producer Time m [TimeSpan]
+  -> Producer (Classified (Timed RGB8Frame)) m ()
+  -> Producer ProgressUpdate m [TimeSpan]
 classifyMovingScenes fullLength =
   Pipes.evalStateT $
   draw' >>= \case
@@ -268,7 +268,7 @@ classifyMovingScenes fullLength =
     go state' =
       draw' >>= \case
         Just frame -> do
-          yield' (time (unClassified frame))
+          yield' (toProgress (time (unClassified frame)))
           case (state', frame) of
             ((Left (), spans), Still _) -> go (Left (), spans)
             ((Left (), spans), Moving f) -> go (Right (time f, time f), spans)
@@ -292,6 +292,8 @@ classifyMovingScenes fullLength =
                   (durationFromSeconds startTime)
                   fullLength
               ]
+    toProgress time =
+      ProgressUpdate "Classifying scenes" (time / durationToSeconds fullLength)
 
 getVideoFileDuration :: (MonadMask m, MonadIO m) => FilePath -> m Duration
 getVideoFileDuration f =
@@ -391,20 +393,13 @@ importVideoFileAutoSplit settings sourceFile outDir = do
     & flip divideProgress2 (classifyScenes fullLength)
   where
     original = OriginalPath sourceFile
-    toProgress (durationToSeconds -> fullLength) time =
-      ProgressUpdate "Classifying scenes" (time / fullLength)
     toSceneAsset proxyPath fullLength n timeSpan = do
       let meta = AssetMetadata original fullLength
       return (VideoAsset meta proxyPath (Just (n, timeSpan)))
-    classifyScenes fullLength proxyPath = do
-      let classifiedFrames =
-                classifyMovement
-                1.0
-                (readVideoFile (proxyPath ^. unProxyPath) >-> toMassiv) >->
-                Pipes.map (fmap (fmap A.toJPImageRGB8))
-      classifyMovingScenes fullLength classifiedFrames >->
-            Pipes.map (toProgress fullLength) &
-            (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..])
+    classifyScenes fullLength proxyPath =
+      classifyMovement 1.0 (readVideoFile (proxyPath ^. unProxyPath) >-> toMassiv)
+        & classifyMovingScenes fullLength
+        & (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..])
 
 isSupportedVideoFile :: FilePath -> Bool
 isSupportedVideoFile p = takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov", ".flv"]
