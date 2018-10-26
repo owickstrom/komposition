@@ -45,7 +45,7 @@ instance Patchable ThumbnailPreview where
       h <- Gdk.getRectangleHeight a
       redraw w h
     Gtk.toWidget layout
-  patch old new 
+  patch old new
     | thumbnailPath old == thumbnailPath new = Keep
     | otherwise = Replace (create new)
 
