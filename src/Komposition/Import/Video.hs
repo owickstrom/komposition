@@ -1,41 +1,42 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveFunctor         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TupleSections         #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
-{-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE ViewPatterns               #-}
 module Komposition.Import.Video where
 
 import           Komposition.Prelude        hiding (catch)
 
-import           Codec.FFmpeg           hiding (resolution)
+import           Codec.FFmpeg               hiding (resolution)
 import           Codec.FFmpeg.Encode
-import qualified Codec.FFmpeg.Probe     as Probe
-import           Codec.Picture          as CP
+import qualified Codec.FFmpeg.Probe         as Probe
+import           Codec.Picture              as CP
 import           Control.Lens
 import           Control.Monad.Catch
-import qualified Data.Massiv.Array      as A
-import           Data.Massiv.Array.IO   as A hiding (Image)
-import           Data.Maybe             (fromMaybe)
+import qualified Data.Massiv.Array          as A
+import           Data.Massiv.Array.IO       as A hiding (Image)
+import           Data.Maybe                 (fromMaybe)
 import           Data.Time.Clock
-import qualified Data.Vector            as V
-import qualified Data.Vector.Generic    as VG
-import           Graphics.ColorSpace    as A
-import           Pipes                  (Consumer', Pipe, Producer, (>->))
+import qualified Data.Vector                as V
+import qualified Data.Vector.Generic        as VG
+import           Graphics.ColorSpace        as A
+import           Pipes                      (Consumer', Pipe, Producer, (>->))
 import qualified Pipes
-import qualified Pipes.Parse            as Pipes
-import qualified Pipes.Prelude          as Pipes hiding (show)
+import qualified Pipes.Parse                as Pipes
+import qualified Pipes.Prelude              as Pipes hiding (show)
 import           Pipes.Safe
 import           System.Directory
 import           System.FilePath
-import           System.IO              hiding (putStrLn)
+import           System.IO                  hiding (putStrLn)
 import           Text.Printf
 
 import           Komposition.Duration

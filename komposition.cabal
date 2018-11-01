@@ -51,6 +51,7 @@ library
                       , Komposition.Progress
                       , Komposition.Project
                       , Komposition.Project.Store
+                      , Komposition.Project.Store.File
                       , Komposition.Library
                       , Komposition.MediaType
                       , Komposition.Render.Composition
@@ -74,6 +75,7 @@ library
                       , exceptions
                       , ffmpeg-light >= 0.12.1 && <0.13
                       , filepath
+                      , fused-effects >= 0.1.1.0 && < 0.2
                       , gi-gobject
                       , gi-glib
                       , gi-gst
@@ -176,6 +178,7 @@ test-suite komposition-tests
                  , komposition
                  , hedgehog
                  , JuicyPixels
+                 , fused-effects
                  , lens
                  , pipes
                  , pipes-parse

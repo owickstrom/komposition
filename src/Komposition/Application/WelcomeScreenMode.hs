@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
@@ -13,6 +14,8 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
+import           Control.Effect                       (Member)
+import           Control.Effect.Carrier               (Carrier)
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
 import           System.Directory
@@ -28,7 +31,10 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
 welcomeScreenMode
-  :: Application t m
+  :: ( Application t m
+    , Member ProjectStore sig
+    , Carrier sig m
+    )
   => Name n
   -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
 welcomeScreenMode gui = do
@@ -37,8 +43,8 @@ welcomeScreenMode gui = do
     OpenExistingProjectClicked -> do
       userDir <- iliftIO getUserDocumentsDirectory
       chooseFile gui (Open Directory) "Open Project Directory" userDir >>= \case
-        Just path' -> do
-          iliftIO (openExistingProject path') >>= \case
+        Just path' ->
+          ilift (openExistingProject path') >>= \case
             Left err -> do
               iliftIO (putStrLn ("Opening existing project failed: " <> show err :: Text))
               welcomeScreenMode gui
@@ -48,7 +54,7 @@ welcomeScreenMode gui = do
       userDir <- iliftIO getUserDocumentsDirectory
       chooseFile gui (Save Directory) "Choose Project Directory" userDir >>= \case
         Just path' ->
-          iliftIO (createNewProject path' initialProject) >>= \case
+          ilift (createNewProject path' initialProject) >>= \case
             Left err -> do
               beep gui
               iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
@@ -61,10 +67,13 @@ welcomeScreenMode gui = do
       welcomeScreenMode gui
 
 toTimelineWithProject
-  :: Application t m
+  :: ( Application t m
+    , Member ProjectStore sig
+    , Carrier sig m
+    )
   => Name n
   -> ExistingProject
-  -> t m (n .== State (t m) 'WelcomeScreenMode) Empty ()
+  -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
 toTimelineWithProject gui project = do
   let model = TimelineModel project initialFocus Nothing (ZoomLevel 1)
   returnToTimeline gui model

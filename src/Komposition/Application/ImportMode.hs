@@ -50,7 +50,7 @@ selectFileToImport gui returnToOrigin = do
   enterImport gui initialModel
   result <- fillForm initialModel ImportFileForm {selectedFile = Nothing, autoSplit = False}
   case result of
-    Just f -> returnToOrigin (Just f)
+    Just f  -> returnToOrigin (Just f)
     Nothing -> returnToOrigin Nothing
   where
     fillForm model mf = do
@@ -73,11 +73,11 @@ selectFileToImport gui returnToOrigin = do
           fillForm model { autoSplitValue = s } form { autoSplit = s }
 
 importSelectedFile
-  :: (UserInterface m, IxMonadIO m, (r .! n) ~ State m s)
+  :: (Application t m, (r .! n) ~ State (t m) s)
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
-  -> m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
+  -> t m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
 importSelectedFile gui project (filepath, autoSplit)
   | isSupportedVideoFile filepath = do
     let action =

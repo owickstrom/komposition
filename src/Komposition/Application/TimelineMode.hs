@@ -15,12 +15,14 @@ module Komposition.Application.TimelineMode where
 import           Komposition.Application.Base
 import qualified Prelude
 
+import           Control.Effect                      (Member)
+import           Control.Effect.Carrier              (Carrier)
 import           Control.Lens
+import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Row.Records                    hiding (split)
 import           Data.String                         (fromString)
 import           System.Directory
 import           Text.Printf
-import qualified Data.List.NonEmpty          as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Composition.Delete
@@ -48,6 +50,8 @@ data TimelineModeResult
 timelineMode
   :: ( Application t m
      , tm ~ (n .== State (t m) TimelineMode)
+     , Member ProjectStore sig
+     , Carrier sig m
      )
   => Name n
   -> TimelineModel
@@ -146,7 +150,7 @@ timelineMode gui model = do
           Just m  -> timelineMode gui m
           Nothing -> beep gui >> timelineMode gui model
       CommandKeyMappedEvent SaveProject ->
-        iliftIO (saveExistingProject (model ^. existingProject)) >>= \case
+        ilift (saveExistingProject (model ^. existingProject)) >>= \case
           _ -> continue
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
       CommandKeyMappedEvent Cancel -> continue
@@ -163,8 +167,10 @@ timelineMode gui model = do
                (show cmd :: Text))
         _ -> ireturn ()
 
-insertIntoTimeline
-  :: ( Application t m
+insertIntoTimeline ::
+     ( Application t m
+     , Member ProjectStore sig
+     , Carrier sig m
      , tm ~ (n .== State (t m) TimelineMode)
      )
   => Name n
@@ -282,7 +288,12 @@ noAssetsMessage mt =
       SAudio -> "audio"
 
 selectAssetAndInsert ::
-     (Application t m, r ~ (n .== State (t m) 'TimelineMode), IxPointed (t m))
+     ( Application t m
+     , Member ProjectStore sig
+     , Carrier sig m
+     , r ~ (n .== State (t m) 'TimelineMode)
+     , IxPointed (t m)
+     )
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -293,26 +304,32 @@ selectAssetAndInsert gui model mediaType' position =
     SVideo ->
       case NonEmpty.nonEmpty (currentProject model ^. library . videoAssets) of
         Just vs -> selectAsset gui (SelectAssetsModel SVideo vs []) (insertSelectedAssets gui model SVideo position)
-        Nothing -> onNoAssets gui SVideo
+        Nothing -> onNoAssets gui
     SAudio ->
       case NonEmpty.nonEmpty (currentProject model ^. library . audioAssets) of
         Just as -> selectAsset gui (SelectAssetsModel SAudio as []) (insertSelectedAssets gui model SAudio position)
-        Nothing -> onNoAssets gui SAudio
+        Nothing -> onNoAssets gui
   where
     onNoAssets ::
-        (Application t m, r ~ (n .== State (t m) 'TimelineMode), IxPointed (t m))
+        ( Application t m
+        , Member ProjectStore sig
+        , Carrier sig m
+        , r ~ (n .== State (t m) 'TimelineMode)
+        , IxPointed (t m)
+        )
       => Name n
-      -> SMediaType mt
       -> t m r r TimelineModeResult
-    onNoAssets gui mediaType' = do
-      beep gui
+    onNoAssets gui' = do
+      beep gui'
       model
         & statusMessage ?~ noAssetsMessage mediaType'
-        & timelineMode gui
+        & timelineMode gui'
 
 insertSelectedAssets ::
   ( ReturnsToTimeline mode
   , Application t m
+  , Member ProjectStore sig
+  , Carrier sig m
   , HasType n (State (t m) mode) i
   , Modify n (State (t m) TimelineMode) i ~ o
   , o ~ ( n .==  State (t m) 'TimelineMode)
@@ -367,6 +384,8 @@ toVideoClip model videoAsset =
 addImportedAssetsToLibrary ::
   ( ReturnsToTimeline mode
   , Application t m
+  , Member ProjectStore sig
+  , Carrier sig m
   , HasType n (State (t m) mode) i
   , Modify n (State (t m) TimelineMode) i ~ o
   , o ~ ( n .==  State (t m) 'TimelineMode)
