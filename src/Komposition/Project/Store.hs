@@ -13,10 +13,11 @@ module Komposition.Project.Store
   , OpenProjectError(..)
   ) where
 
-import           Komposition.Prelude    hiding ((:+:), Type, list)
+import           Komposition.Prelude    hiding (Type, list)
 
 import           Control.Effect
 import           Control.Effect.Carrier
+
 import           Data.Coerce
 
 import           Komposition.Project

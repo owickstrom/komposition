@@ -11,7 +11,7 @@
 -- | A 'ProjectStore' interpreter that saves projects as directories.
 module Komposition.Project.Store.File (runFileProjectStoreIO) where
 
-import           Komposition.Prelude       hiding ((:+:), Type, list)
+import           Komposition.Prelude       hiding (Type, list)
 
 import           Control.Effect
 import           Control.Effect.Carrier

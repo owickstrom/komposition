@@ -22,7 +22,6 @@ import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Row.Records                    hiding (split)
 import           Data.String                         (fromString)
 import           System.Directory
-import           Text.Printf
 
 import           Komposition.Composition
 import           Komposition.Composition.Delete
@@ -48,7 +47,7 @@ data TimelineModeResult
   | TimelineClose
 
 timelineMode
-  :: ( Application t m
+  :: ( Application t m sig
      , tm ~ (n .== State (t m) TimelineMode)
      , Member ProjectStore sig
      , Carrier sig m
@@ -75,7 +74,7 @@ timelineMode gui model = do
         case modifyFocus (currentProject model ^. timeline) cmd (model ^. currentFocus) of
           Left err -> do
             beep gui
-            printUnexpectedFocusError err cmd
+            logUnexpectedFocusError err cmd
             continue
           Right newFocus -> timelineMode gui (model & currentFocus .~ newFocus)
       CommandKeyMappedEvent (JumpFocus newFocus) ->
@@ -94,7 +93,7 @@ timelineMode gui model = do
                   (model ^. currentFocus) of
               Left err -> do
                 beep gui
-                iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
+                ilift (logLnText Error ("Delete failed: " <> show err))
                 continueWithStatusMessage "Delete failed."
               Right newFocus ->
                 model
@@ -133,7 +132,7 @@ timelineMode gui model = do
                     flat) >>= \case
                   Just (Right ()) -> continue
                   Just (Left (err :: Render.RenderError)) ->
-                    iliftIO (print err) >>> continue
+                    ilift (logLnShow Error err) >>> continue
                   Nothing -> continue
               Nothing -> continue
           Nothing -> do
@@ -158,17 +157,14 @@ timelineMode gui model = do
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>> continue
       CommandKeyMappedEvent Exit -> ireturn (TimelineExit model)
       ZoomLevelChanged zl -> model & zoomLevel .~ zl & timelineMode gui
-    printUnexpectedFocusError err cmd =
+    logUnexpectedFocusError err cmd =
       case err of
         UnhandledFocusModification {} ->
-          iliftIO
-            (printf
-               "Error: could not handle focus modification %s\n"
-               (show cmd :: Text))
+          ilift (logLnText Warning ("Could not handle focus modification: " <> show cmd))
         _ -> ireturn ()
 
 insertIntoTimeline ::
-     ( Application t m
+     ( Application t m sig
      , Member ProjectStore sig
      , Carrier sig m
      , tm ~ (n .== State (t m) TimelineMode)
@@ -206,13 +202,13 @@ insertIntoTimeline gui model type' position =
       let msg = "Cannot perform " <> show c <> " when focused at " <> prettyFocusedAt f
       timelineMode gui (model & statusMessage ?~ msg)
     (_, Nothing) -> do
-      iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
+      ilift (logLnText Warning "Focus is invalid.")
       continue
   where
     continue = timelineMode gui model
 
 insertGap
-  :: Application t m
+  :: Application t m sig
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -246,7 +242,7 @@ prettyFocusedAt = \case
   FocusedAudioPart{} -> "audio track"
 
 previewFocusedComposition
-  :: Application t m
+  :: Application t m sig
   => Name n
   -> TimelineModel
   -> Actions
@@ -288,7 +284,7 @@ noAssetsMessage mt =
       SAudio -> "audio"
 
 selectAssetAndInsert ::
-     ( Application t m
+     ( Application t m sig
      , Member ProjectStore sig
      , Carrier sig m
      , r ~ (n .== State (t m) 'TimelineMode)
@@ -311,7 +307,7 @@ selectAssetAndInsert gui model mediaType' position =
         Nothing -> onNoAssets gui
   where
     onNoAssets ::
-        ( Application t m
+        ( Application t m sig
         , Member ProjectStore sig
         , Carrier sig m
         , r ~ (n .== State (t m) 'TimelineMode)
@@ -327,7 +323,7 @@ selectAssetAndInsert gui model mediaType' position =
 
 insertSelectedAssets ::
   ( ReturnsToTimeline mode
-  , Application t m
+  , Application t m sig
   , Member ProjectStore sig
   , Carrier sig m
   , HasType n (State (t m) mode) i
@@ -383,7 +379,7 @@ toVideoClip model videoAsset =
 
 addImportedAssetsToLibrary ::
   ( ReturnsToTimeline mode
-  , Application t m
+  , Application t m sig
   , Member ProjectStore sig
   , Carrier sig m
   , HasType n (State (t m) mode) i
@@ -398,7 +394,7 @@ addImportedAssetsToLibrary gui model (Just selected) = do
   returnToTimeline gui model
   model' <- importSelectedFile gui (model ^. existingProject) selected >>>= \case
     Just (Left err) -> do
-      iliftIO (print err)
+      ilift (logLnShow Error err)
       _ <- dialog gui "Import Failed!" (show err) [Ok]
       ireturn model
     Just (Right (Left vs)) ->

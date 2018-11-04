@@ -42,7 +42,7 @@ data ImportFileForm = ImportFileForm
   }
 
 selectFileToImport
-  :: ( Application t m)
+  :: Application t m sig
   => Name n
   -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (FilePath, Bool))
 selectFileToImport gui returnToOrigin = do
@@ -73,11 +73,17 @@ selectFileToImport gui returnToOrigin = do
           fillForm model { autoSplitValue = s } form { autoSplit = s }
 
 importSelectedFile
-  :: (Application t m, (r .! n) ~ State (t m) s)
+  :: (Application t m sig, (r .! n) ~ State (t m) s)
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
-  -> t m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
+  -> t
+       m
+       r
+       r
+       ( Maybe
+           (Either ImportError (Either [VideoAsset] [AudioAsset]))
+       )
 importSelectedFile gui project (filepath, autoSplit)
   | isSupportedVideoFile filepath = do
     let action =

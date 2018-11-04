@@ -24,7 +24,7 @@ import           Komposition.Application.WelcomeScreenMode
 import           Komposition.Project.Store
 
 komposition
-  :: ( Application t m
+  :: ( Application t m sig
     , Member ProjectStore sig
     , Carrier sig m
     )

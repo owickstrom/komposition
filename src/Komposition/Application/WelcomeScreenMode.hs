@@ -31,7 +31,7 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
 welcomeScreenMode
-  :: ( Application t m
+  :: ( Application t m sig
     , Member ProjectStore sig
     , Carrier sig m
     )
@@ -46,7 +46,7 @@ welcomeScreenMode gui = do
         Just path' ->
           ilift (openExistingProject path') >>= \case
             Left err -> do
-              iliftIO (putStrLn ("Opening existing project failed: " <> show err :: Text))
+              ilift (logLnText Error ("Opening existing project failed: " <> show err))
               welcomeScreenMode gui
             Right existingProject' -> toTimelineWithProject gui existingProject'
         Nothing -> welcomeScreenMode gui
@@ -57,7 +57,7 @@ welcomeScreenMode gui = do
           ilift (createNewProject path' initialProject) >>= \case
             Left err -> do
               beep gui
-              iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
+              ilift (logLnText Error ("Create new project failed: " <> show err))
               welcomeScreenMode gui
             Right newProject -> toTimelineWithProject gui newProject
         Nothing -> welcomeScreenMode gui
@@ -67,7 +67,7 @@ welcomeScreenMode gui = do
       welcomeScreenMode gui
 
 toTimelineWithProject
-  :: ( Application t m
+  :: ( Application t m sig
     , Member ProjectStore sig
     , Carrier sig m
     )

@@ -47,6 +47,8 @@ library
                       , Komposition.Import.Audio
                       , Komposition.Import.Video
                       , Komposition.KeyMap
+                      , Komposition.Logging
+                      , Komposition.Logging.FastLogger
                       , Komposition.Prelude
                       , Komposition.Progress
                       , Komposition.Project
@@ -73,6 +75,7 @@ library
                       , deepseq
                       , directory
                       , exceptions
+                      , fast-logger
                       , ffmpeg-light >= 0.12.1 && <0.13
                       , filepath
                       , fused-effects >= 0.1.1.0 && < 0.2
@@ -119,6 +122,7 @@ executable komposition
   -- other-extensions:
   build-depends:        base >=4.10 && <4.12
                       , komposition
+                      , fast-logger
                       , filepath
                       , gi-gobject
                       , gi-glib
