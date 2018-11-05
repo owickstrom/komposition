@@ -33,6 +33,7 @@ library
                       , Komposition.Application.LibraryMode
                       , Komposition.Application.TimelineMode
                       , Komposition.Application.WelcomeScreenMode
+                      , Komposition.Classification
                       , Komposition.Composition
                       , Komposition.Composition.Delete
                       , Komposition.Composition.Focused
@@ -45,6 +46,7 @@ library
                       , Komposition.Focus.Parent
                       , Komposition.History
                       , Komposition.Import.Audio
+                      , Komposition.Import.Audio.Sox
                       , Komposition.Import.Video
                       , Komposition.Import.Video.FFmpeg
                       , Komposition.KeyMap

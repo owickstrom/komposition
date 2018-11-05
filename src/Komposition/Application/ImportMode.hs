@@ -2,7 +2,6 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -24,6 +23,7 @@ import           Control.Lens
 import           Data.Row.Records
 import           Data.String                     (fromString)
 
+import           Komposition.Classification
 import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
@@ -31,6 +31,8 @@ import           Komposition.Library
 import           Komposition.Project
 
 import           Komposition.Application.KeyMaps
+
+type ImportEffects sig = (Member AudioImport sig, Member VideoImport sig)
 
 data ImportError
   = VideoImportError VideoImportError
@@ -43,7 +45,7 @@ data ImportFileForm = ImportFileForm
   }
 
 selectFileToImport
-  :: (Member VideoImport sig)
+  :: (ImportEffects sig)
   => Application t m sig
   => Name n
   -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (FilePath, Bool))
@@ -80,14 +82,14 @@ selectFileToImport gui returnToOrigin = do
           fillForm model { autoSplitValue = s } form { classify = s }
 
 isImportable
-  :: (Member VideoImport sig, Application t m sig) => FilePath -> t m r r Bool
+  :: (ImportEffects sig, Application t m sig) => FilePath -> t m r r Bool
 isImportable f = do
   v <- ilift (isSupportedVideoFile f)
-  a <- iliftIO (isSupportedAudioFile f)
+  a <- ilift (isSupportedAudioFile f)
   ireturn (v || a)
 
 importSelectedFile
-  :: (Member VideoImport sig, Application t m sig, (r .! n) ~ State (t m) s)
+  :: (ImportEffects sig, Application t m sig, (r .! n) ~ State (t m) s)
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
@@ -100,38 +102,28 @@ importSelectedFile
        )
 importSelectedFile gui project (filepath, classify) = do
   v <- ilift (isSupportedVideoFile filepath)
-  a <- iliftIO (isSupportedAudioFile filepath)
-  let classification = bool Classified Unclassified classify
+  a <- ilift (isSupportedAudioFile filepath)
+  let classification = bool Unclassified Classified classify
   case (v, a) of
     (True, _) -> do
-      action <-
-            ilift $
-              importVideoFile
-                classification
-                (current (project ^. projectHistory) ^. proxyVideoSettings)
-                filepath
-                (project ^. projectPath . unProjectPath)
+      action <- ilift $ importVideoFile
+        classification
+        (current (project ^. projectHistory) ^. proxyVideoSettings)
+        filepath
+        (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Video" action
       ireturn (bimap VideoImportError Left <$> result)
     (False, True) -> do
-      let action =
-            case classification of
-              Classified ->
-                importAudioFileAutoSplit
-                  filepath
-                  (project ^. projectPath . unProjectPath)
-              Unclassified ->
-                (: []) <$>
-                importAudioFile
-                  filepath
-                  (project ^. projectPath . unProjectPath)
+      action <- ilift $ importAudioFile
+        classification
+        filepath
+        (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Audio" action
       ireturn (bimap AudioImportError Right <$> result)
     _ -> do
-      _ <-
-        dialog
-          gui
-          "Unsupported File"
-          "The file extension of the file you've selected is not supported."
-          [Ok]
+      _ <- dialog
+        gui
+        "Unsupported File"
+        "The file extension of the file you've selected is not supported."
+        [Ok]
       ireturn Nothing

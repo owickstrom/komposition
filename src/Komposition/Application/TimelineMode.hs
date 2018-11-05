@@ -31,6 +31,7 @@ import           Komposition.Duration
 import qualified Komposition.FFmpeg.Command          as FFmpeg
 import           Komposition.Focus
 import           Komposition.History
+import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.MediaType
@@ -47,12 +48,17 @@ data TimelineModeResult
   = TimelineExit TimelineModel
   | TimelineClose
 
+type TimelineEffects sig =
+  ( Member ProjectStore sig
+  , Member VideoImport sig
+  , Member AudioImport sig
+  )
+
 timelineMode
   :: ( Application t m sig
      , tm ~ (n .== State (t m) TimelineMode)
-     , Member ProjectStore sig
-     , Member VideoImport sig
      , Carrier sig m
+     , TimelineEffects sig
      )
   => Name n
   -> TimelineModel
@@ -167,8 +173,7 @@ timelineMode gui model = do
 
 insertIntoTimeline ::
      ( Application t m sig
-     , Member ProjectStore sig
-     , Member VideoImport sig
+     , TimelineEffects sig
      , Carrier sig m
      , tm ~ (n .== State (t m) TimelineMode)
      )
@@ -228,8 +233,8 @@ insertGap gui model mediaType' position = do
                         "Insert Gap"
                         (NumberPrompt (0.1, 10e10))
   let gapInsertion seconds = case mediaType' of
-        SVideo -> (InsertVideoParts [VideoGap () (durationFromSeconds seconds)])
-        SAudio -> (InsertAudioParts [AudioGap () (durationFromSeconds seconds)])
+        SVideo -> InsertVideoParts [VideoGap () (durationFromSeconds seconds)]
+        SAudio -> InsertAudioParts [AudioGap () (durationFromSeconds seconds)]
   case gapDuration of
     Just seconds ->
       model
@@ -288,8 +293,7 @@ noAssetsMessage mt =
 
 selectAssetAndInsert ::
      ( Application t m sig
-     , Member ProjectStore sig
-     , Member VideoImport sig
+     , TimelineEffects sig
      , Carrier sig m
      , r ~ (n .== State (t m) 'TimelineMode)
      , IxPointed (t m)
@@ -312,8 +316,7 @@ selectAssetAndInsert gui model mediaType' position =
   where
     onNoAssets ::
         ( Application t m sig
-        , Member ProjectStore sig
-        , Member VideoImport sig
+        , TimelineEffects sig
         , Carrier sig m
         , r ~ (n .== State (t m) 'TimelineMode)
         , IxPointed (t m)
@@ -329,9 +332,8 @@ selectAssetAndInsert gui model mediaType' position =
 insertSelectedAssets ::
   ( ReturnsToTimeline mode
   , Application t m sig
-  , Member ProjectStore sig
-  , Member VideoImport sig
   , Carrier sig m
+  , TimelineEffects sig
   , HasType n (State (t m) mode) i
   , Modify n (State (t m) TimelineMode) i ~ o
   , o ~ ( n .==  State (t m) 'TimelineMode)
@@ -386,9 +388,8 @@ toVideoClip model videoAsset =
 addImportedAssetsToLibrary ::
   ( ReturnsToTimeline mode
   , Application t m sig
-  , Member ProjectStore sig
-  , Member VideoImport sig
   , Carrier sig m
+  , TimelineEffects sig
   , HasType n (State (t m) mode) i
   , Modify n (State (t m) TimelineMode) i ~ o
   , o ~ ( n .==  State (t m) 'TimelineMode)

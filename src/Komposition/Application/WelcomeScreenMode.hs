@@ -22,6 +22,7 @@ import           System.Directory
 
 import           Komposition.Composition
 import           Komposition.Focus
+import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
@@ -35,6 +36,7 @@ welcomeScreenMode
   :: ( Application t m sig
     , Member ProjectStore sig
     , Member VideoImport sig
+    , Member AudioImport sig
     , Carrier sig m
     )
   => Name n
@@ -72,6 +74,7 @@ toTimelineWithProject
   :: ( Application t m sig
     , Member ProjectStore sig
     , Member VideoImport sig
+    , Member AudioImport sig
     , Carrier sig m
     )
   => Name n

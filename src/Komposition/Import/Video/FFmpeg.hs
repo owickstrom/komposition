@@ -34,7 +34,6 @@ where
 import           Komposition.Prelude        hiding (catch)
 
 import           Codec.FFmpeg               hiding (resolution)
-import           Codec.FFmpeg.Encode
 import qualified Codec.FFmpeg.Probe         as Probe
 import           Codec.Picture              as CP
 import           Control.Effect
@@ -49,16 +48,15 @@ import           Data.Time.Clock
 import qualified Data.Vector                as V
 import qualified Data.Vector.Generic        as VG
 import           Graphics.ColorSpace        as A
-import           Pipes                      (Consumer', Pipe, Producer, (>->))
+import           Pipes                      (Pipe, Producer, (>->))
 import qualified Pipes
 import qualified Pipes.Parse                as Pipes
 import qualified Pipes.Prelude              as Pipes hiding (show)
 import           Pipes.Safe
 import           System.Directory
 import           System.FilePath
-import           System.IO                  hiding (putStrLn)
-import           Text.Printf
 
+import           Komposition.Classification
 import           Komposition.Duration
 import           Komposition.FFmpeg.Command (Command (Command))
 import qualified Komposition.FFmpeg.Command as Command
@@ -193,7 +191,7 @@ classifyMovement minStillSegmentTime =
             go (InMoving (VG.singleton frame))
         (InMoving {..}, Nothing) -> VG.mapM_ (yield' . Moving) equalFrames
         (InStill {..}, Just frame)
-          | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> do
+          | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) ->
             go (InStill (VG.snoc stillFrames frame))
           | otherwise -> do
             let yieldFrame =
@@ -209,59 +207,6 @@ data SplitSegment a = SplitSegment
   { segmentNumber :: Int
   , segmentFrame  :: a
   } deriving (Eq, Show, Functor)
-
-data PaddedSplitterState a
-  = PaddedSplitterInStill Int !a
-  | PaddedSplitterInMoving Int
-
-printProcessingInfo :: MonadIO m => Consumer' (Timed f) m ()
-printProcessingInfo =
-  Pipes.mapM_ $ \(Timed _ n) ->
-    liftIO $ do
-      let s = floor n :: Int
-      printf
-        "\rProcessing at %02d:%02d:%02d"
-        (s `div` 3600)
-        (s `div` 60)
-        (s `mod` 60)
-      hFlush stdout
-
-writeSplitVideoFiles ::
-     MonadIO m
-  => VideoSettings
-  -> FilePath
-  -> Producer (Classified (Timed JuicyFrame)) m ()
-  -> Producer (Classified (Timed JuicyFrame)) m [FilePath]
-writeSplitVideoFiles settings outDir = Pipes.evalStateT (go (Left (), 1 :: Int, []))
-  where
-    go state' =
-      draw' >>= \case
-        Just frame -> do
-          yield' frame
-          case (state', frame) of
-            ((Left (), n, files), Still _) -> go (Left (), n, files)
-            ((Left (), n, files), Moving f) -> do
-              let ep = (defaultH264
-                          (fromIntegral (settings ^. resolution . width))
-                          (fromIntegral (settings ^. resolution . height)))
-                       {epFps = fromIntegral (settings ^. frameRate)}
-                  filePath = outDir </> show n ++ ".mp4"
-              writeFrame <- liftIO (imageWriter ep filePath)
-              liftIO (writeFrame (Just (untimed f)))
-              go (Right writeFrame, n, filePath : files)
-            ((Right writeFrame, n, files), Still _) -> do
-              liftIO (writeFrame Nothing)
-              go (Left (), succ n, files)
-            ((Right writeFrame, n, files), Moving (untimed -> f)) -> do
-              liftIO (writeFrame (Just f))
-              go (Right writeFrame, n, files)
-        Nothing ->
-          case state' of
-            (Left (), _, files) ->
-              return (reverse files)
-            (Right writeFrame, _, files) -> do
-              liftIO (writeFrame Nothing)
-              return (reverse files)
 
 classifyMovingScenes ::
      Monad m
