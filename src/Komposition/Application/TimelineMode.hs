@@ -31,6 +31,7 @@ import           Komposition.Duration
 import qualified Komposition.FFmpeg.Command          as FFmpeg
 import           Komposition.Focus
 import           Komposition.History
+import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
@@ -50,6 +51,7 @@ timelineMode
   :: ( Application t m sig
      , tm ~ (n .== State (t m) TimelineMode)
      , Member ProjectStore sig
+     , Member VideoImport sig
      , Carrier sig m
      )
   => Name n
@@ -166,6 +168,7 @@ timelineMode gui model = do
 insertIntoTimeline ::
      ( Application t m sig
      , Member ProjectStore sig
+     , Member VideoImport sig
      , Carrier sig m
      , tm ~ (n .== State (t m) TimelineMode)
      )
@@ -286,6 +289,7 @@ noAssetsMessage mt =
 selectAssetAndInsert ::
      ( Application t m sig
      , Member ProjectStore sig
+     , Member VideoImport sig
      , Carrier sig m
      , r ~ (n .== State (t m) 'TimelineMode)
      , IxPointed (t m)
@@ -309,6 +313,7 @@ selectAssetAndInsert gui model mediaType' position =
     onNoAssets ::
         ( Application t m sig
         , Member ProjectStore sig
+        , Member VideoImport sig
         , Carrier sig m
         , r ~ (n .== State (t m) 'TimelineMode)
         , IxPointed (t m)
@@ -325,6 +330,7 @@ insertSelectedAssets ::
   ( ReturnsToTimeline mode
   , Application t m sig
   , Member ProjectStore sig
+  , Member VideoImport sig
   , Carrier sig m
   , HasType n (State (t m) mode) i
   , Modify n (State (t m) TimelineMode) i ~ o
@@ -381,6 +387,7 @@ addImportedAssetsToLibrary ::
   ( ReturnsToTimeline mode
   , Application t m sig
   , Member ProjectStore sig
+  , Member VideoImport sig
   , Carrier sig m
   , HasType n (State (t m) mode) i
   , Modify n (State (t m) TimelineMode) i ~ o

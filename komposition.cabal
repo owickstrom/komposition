@@ -46,6 +46,7 @@ library
                       , Komposition.History
                       , Komposition.Import.Audio
                       , Komposition.Import.Video
+                      , Komposition.Import.Video.FFmpeg
                       , Komposition.KeyMap
                       , Komposition.Logging
                       , Komposition.Logging.FastLogger
@@ -144,7 +145,9 @@ executable komposition-split
   other-modules:        Paths_komposition
   -- other-extensions:
   build-depends:        base >=4.10 && <4.12
-                      , komposition
+                      , directory
+                      , filepath
+                      , ffmpeg-light
                       , gi-gobject
                       , gi-glib
                       , gi-gtk
@@ -152,6 +155,12 @@ executable komposition-split
                       , gi-pango
                       , haskell-gi
                       , haskell-gi-base
+                      , komposition
+                      , lens
+                      , massiv-io
+                      , pipes
+                      , pipes-parse
+                      , pipes-safe
                       , text
                       , time
   hs-source-dirs:       exe
@@ -170,7 +179,7 @@ test-suite komposition-tests
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
-                 , Komposition.Import.VideoTest
+                 , Komposition.Import.Video.FFmpegTest
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
                  , Komposition.Render.CompositionTest

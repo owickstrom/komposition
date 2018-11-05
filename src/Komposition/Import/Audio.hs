@@ -7,17 +7,16 @@ module Komposition.Import.Audio where
 import           Komposition.Prelude        hiding (bracket, catch)
 import qualified Prelude
 
-import qualified Codec.FFmpeg.Probe     as Probe
+import qualified Codec.FFmpeg.Probe         as Probe
 import           Control.Monad.Catch        hiding (bracket)
-import qualified Data.Char              as Char
-import qualified Data.Text              as Text
+import qualified Data.Char                  as Char
+import qualified Data.Text                  as Text
 import           Data.Time.Clock
 import           Pipes
-import           Pipes                  (Producer)
 import           Pipes.Safe
 import           System.Directory
 import           System.FilePath
-import qualified System.IO              as IO
+import qualified System.IO                  as IO
 import           System.IO.Temp
 import           System.Process
 
@@ -146,7 +145,7 @@ importAudioFile audioFile outDir = do
       return assetPath
   -- Generate thumbnail and return asset
   Pipes.yield (ProgressUpdate "Importing Audio" 0.5) *>
-    (filePathToAudioAsset outDir assetPath) <*
+    filePathToAudioAsset outDir assetPath <*
     Pipes.yield (ProgressUpdate "Importing Audio" 1)
 
 importAudioFileAutoSplit ::
@@ -172,8 +171,10 @@ importAudioFileAutoSplit audioFilePath outDir = do
           dropSilentChunks
       lift (mapM (filePathToAudioAsset outDir) chunks)
 
-isSupportedAudioFile :: FilePath -> Bool
-isSupportedAudioFile p = takeExtension p `elem` [".wav", ".mp3", ".m4a", ".aiff", ".aac"]
+isSupportedAudioFile :: MonadIO m => FilePath -> m Bool
+isSupportedAudioFile p =
+  -- TODO: Check that it can be processed, not just checking the extension
+  return (takeExtension p `elem` [".wav", ".mp3", ".m4a", ".aiff", ".aac"])
 
 filePathToAudioAsset ::
      (MonadMask m, MonadIO m)
