@@ -2,19 +2,28 @@
 
 let
   nixpkgs = import (builtins.fetchGit {
-    name = "nixos-unstable-2018-10-02";
+    name = "nixos-unstable-2018-10-31";
     url = https://github.com/nixos/nixpkgs/;
     # `git ls-remote https://github.com/nixos/nixpkgs-channels nixos-unstable`
-    rev = "46651b82b87318e37440c15a639d49ec05e79b79";
+    rev = "45a419ab5a23c93421c18f3d9cde015ded22e712";
   }) {};
 
   giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
+  fusedEffectsJson = builtins.fromJSON (builtins.readFile ./fused-effects.json);
 
   inherit (nixpkgs) pkgs;
 
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
       haskell-gi-overloading = pkgs.haskell.lib.dontHaddock (self.callHackage "haskell-gi-overloading" "1.0" {});
+      fused-effects =
+        let
+          src = nixpkgs.fetchFromGitHub {
+            owner = "robrix";
+            repo = "fused-effects";
+            inherit (fusedEffectsJson) rev sha256;
+          };
+        in self.callCabal2nix "fused-effects" src {};
       massiv = self.callHackage "massiv" "0.1.6.1" {};
       massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
       indexed-extras = pkgs.haskell.lib.doJailbreak super.indexed-extras;

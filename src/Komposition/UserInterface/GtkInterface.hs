@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections              #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
@@ -17,6 +16,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -27,14 +27,24 @@ module Komposition.UserInterface.GtkInterface
   )
 where
 
-import           Komposition.Prelude                                      hiding (state)
+import           Komposition.Prelude                                      hiding (Reader,
+                                                                           Void,
+                                                                           ask,
+                                                                           runReader,
+                                                                           state)
 import qualified Prelude
 
+import           Control.Effect                                           (Eff,
+                                                                           LiftC,
+                                                                           Member,
+                                                                           runM)
+import           Control.Effect.Carrier                                   (Carrier)
+import           Control.Effect.Reader
 import           Control.Lens
-import           Control.Monad                                            (void)
+import           Control.Monad                                            (fail,
+                                                                           void)
 import           Control.Monad.Indexed                                    ()
 import           Control.Monad.Indexed.Trans
-import           Control.Monad.Reader
 import qualified Data.GI.Base.Properties                                  as GI
 import qualified Data.HashSet                                             as HashSet
 import           Data.Row.Records                                         (Empty)
@@ -334,7 +344,7 @@ inNewModalDialog n ModalDialog {..} = FSM.get n >>>= \s -> iliftIO $ do
     tearDown d ctx
   takeMVar response
 
-instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
+instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => UserInterface (GtkInterface m) where
   type State (GtkInterface m) = GtkInterfaceState
 
   start n keyMaps =
@@ -557,13 +567,19 @@ instance (MonadReader Env m, MonadIO m) => UserInterface (GtkInterface m) where
     >>> iliftIO Gtk.mainQuit
     >>> delete n
 
-runGtkUserInterface
-  :: FilePath -> GtkInterface (ReaderT Env IO) Empty Empty () -> IO ()
-runGtkUserInterface cssPath ui = do
+runGtkUserInterface ::
+    ( Monad m
+    , Carrier sig m
+    )
+  => FilePath
+  -> (m () -> Eff (LiftC IO) ())
+  -> GtkInterface (Eff (ReaderC Env m)) Empty Empty ()
+  -> IO ()
+runGtkUserInterface cssPath runEffects ui = do
   void $ Gst.init Nothing
   void $ Gtk.init Nothing
   screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
-  appLoop <- async (runReaderT (runFSM (runGtkInterface ui)) Env {..})
+  appLoop <- async (runM (runEffects (runReader Env {..} (runFSM (runGtkInterface ui)))))
   Gtk.main
   cancel appLoop

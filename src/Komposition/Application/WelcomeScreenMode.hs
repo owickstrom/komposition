@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
@@ -13,45 +14,59 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
+import           Control.Effect                       (Member)
+import           Control.Effect.Carrier               (Carrier)
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
-import           System.Directory
 
 import           Komposition.Composition
 import           Komposition.Focus
+import           Komposition.Import.Audio
+import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.Render
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
+type WelcomeScreenModeEffects sig =
+    ( Member ProjectStore sig
+    , Member VideoImport sig
+    , Member AudioImport sig
+    , Member Render sig
+    )
+
 welcomeScreenMode
-  :: Application t m
+  :: ( Application t m sig
+    , WelcomeScreenModeEffects sig
+    , Carrier sig m
+    )
   => Name n
   -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
 welcomeScreenMode gui = do
   updateWelcomeScreen gui
   nextEvent gui >>= \case
     OpenExistingProjectClicked -> do
-      userDir <- iliftIO getUserDocumentsDirectory
-      chooseFile gui (Open Directory) "Open Project Directory" userDir >>= \case
-        Just path' -> do
-          iliftIO (openExistingProject path') >>= \case
+      outDir <- ilift getDefaultProjectsDirectory
+      chooseFile gui (Open Directory) "Open Project Directory" outDir >>= \case
+        Just path' ->
+          ilift (openExistingProject path') >>= \case
             Left err -> do
-              iliftIO (putStrLn ("Opening existing project failed: " <> show err :: Text))
+              ilift (logLnText Error ("Opening existing project failed: " <> show err))
               welcomeScreenMode gui
             Right existingProject' -> toTimelineWithProject gui existingProject'
         Nothing -> welcomeScreenMode gui
     CreateNewProjectClicked -> do
-      userDir <- iliftIO getUserDocumentsDirectory
-      chooseFile gui (Save Directory) "Choose Project Directory" userDir >>= \case
+      outDir <- ilift getDefaultProjectsDirectory
+      chooseFile gui (Save Directory) "Choose Project Directory" outDir >>= \case
         Just path' ->
-          iliftIO (createNewProject path' initialProject) >>= \case
+          ilift (createNewProject path' initialProject) >>= \case
             Left err -> do
               beep gui
-              iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
+              ilift (logLnText Error ("Create new project failed: " <> show err))
               welcomeScreenMode gui
             Right newProject -> toTimelineWithProject gui newProject
         Nothing -> welcomeScreenMode gui
@@ -61,10 +76,13 @@ welcomeScreenMode gui = do
       welcomeScreenMode gui
 
 toTimelineWithProject
-  :: Application t m
+  :: ( Application t m sig
+    , Carrier sig m
+    , WelcomeScreenModeEffects sig
+    )
   => Name n
   -> ExistingProject
-  -> t m (n .== State (t m) 'WelcomeScreenMode) Empty ()
+  -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
 toTimelineWithProject gui project = do
   let model = TimelineModel project initialFocus Nothing (ZoomLevel 1)
   returnToTimeline gui model

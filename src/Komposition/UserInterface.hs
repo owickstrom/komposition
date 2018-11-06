@@ -265,7 +265,7 @@ class MonadFSM m =>
     -> Actions m '[ n := Remain (State m t)] r (Maybe FilePath)
   progressBar
     :: Exception e
-    => (Name n)
+    => Name n
     -> Text -- ^ Progress window title.
     -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer.
     -> Actions m '[ n := Remain (State m t)] r (Maybe (Either e a))
