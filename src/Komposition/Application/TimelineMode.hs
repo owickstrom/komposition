@@ -28,7 +28,6 @@ import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Split
 import           Komposition.Duration
-import qualified Komposition.FFmpeg.Command          as FFmpeg
 import           Komposition.Focus
 import           Komposition.History
 import           Komposition.Import.Audio
@@ -37,8 +36,8 @@ import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.Render
 import qualified Komposition.Render.Composition      as Render
-import qualified Komposition.Render.FFmpeg           as Render
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
@@ -52,6 +51,7 @@ type TimelineEffects sig =
   ( Member ProjectStore sig
   , Member VideoImport sig
   , Member AudioImport sig
+  , Member Render sig
   )
 
 timelineMode
@@ -127,19 +127,18 @@ timelineMode gui model = do
       CommandKeyMappedEvent Render ->
         case Render.flattenTimeline (currentProject model ^. timeline) of
           Just flat -> do
-            outDir <- iliftIO getUserDocumentsDirectory
+            outDir <- ilift getDefaultProjectsDirectory
             chooseFile gui (Save File) "Render To File" outDir >>>= \case
-              Just outFile ->
-                progressBar
-                  gui
-                  "Rendering"
-                  (Render.renderComposition
+              Just outFile -> do
+                stream <-
+                  ilift $ renderComposition
                     (currentProject model ^. videoSettings)
-                    Render.VideoOriginal
-                    (FFmpeg.FileOutput outFile)
-                    flat) >>= \case
+                    VideoOriginal
+                    (FileOutput outFile)
+                    flat
+                progressBar gui "Rendering" stream >>= \case
                   Just (Right ()) -> continue
-                  Just (Left (err :: Render.RenderError)) ->
+                  Just (Left (SomeException err)) ->
                     ilift (logLnShow Error err) >>> continue
                   Nothing -> continue
               Nothing -> continue
@@ -250,7 +249,7 @@ prettyFocusedAt = \case
   FocusedAudioPart{} -> "audio track"
 
 previewFocusedComposition
-  :: Application t m sig
+  :: (Application t m sig, TimelineEffects sig)
   => Name n
   -> TimelineModel
   -> Actions
@@ -258,30 +257,32 @@ previewFocusedComposition
        '[n := Remain (State (t m) TimelineMode)]
        r
        TimelineModel
-previewFocusedComposition gui model =
-  case flatComposition of
-    Just flat -> do
-      let streamingProcess =
-            void $
-            Render.renderComposition
-              (currentProject model ^. proxyVideoSettings)
-              Render.VideoProxy
-              (FFmpeg.HttpStreamingOutput "localhost" 12345)
-              flat
-      _ <- previewStream gui "http://localhost:12345" streamingProcess (currentProject model ^. proxyVideoSettings)
-      ireturn model
-    Nothing -> do
-      beep gui
-      model
-        & statusMessage ?~ "Cannot preview a composition without video clips."
-        & ireturn
+previewFocusedComposition gui model = case flatComposition of
+  Just flat -> do
+    streamingProcess <- ilift $ renderComposition
+      (currentProject model ^. proxyVideoSettings)
+      VideoProxy
+      (HttpStreamingOutput "localhost" 12345)
+      flat
+    _ <- previewStream gui
+                       "http://localhost:12345"
+                       streamingProcess
+                       (currentProject model ^. proxyVideoSettings)
+    ireturn model
+  Nothing -> do
+    beep gui
+    model
+      &  statusMessage
+      ?~ "Cannot preview a composition without video clips."
+      &  ireturn
   where
     flatComposition :: Maybe Render.Composition
     flatComposition =
-      atFocus (model ^. currentFocus) (currentProject model ^. timeline) Prelude.>>= \case
-        FocusedSequence s -> Render.flattenSequence s
-        FocusedParallel p -> Render.flattenParallel p
-        _  -> Nothing
+      atFocus (model ^. currentFocus) (currentProject model ^. timeline)
+        Prelude.>>= \case
+                      FocusedSequence s -> Render.flattenSequence s
+                      FocusedParallel p -> Render.flattenParallel p
+                      _                 -> Nothing
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =
@@ -361,15 +362,19 @@ insertSelectedAssets gui model mediaType' position result = do
   timelineMode gui model'
 
 insertionOf ::
-     (IxMonad (t m), IxMonadIO (t m))
+     (IxMonadTrans t, IxMonad (t m), Monad m, Carrier sig m, Member Render sig)
   => TimelineModel
   -> SMediaType mt
   -> [Asset mt]
   -> t m r r (Insertion ())
-insertionOf model SVideo a = iliftIO (InsertVideoParts <$> mapM (toVideoClip model) a)
+insertionOf model SVideo a = ilift (InsertVideoParts <$> mapM (toVideoClip model) a)
 insertionOf _ SAudio a = ireturn (InsertAudioParts (AudioClip () <$> a))
 
-toVideoClip :: TimelineModel -> VideoAsset -> IO (VideoPart ())
+toVideoClip
+  :: (Monad m, Carrier sig m, Member Render sig)
+  => TimelineModel
+  -> VideoAsset
+  -> m (VideoPart ())
 toVideoClip model videoAsset =
   let ts =
         maybe
@@ -377,10 +382,10 @@ toVideoClip model videoAsset =
           snd
           (videoAsset ^. videoClassifiedScene)
   in VideoClip () videoAsset ts <$>
-      Render.extractFrameToFile
+      extractFrameToFile
         (currentProject model ^. videoSettings)
         Render.FirstFrame
-        Render.VideoProxy
+        VideoProxy
         videoAsset
         ts
         (model ^. existingProject . projectPath . unProjectPath)

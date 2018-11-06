@@ -15,21 +15,15 @@ module Komposition.Application where
 
 import           Komposition.Application.Base
 
-import           Control.Effect                            (Member)
 import           Control.Effect.Carrier                    (Carrier)
 import           Data.Row.Records
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.WelcomeScreenMode
-import           Komposition.Import.Audio
-import           Komposition.Import.Video
-import           Komposition.Project.Store
 
 komposition
   :: ( Application t m sig
-    , Member ProjectStore sig
-    , Member VideoImport sig
-    , Member AudioImport sig
+    , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
   => t m Empty Empty ()

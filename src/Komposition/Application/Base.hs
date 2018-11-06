@@ -23,7 +23,6 @@ import           Komposition.Logging         as X
 type Application t m sig
    = ( IxPointed (t m)
      , UserInterface (t m)
-     , IxMonadIO (t m)
      , IxMonadTrans t
      , Member Log sig
      , Carrier sig m

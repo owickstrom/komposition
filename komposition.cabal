@@ -59,6 +59,7 @@ library
                       , Komposition.Project.Store.File
                       , Komposition.Library
                       , Komposition.MediaType
+                      , Komposition.Render
                       , Komposition.Render.Composition
                       , Komposition.Render.FFmpeg
                       , Komposition.UserInterface

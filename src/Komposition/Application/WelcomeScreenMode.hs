@@ -18,7 +18,6 @@ import           Control.Effect                       (Member)
 import           Control.Effect.Carrier               (Carrier)
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
-import           System.Directory
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -27,16 +26,22 @@ import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.Render
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 
-welcomeScreenMode
-  :: ( Application t m sig
-    , Member ProjectStore sig
+type WelcomeScreenModeEffects sig =
+    ( Member ProjectStore sig
     , Member VideoImport sig
     , Member AudioImport sig
+    , Member Render sig
+    )
+
+welcomeScreenMode
+  :: ( Application t m sig
+    , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
   => Name n
@@ -45,8 +50,8 @@ welcomeScreenMode gui = do
   updateWelcomeScreen gui
   nextEvent gui >>= \case
     OpenExistingProjectClicked -> do
-      userDir <- iliftIO getUserDocumentsDirectory
-      chooseFile gui (Open Directory) "Open Project Directory" userDir >>= \case
+      outDir <- ilift getDefaultProjectsDirectory
+      chooseFile gui (Open Directory) "Open Project Directory" outDir >>= \case
         Just path' ->
           ilift (openExistingProject path') >>= \case
             Left err -> do
@@ -55,8 +60,8 @@ welcomeScreenMode gui = do
             Right existingProject' -> toTimelineWithProject gui existingProject'
         Nothing -> welcomeScreenMode gui
     CreateNewProjectClicked -> do
-      userDir <- iliftIO getUserDocumentsDirectory
-      chooseFile gui (Save Directory) "Choose Project Directory" userDir >>= \case
+      outDir <- ilift getDefaultProjectsDirectory
+      chooseFile gui (Save Directory) "Choose Project Directory" outDir >>= \case
         Just path' ->
           ilift (createNewProject path' initialProject) >>= \case
             Left err -> do
@@ -72,10 +77,8 @@ welcomeScreenMode gui = do
 
 toTimelineWithProject
   :: ( Application t m sig
-    , Member ProjectStore sig
-    , Member VideoImport sig
-    , Member AudioImport sig
     , Carrier sig m
+    , WelcomeScreenModeEffects sig
     )
   => Name n
   -> ExistingProject

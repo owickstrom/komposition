@@ -106,6 +106,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
             putStrLn ("Invalid project data file: " <> show e)
             throwError (InvalidProjectDataFile dataFilePath))
       return (ExistingProject projectPath' existingHistory))
+    GetDefaultProjectsDirectory k -> k =<< liftIO getUserDocumentsDirectory
 
 runFileProjectStoreIO :: (MonadIO m, Carrier sig m) => Eff (FileProjectStoreIOC m) a -> m a
 runFileProjectStoreIO = runFileProjectStoreIOC . interpret
