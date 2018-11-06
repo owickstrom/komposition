@@ -27,6 +27,8 @@ module Komposition.Import.Video.FFmpeg
   , Timed(..)
   , JuicyFrame
   , MassivFrame
+  , equalFrame
+  , equalFrame'
   , runFFmpegVideoImport
   )
 where

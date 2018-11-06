@@ -3,12 +3,12 @@ module Main where
 
 import           Komposition.Prelude
 
-import qualified Codec.Picture        as Juicy
+import qualified Codec.Picture                   as Juicy
 import           Criterion.Main
-import qualified Data.ByteString      as ByteString
-import qualified Data.Massiv.Array.IO as Massiv
+import qualified Data.ByteString                 as ByteString
+import qualified Data.Massiv.Array.IO            as Massiv
 
-import           Komposition.Import.Video
+import           Komposition.Import.Video.FFmpeg
 
 testImageName :: Int -> FilePath
 testImageName n = "bench/images/" <> show n <> ".png"
@@ -21,7 +21,7 @@ readJuicyTestImage n = do
     Right (Juicy.ImageRGB8 img) -> return img
     Right _                     -> panic "Unexpected image type."
 
-readMassivTestImage :: Int -> IO RGB8Frame
+readMassivTestImage :: Int -> IO MassivFrame
 readMassivTestImage = Massiv.readImage . testImageName
 
 main :: IO ()
@@ -32,7 +32,7 @@ main = do
   himg2 <- readMassivTestImage 2
   defaultMain
     [ bgroup
-        "fib"
+        "frame equality check"
         [ bench "equalFrame(1)" $ whnf (equalFrame 1  0.999 himg1) himg1
         , bench "!equalFrame(1)" $ whnf (equalFrame 1  0.999 himg1) himg2
         , bench "equalFrame'(32)" $ whnf (equalFrame' 1 0.99 himg1) himg1
