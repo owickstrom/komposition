@@ -45,12 +45,3 @@ isSupportedAudioFile
   :: (Member AudioImport sig, Carrier sig m) => FilePath -> m Bool
 isSupportedAudioFile srcFile =
   send (IsSupportedAudioFile srcFile ret)
-
-data AudioImportError
-  = UnexpectedError FilePath Text
-  | ProcessFailed Text Int (Maybe Text)
-  | CouldNotReadMaximumAmplitude FilePath
-  | TranscodingFailed Text
-  deriving (Show, Eq)
-
-instance Exception AudioImportError

@@ -21,7 +21,6 @@ import           Control.Lens
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Row.Records                    hiding (split)
 import           Data.String                         (fromString)
-import           System.Directory
 
 import           Komposition.Composition
 import           Komposition.Composition.Delete

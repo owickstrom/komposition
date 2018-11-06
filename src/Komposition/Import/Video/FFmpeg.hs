@@ -358,3 +358,9 @@ instance (MonadIO m, Carrier sig m) => Carrier (VideoImport :+: sig) (FFmpegVide
 
 runFFmpegVideoImport :: (MonadIO m, Carrier sig m) => Eff (FFmpegVideoImportC m) a -> m a
 runFFmpegVideoImport = runFFmpegVideoImportC . interpret
+
+data VideoImportError
+  = UnexpectedError FilePath Text
+  deriving (Show, Eq)
+
+instance Exception VideoImportError

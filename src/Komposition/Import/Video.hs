@@ -62,9 +62,3 @@ isSupportedVideoFile
   :: (Member VideoImport sig, Carrier sig m) => FilePath -> m Bool
 isSupportedVideoFile srcFile =
   send (IsSupportedVideoFile srcFile ret)
-
-data VideoImportError
-  = UnexpectedError FilePath Text
-  deriving (Show, Eq)
-
-instance Exception VideoImportError

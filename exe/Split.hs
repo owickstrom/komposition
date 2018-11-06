@@ -20,7 +20,6 @@ import           System.FilePath
 import           System.IO                       (hFlush)
 import           Text.Printf
 
-import           Komposition.Import.Video
 import           Komposition.Import.Video.FFmpeg
 import           Komposition.VideoSettings
 
@@ -53,7 +52,7 @@ split settings equalFramesTimeThreshold src outDir = do
       printResult res = do
         putStrLn ("" :: Text)
         case res of
-          Left (err :: VideoImportError) -> putStrLn ("Video split failed: " <> show err :: Text)
+          Left (err :: SomeException) -> putStrLn ("Video split failed: " <> show err :: Text)
           Right files ->
             putStrLn ("Wrote " <> show (length files) <> " files." :: Text)
   runSafeT (Pipes.runEffect (tryP (writeSplitSegments >-> discardUpdates) >>= printResult))

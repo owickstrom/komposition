@@ -225,3 +225,12 @@ instance (MonadIO m, Carrier sig m) => Carrier (AudioImport :+: sig) (SoxAudioIm
 
 runSoxAudioImport :: (MonadIO m, Carrier sig m) => Eff (SoxAudioImportC m) a -> m a
 runSoxAudioImport = runSoxAudioImportC . interpret
+
+data AudioImportError
+  = UnexpectedError FilePath Text
+  | ProcessFailed Text Int (Maybe Text)
+  | CouldNotReadMaximumAmplitude FilePath
+  | TranscodingFailed Text
+  deriving (Show, Eq)
+
+instance Exception AudioImportError

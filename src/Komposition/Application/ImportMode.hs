@@ -34,10 +34,8 @@ import           Komposition.Application.KeyMaps
 
 type ImportEffects sig = (Member AudioImport sig, Member VideoImport sig)
 
-data ImportError
-  = VideoImportError VideoImportError
-  | AudioImportError AudioImportError
-  deriving (Eq, Show)
+newtype ImportError = ImportError SomeException
+  deriving (Show)
 
 data ImportFileForm = ImportFileForm
   { selectedFile :: Maybe FilePath
@@ -112,14 +110,14 @@ importSelectedFile gui project (filepath, classify) = do
         filepath
         (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Video" action
-      ireturn (bimap VideoImportError Left <$> result)
+      ireturn (bimap ImportError Left <$> result)
     (False, True) -> do
       action <- ilift $ importAudioFile
         classification
         filepath
         (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Audio" action
-      ireturn (bimap AudioImportError Right <$> result)
+      ireturn (bimap ImportError Right <$> result)
     _ -> do
       _ <- dialog
         gui
