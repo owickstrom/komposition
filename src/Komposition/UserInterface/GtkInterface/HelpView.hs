@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedLabels  #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Komposition.UserInterface.GtkInterface.HelpView () where
 

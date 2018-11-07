@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- | The library view of Komposition's GTK interface.

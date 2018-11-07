@@ -9,6 +9,7 @@ import qualified GI.GLib                        as GLib
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.State
 
 import Komposition.UserInterface.GtkInterface.CustomWidget
 
@@ -18,6 +19,7 @@ thumbnailPreview customData = Widget (CustomWidget {..})
     customWidget = Gtk.Layout
     customCreate thumbnailPath = do
       layout <- Gtk.layoutNew Gtk.noAdjustment Gtk.noAdjustment
+      sc <- Gtk.widgetGetStyleContext layout
       image <- Gtk.imageNewFromPixbuf Pixbuf.noPixbuf
       Gtk.widgetSetSizeRequest layout 200 200
       Gtk.layoutPut layout image 0 0
@@ -36,9 +38,9 @@ thumbnailPreview customData = Widget (CustomWidget {..})
         w <- Gdk.getRectangleWidth a
         h <- Gdk.getRectangleHeight a
         redraw w h
-      return layout
+      return (SomeState (StateTreeWidget (StateTreeNode layout sc mempty)))
 
-    customPatch old new
+    customPatch state' old new
       | old == new = CustomKeep
       | otherwise = CustomReplace
 

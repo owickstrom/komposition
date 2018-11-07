@@ -55,6 +55,7 @@ import qualified GI.Gst                                                   as Gst
 import           GI.Gtk                                                   (AttrOp (..))
 import qualified GI.Gtk                                                   as Gtk
 import qualified GI.Gtk.Declarative                                       as Declarative
+import qualified GI.Gtk.Declarative.State                                 as Declarative
 import           Motor.FSM                                                hiding
                                                                            ((:=))
 import qualified Motor.FSM                                                as FSM
@@ -64,6 +65,7 @@ import           Pipes.Safe                                               (runSa
 import           Text.Printf
 
 import           Control.Monad.Indexed.IO
+import           Komposition.KeyMap
 import           Komposition.Progress
 import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
@@ -91,12 +93,13 @@ deriving instance Monad m => Monad (GtkUserInterface m i i)
 
 data GtkWindow event = GtkWindow
   { markup       :: GtkWindowMarkup event
-  , gtkWidget    :: Gtk.Window
+  , widgetState  :: Declarative.SomeState
   , windowEvents :: EventListener event
+  , windowKeyMap :: KeyMap event
   }
 
 asGtkWindow :: GtkWindow event -> IO Gtk.Window
-asGtkWindow (GtkWindow _ w _) = Gtk.unsafeCastTo Gtk.Window w
+asGtkWindow w = Declarative.someStateWidget (widgetState w) >>= Gtk.unsafeCastTo Gtk.Window
 
 instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterface (GtkUserInterface m) where
   type Window (GtkUserInterface m) = GtkWindow
@@ -105,42 +108,39 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
   newWindow name markup'@(GtkWindowMarkup decl) keyMap =
     ilift ask >>>= \env ->
       (FSM.new name =<<< irunUI (do
-        w <- Declarative.create decl
-        win <- Gtk.unsafeCastTo Gtk.Window w
+        s <- Declarative.create decl
+        win <- Gtk.unsafeCastTo Gtk.Window =<< Declarative.someStateWidget s
         -- Set up CSS provider
         loadCss env win
         -- Set up event listeners
-        viewEvents <- subscribeToDeclarativeWidget decl w
-        keyEvents <- applyKeyMap keyMap =<< subscribeKeyEvents w
+        viewEvents <- subscribeToDeclarativeWidget decl s
+        keyEvents <- applyKeyMap keyMap =<< subscribeKeyEvents =<< Gtk.toWidget win
         allEvents <- mergeEvents viewEvents keyEvents
         -- And show recursively as this is a new widget tree
-        #showAll w
-        return (GtkWindow markup' win allEvents)))
+        #showAll win
+        return (GtkWindow markup' s allEvents keyMap)))
 
   patchWindow name (GtkWindowMarkup decl) =
     FSM.get name >>>= \w ->
       FSM.enter name =<<<
-        case Declarative.patch (unGtkWindowMarkup (markup w)) decl of
-          Declarative.Modify f -> iliftIO $ do
-            putStrLn ("Modify" :: Text)
-            w' <- Gtk.toWidget (gtkWidget w)
-            runUI_ (f w' >> #showAll w')
-            return w
+        case Declarative.patch (widgetState w) (unGtkWindowMarkup (markup w)) decl of
+          Declarative.Modify f -> irunUI $ do
+            s' <- f
+            return w { markup = GtkWindowMarkup decl, widgetState = s' }
           Declarative.Replace create' -> irunUI $ do
-            putStrLn ("Replace" :: Text)
-            Gtk.widgetDestroy (gtkWidget w)
-            gtkWidget' <- create'
-            gtkWindow' <- Gtk.unsafeCastTo Gtk.Window gtkWidget'
-            viewEvents <- subscribeToDeclarativeWidget decl gtkWidget'
-            #showAll gtkWidget'
-            return (GtkWindow (GtkWindowMarkup decl) gtkWindow' viewEvents)
-          Declarative.Keep -> do
-            iliftIO (putStrLn ("Keep" :: Text))
-            ireturn w
+            Gtk.widgetDestroy =<< asGtkWindow w
+            s' <- create'
+            win <- Gtk.unsafeCastTo Gtk.Window =<< Declarative.someStateWidget s'
+            viewEvents <- subscribeToDeclarativeWidget decl s'
+            keyEvents <- applyKeyMap (windowKeyMap w) =<< subscribeKeyEvents =<< Gtk.toWidget win
+            allEvents <- mergeEvents viewEvents keyEvents
+            #showAll win
+            return (GtkWindow (GtkWindowMarkup decl) s' allEvents (windowKeyMap w))
+          Declarative.Keep -> ireturn w
 
   destroyWindow name =
     FSM.get name >>>= \w ->
-      irunUI (Gtk.widgetDestroy (gtkWidget w)) >>> FSM.delete name
+      irunUI (Gtk.widgetDestroy =<< asGtkWindow w) >>> FSM.delete name
 
   withNewWindow name markup keymap action =
     call $
@@ -155,7 +155,10 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
       call $
         newWindow name markup keymap
         >>> FSM.get name
-        >>>= \w -> irunUI (Gtk.windowSetTransientFor (gtkWidget w) (Just (gtkWidget p)))
+        >>>= \w -> (irunUI $ do
+          cw <- asGtkWindow w
+          pw <- asGtkWindow p
+          Gtk.windowSetTransientFor cw (Just pw))
         >>> action
         >>>= \x ->
           destroyWindow name
@@ -215,7 +218,8 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
       Gtk.fileChooserSetDoOverwriteConfirmation chooser True
       Gtk.fileChooserSetAction chooser (modeToAction mode)
       Gtk.nativeDialogSetTitle d title
-      Gtk.nativeDialogSetTransientFor d (Just (gtkWidget w))
+      pw <- asGtkWindow w
+      Gtk.nativeDialogSetTransientFor d (Just pw)
       Gtk.nativeDialogSetModal d True
       res <- Gtk.nativeDialogRun d
       case toEnum (fromIntegral res) of
@@ -235,11 +239,12 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
     FSM.get n >>>= \w -> iliftIO $ do
       result <- newEmptyMVar
       runUI $ do
+        pw <- asGtkWindow w
         d <-
           Gtk.new
             Gtk.Dialog
             [ #title := title
-            , #transientFor := gtkWidget w
+            , #transientFor := pw
             , #modal := True
             ]
         content      <- Gtk.dialogGetContentArea d
@@ -362,10 +367,11 @@ inNewModalDialog n ModalDialog {..} =
   FSM.get n >>>= \parentWindow -> iliftIO $ do
     response <- newEmptyMVar
     runUI $ do
+      pw <- asGtkWindow parentWindow
       d <- Gtk.new
         Gtk.Dialog
         [ #title := title
-        , #transientFor := gtkWidget parentWindow
+        , #transientFor := pw
         , #modal := True
         ]
 
