@@ -28,6 +28,7 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
+import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
@@ -55,12 +56,12 @@ welcomeScreenMode = do
       patchWindow #welcome welcomeView
       nextEvent #welcome >>= \case
         OpenExistingProjectClicked -> do
-          userDir <- iliftIO getUserDocumentsDirectory
-          chooseFile #welcome (Open Directory) "Open Project Directory" userDir >>= \case
+          dir <- ilift getDefaultProjectsDirectory
+          chooseFile #welcome (Open Directory) "Open Project Directory" dir >>= \case
             Just path' ->
-              iliftIO (openExistingProject path') >>= \case
+              ilift (openExistingProject path') >>= \case
                 Left err -> do
-                  iliftIO (putStrLn ("Opening existing project failed: " <> show err :: Text))
+                  ilift (logLnText Error ("Opening existing project failed: " <> show err))
                   inWelcomeScreenMode
                 Right existingProject' -> toTimelineWithProject existingProject'
             Nothing -> inWelcomeScreenMode
@@ -72,27 +73,30 @@ welcomeScreenMode = do
             "OK"
             PromptText >>>= \case
             Just projectName' -> do
-              userDir <- iliftIO getUserDocumentsDirectory
-              let defaultDir = userDir
+              dir <- ilift getDefaultProjectsDirectory
+              let defaultDir = dir
               chooseFile #welcome (Save Directory) "Choose Project Directory" defaultDir >>= \case
                 Just path' ->
-                  iliftIO (createNewProject path' (initialProject & projectName .~ projectName')) >>= \case
+                  ilift (createNewProject path' (initialProject & projectName .~ projectName')) >>= \case
                     Left err -> do
                       beep #welcome
-                      iliftIO (putStrLn ("Create new project failed: " <> show err :: Text))
+                      ilift (logLnText Error ("Create new project failed: " <> show err))
                       inWelcomeScreenMode
                     Right newProject -> toTimelineWithProject newProject
                 Nothing -> inWelcomeScreenMode
             Nothing -> inWelcomeScreenMode
         WindowClosed -> destroyWindow #welcome
         CommandKeyMappedEvent Cancel -> destroyWindow #welcome
-        CommandKeyMappedEvent Help -> do
+        CommandKeyMappedEvent Help ->
           help #welcome [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
             Just HelpClosed -> inWelcomeScreenMode
             Nothing -> inWelcomeScreenMode
 
 toTimelineWithProject
-  :: Application t m sig
+  :: ( Application t m sig
+    , WelcomeScreenModeEffects sig
+    , Carrier sig m
+    )
   => ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project = do
@@ -106,7 +110,11 @@ toTimelineWithProject project = do
   where
     runTimeline model =
       timelineMode #timeline model >>= \case
-        TimelineExit -> destroyWindow #timeline
+        TimelineExit model' ->
+          dialog #timeline DialogProperties { dialogTitle = "Confirm Exit", dialogMessage = "Are you sure you want to exit?", dialogChoices = [No, Yes]} >>>= \case
+            Just Yes -> destroyWindow #timeline
+            Just No -> runTimeline model'
+            Nothing -> runTimeline model'
         TimelineClose -> do
           destroyWindow #timeline
           welcomeScreenMode

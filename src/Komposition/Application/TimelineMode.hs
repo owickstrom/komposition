@@ -5,7 +5,6 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RebindableSyntax    #-}
@@ -38,7 +37,6 @@ import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
 import qualified Komposition.Render.Composition      as Render
-import qualified Komposition.Render.FFmpeg           as Render
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 
@@ -61,7 +59,7 @@ timelineMode
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== (Window (t m) (Event TimelineMode)))
+     , r ~ (n .== Window (t m) (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -197,10 +195,10 @@ timelineMode gui model = do
       ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
       WindowClosed               -> confirmExit
 
-printUnexpectedFocusError err cmd = case err of
-  UnhandledFocusModification{} ->
-    ilift (logLnText Warning ("Could not handle focus modification: " <> show cmd))
-  _ -> ireturn ()
+    printUnexpectedFocusError err cmd = case err of
+      UnhandledFocusModification{} ->
+        ilift (logLnText Warning ("Could not handle focus modification: " <> show cmd))
+      _ -> ireturn ()
 
 insertIntoTimeline
   :: ( Application t m sig
@@ -266,10 +264,8 @@ insertGap parent model mediaType' position = do
                         "Insert Gap"
                         (PromptNumber (0.1, 10e10, 0.1))
   let gapInsertion seconds = case mediaType' of
-        SVideo ->
-          (InsertVideoParts [VideoGap () (durationFromSeconds seconds)])
-        SAudio ->
-          (InsertAudioParts [AudioGap () (durationFromSeconds seconds)])
+        SVideo -> InsertVideoParts [VideoGap () (durationFromSeconds seconds)]
+        SAudio -> InsertAudioParts [AudioGap () (durationFromSeconds seconds)]
   case gapDuration of
     Just seconds ->
       model

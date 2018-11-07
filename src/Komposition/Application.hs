@@ -15,12 +15,10 @@ module Komposition.Application where
 
 import           Komposition.Application.Base
 
-import           Data.Row.Records (Empty)
 import           Control.Effect.Carrier                    (Carrier)
-import           Data.Row.Records
+import           Data.Row.Records                          (Empty)
 
 import           Komposition.Application.WelcomeScreenMode
-import           Komposition.UserInterface.Dialog
 
 komposition
   :: ( Application t m sig

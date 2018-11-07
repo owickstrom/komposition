@@ -182,10 +182,6 @@ data PromptMode ret where
   PromptNumber :: (Double, Double, Double) -> PromptMode Double
   PromptText :: PromptMode Text
 
-class MonadFSM m =>
-      UserInterface m where
-  type State m :: Mode -> Type
-
 class UserInterfaceMarkup markup where
   welcomeView :: markup (Event WelcomeScreenMode)
   timelineView :: TimelineModel -> markup (Event TimelineMode)

@@ -133,6 +133,7 @@ executable komposition
                       , komposition
                       , fast-logger
                       , filepath
+                      , fused-effects
                       , gi-gobject
                       , gi-glib
                       , gi-gtk

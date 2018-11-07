@@ -27,13 +27,22 @@ module Komposition.UserInterface.GtkInterface
   )
 where
 
-import           Komposition.Prelude                                      hiding (state)
+import           Komposition.Prelude                                      hiding (Reader,
+                                                                           Void,
+                                                                           ask,
+                                                                           runReader,
+                                                                           state)
+import           Prelude                                                  (fail)
 import qualified Prelude
 
+import           Control.Effect
+import           Control.Effect.Carrier                                   (Carrier)
+import           Control.Effect.Reader                                    (ReaderC,
+                                                                           ask,
+                                                                           runReader)
 import           Control.Monad                                            (void)
 import           Control.Monad.Indexed                                    ()
 import           Control.Monad.Indexed.Trans
-import           Control.Monad.Reader
 import qualified Data.HashSet                                             as HashSet
 import           Data.Row.Records                                         (Empty,
                                                                            HasType)
@@ -89,7 +98,7 @@ data GtkWindow event = GtkWindow
 asGtkWindow :: GtkWindow event -> IO Gtk.Window
 asGtkWindow (GtkWindow _ w _) = Gtk.unsafeCastTo Gtk.Window w
 
-instance (MonadIO m, MonadReader Env m) => WindowUserInterface (GtkUserInterface m) where
+instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterface (GtkUserInterface m) where
   type Window (GtkUserInterface m) = GtkWindow
   type WindowMarkup (GtkUserInterface m) = GtkWindowMarkup
 
@@ -270,15 +279,21 @@ instance UserInterfaceMarkup GtkWindowMarkup where
   libraryView = GtkWindowMarkup . View.libraryView
   importView = GtkWindowMarkup . View.importView
 
-runGtkUserInterface
-  :: FilePath -> GtkUserInterface (ReaderT Env IO) Empty Empty () -> IO ()
-runGtkUserInterface cssPath ui = do
+runGtkUserInterface ::
+    ( Monad m
+    , Carrier sig m
+    )
+  => FilePath
+  -> (m () -> IO ())
+  -> GtkUserInterface (Eff (ReaderC Env m)) Empty Empty ()
+  -> IO ()
+runGtkUserInterface cssPath runEffects ui = do
   void $ Gst.init Nothing
   void $ Gtk.init Nothing
   screen  <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
   appLoop <- async $ do
-    runReaderT (runGtkUserInterface' ui) Env {..}
+    runEffects (runReader Env {..} (runGtkUserInterface' ui))
     Gtk.mainQuit
   Gtk.main
   cancel appLoop
