@@ -60,7 +60,6 @@ sequences = sortBy cmdOrdering . flattenKeyMap []
     flattenKeyMap (prefix <> [keys]) km
   cmdOrdering (_, c1) (_, c2) = c1 `compare` c2
 
-
 keySequenceToText :: KeySequence -> Text
 keySequenceToText = Text.unwords . map keyComboToText
 

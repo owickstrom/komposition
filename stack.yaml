@@ -18,3 +18,5 @@ extra-deps:
      - gi-gtk-declarative
  - git: https://github.com/reinerp/indexed-extras.git
    commit: 8b38e7503c030644154e844cd932003d9438cfa2
+ - git: https://github.com/robrix/fused-effects.git
+   commit: 7421ffa4e2d05b961fb0347ddab5ebdef9e32f25

@@ -19,10 +19,12 @@ module Komposition.Application.ImportMode
 
 import           Komposition.Application.Base
 
+import           Control.Effect                   (Member)
 import           Control.Lens
 import           Data.Row.Records
 import           Data.String                      (fromString)
 
+import           Komposition.Classification
 import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
@@ -33,19 +35,20 @@ import           Komposition.UserInterface.Help
 
 import           Komposition.Application.KeyMaps
 
-data ImportError
-  = VideoImportError VideoImportError
-  | AudioImportError AudioImportError
-  deriving (Eq, Show)
+type ImportEffects sig = (Member AudioImport sig, Member VideoImport sig)
+
+newtype ImportError = ImportError SomeException
+  deriving (Show)
 
 data ImportFileForm = ImportFileForm
   { selectedFile :: Maybe FilePath
-  , autoSplit    :: Bool
+  , classify     :: Bool
   }
 
 selectFileToImport
-  :: ( Application t m
-     )
+  :: ( Application t m sig
+    , ImportEffects sig
+    )
   => t m r r (Maybe (FilePath, Bool))
 selectFileToImport =
   let initialModel = ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
@@ -54,7 +57,7 @@ selectFileToImport =
       #import
       (importView initialModel)
       (CommandKeyMappedEvent <$> keymaps SImportMode)
-      (fillForm initialModel ImportFileForm {selectedFile = Nothing, autoSplit = False})
+      (fillForm initialModel ImportFileForm {selectedFile = Nothing, classify = False})
   where
     fillForm model mf = do
       patchWindow #import (importView model)
@@ -65,65 +68,78 @@ selectFileToImport =
             Just HelpClosed -> fillForm model mf
             Nothing -> fillForm model mf
         (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
-          ireturn (Just (file, autoSplit))
+          ireturn (Just (file, classify))
         (ImportClicked          , form) -> fillForm model form
-        (ImportFileSelected file, form) -> fillForm
-          model { autoSplitValue     = False
-                , autoSplitAvailable = maybe False (\f -> isSupportedVideoFile f || isSupportedAudioFile f) file
-                }
-          form { selectedFile = file }
+        (ImportFileSelected file, form) -> do
+          isClassificationAvailable <-
+            case file of
+                Just f  -> isImportable f
+                Nothing -> ireturn False
+          fillForm
+            model { autoSplitValue     = False
+                  , autoSplitAvailable = isClassificationAvailable
+                  }
+            form { selectedFile = file }
         (ImportAutoSplitSet s, form) ->
-          fillForm model { autoSplitValue = s } form { autoSplit = s }
+          fillForm model { autoSplitValue = s } form { classify = s }
         (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
         (WindowClosed, _) -> ireturn Nothing
 
 importSelectedFile
-  :: ( Application t m
+  :: ( Application t m sig
      , r ~ (n .== Window (t m) e)
      , DialogView (WindowMarkup (t m))
+     , ImportEffects sig
      )
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
-  -> t m r r (Maybe (Either ImportError (Either [VideoAsset] [AudioAsset])))
-importSelectedFile parent project (filepath, autoSplit)
-  | isSupportedVideoFile filepath = do
-    let action =
-          case autoSplit of
-            True ->
-              importVideoFileAutoSplit
-                (current (project ^. projectHistory) ^. proxyVideoSettings)
-                filepath
-                (project ^. projectPath . unProjectPath)
-            False ->
-              (: []) <$>
-              importVideoFile
-                (current (project ^. projectHistory) ^. proxyVideoSettings)
-                filepath
-                (project ^. projectPath . unProjectPath)
-    result <- progressBar parent "Importing Video" action
-    ireturn (bimap VideoImportError Left <$> result)
-  | isSupportedAudioFile filepath = do
-    let action =
-          case autoSplit of
-            True ->
-              importAudioFileAutoSplit
-                filepath
-                (project ^. projectPath . unProjectPath)
-            False ->
-              (: []) <$>
-              importAudioFile
-                filepath
-                (project ^. projectPath . unProjectPath)
-    result <- progressBar parent "Importing Audio" action
-    ireturn (bimap AudioImportError Right <$> result)
-  | otherwise = do
-    _ <-
-      dialog
-        parent
-        DialogProperties
+  -> t
+       m
+       r
+       r
+       ( Maybe
+           (Either ImportError (Either [VideoAsset] [AudioAsset]))
+       )
+importSelectedFile gui project (filepath, classify) = do
+  v <- ilift (isSupportedVideoFile filepath)
+  a <- ilift (isSupportedAudioFile filepath)
+  let classification = bool Unclassified Classified classify
+  case (v, a) of
+    (True, _) -> do
+      action <-
+        ilift $
+        importVideoFile
+          classification
+          (current (project ^. projectHistory) ^. proxyVideoSettings)
+          filepath
+          (project ^. projectPath . unProjectPath)
+      result <- progressBar gui "Importing Video" action
+      ireturn (bimap ImportError Left <$> result)
+    (False, True) -> do
+      action <-
+        ilift $
+        importAudioFile
+          classification
+          filepath
+          (project ^. projectPath . unProjectPath)
+      result <- progressBar gui "Importing Audio" action
+      ireturn (bimap ImportError Right <$> result)
+    _ -> do
+      _ <-
+        dialog
+          gui
+          DialogProperties
           { dialogTitle = "Unsupported File"
-          , dialogMessage = "The file extension of the file you've selected is not supported."
+          , dialogMessage =
+              "The file extension of the file you've selected is not supported."
           , dialogChoices = [Ok]
           }
-    ireturn Nothing
+      ireturn Nothing
+
+isImportable
+  :: (ImportEffects sig, Application t m sig) => FilePath -> t m r r Bool
+isImportable f = do
+  v <- ilift (isSupportedVideoFile f)
+  a <- ilift (isSupportedAudioFile f)
+  ireturn (v || a)

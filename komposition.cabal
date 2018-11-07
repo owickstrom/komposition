@@ -33,6 +33,7 @@ library
                       , Komposition.Application.LibraryMode
                       , Komposition.Application.TimelineMode
                       , Komposition.Application.WelcomeScreenMode
+                      , Komposition.Classification
                       , Komposition.Composition
                       , Komposition.Composition.Delete
                       , Komposition.Composition.Focused
@@ -45,14 +46,20 @@ library
                       , Komposition.Focus.Parent
                       , Komposition.History
                       , Komposition.Import.Audio
+                      , Komposition.Import.Audio.Sox
                       , Komposition.Import.Video
+                      , Komposition.Import.Video.FFmpeg
                       , Komposition.KeyMap
+                      , Komposition.Logging
+                      , Komposition.Logging.FastLogger
                       , Komposition.Prelude
                       , Komposition.Progress
                       , Komposition.Project
                       , Komposition.Project.Store
+                      , Komposition.Project.Store.File
                       , Komposition.Library
                       , Komposition.MediaType
+                      , Komposition.Render
                       , Komposition.Render.Composition
                       , Komposition.Render.FFmpeg
                       , Komposition.UserInterface
@@ -77,8 +84,10 @@ library
                       , deepseq
                       , directory
                       , exceptions
+                      , fast-logger
                       , ffmpeg-light >= 0.12.1 && <0.13
                       , filepath
+                      , fused-effects >= 0.1.1.0 && < 0.2
                       , gi-gobject
                       , gi-glib
                       , gi-gst
@@ -122,6 +131,7 @@ executable komposition
   -- other-extensions:
   build-depends:        base >=4.10 && <4.12
                       , komposition
+                      , fast-logger
                       , filepath
                       , gi-gobject
                       , gi-glib
@@ -143,7 +153,9 @@ executable komposition-split
   other-modules:        Paths_komposition
   -- other-extensions:
   build-depends:        base >=4.10 && <4.12
-                      , komposition
+                      , directory
+                      , filepath
+                      , ffmpeg-light
                       , gi-gobject
                       , gi-glib
                       , gi-gtk
@@ -151,6 +163,12 @@ executable komposition-split
                       , gi-pango
                       , haskell-gi
                       , haskell-gi-base
+                      , komposition
+                      , lens
+                      , massiv-io
+                      , pipes
+                      , pipes-parse
+                      , pipes-safe
                       , text
                       , time
   hs-source-dirs:       exe
@@ -169,7 +187,7 @@ test-suite komposition-tests
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
-                 , Komposition.Import.VideoTest
+                 , Komposition.Import.Video.FFmpegTest
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
                  , Komposition.Render.CompositionTest
@@ -181,6 +199,7 @@ test-suite komposition-tests
                  , komposition
                  , hedgehog
                  , JuicyPixels
+                 , fused-effects
                  , lens
                  , pipes
                  , pipes-parse

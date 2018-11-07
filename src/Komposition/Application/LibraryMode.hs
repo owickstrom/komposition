@@ -20,7 +20,7 @@ import           Komposition.Application.KeyMaps
 import           Komposition.UserInterface.Help
 
 selectAssetFromList
-  :: ( Application t m
+  :: ( Application t m sig
      , r ~ ("library" .== Window (t m) (Event LibraryMode))
      )
   => SelectAssetsModel mt
@@ -46,7 +46,7 @@ selectAssetFromList model = do
   where continueWith = selectAssetFromList
 
 selectAsset
-  :: ( Application t m
+  :: ( Application t m sig
      )
   => SelectAssetsModel mt
   -> t m r r (Maybe [Asset mt])

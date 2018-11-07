@@ -14,24 +14,38 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
+import           Control.Effect                       (Member)
+import           Control.Effect.Carrier               (Carrier)
 import           Control.Lens
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
-import           System.Directory
 
 import           Komposition.Composition
 import           Komposition.Focus
+import           Komposition.Import.Audio
+import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.Render
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 import           Komposition.UserInterface.Help
 
+type WelcomeScreenModeEffects sig =
+    ( Member ProjectStore sig
+    , Member VideoImport sig
+    , Member AudioImport sig
+    , Member Render sig
+    )
+
 welcomeScreenMode
-  :: Application t m
+  :: ( Application t m sig
+    , WelcomeScreenModeEffects sig
+    , Carrier sig m
+    )
   => t m Empty Empty ()
 welcomeScreenMode = do
   newWindow #welcome welcomeView (CommandKeyMappedEvent <$> keymaps SWelcomeScreenMode)
@@ -78,7 +92,7 @@ welcomeScreenMode = do
             Nothing -> inWelcomeScreenMode
 
 toTimelineWithProject
-  :: Application t m
+  :: Application t m sig
   => ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project = do

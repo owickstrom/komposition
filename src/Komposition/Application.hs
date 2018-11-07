@@ -16,13 +16,16 @@ module Komposition.Application where
 import           Komposition.Application.Base
 
 import           Data.Row.Records (Empty)
+import           Control.Effect.Carrier                    (Carrier)
+import           Data.Row.Records
 
 import           Komposition.Application.WelcomeScreenMode
 import           Komposition.UserInterface.Dialog
 
 komposition
-  :: Application t m
-  => DialogView (WindowMarkup (t m))
-  => WindowUserInterface (t m)
+  :: ( Application t m sig
+    , WelcomeScreenModeEffects sig
+    , Carrier sig m
+    )
   => t m Empty Empty ()
 komposition = welcomeScreenMode

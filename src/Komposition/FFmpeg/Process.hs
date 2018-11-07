@@ -28,6 +28,13 @@ data RenderError
 
 instance Exception RenderError
 
+isStreaming :: Command -> Bool
+isStreaming cmd =
+  case output cmd of
+    HttpStreamingOutput{} -> True
+    UdpStreamingOutput{} -> True
+    FileOutput{} -> False
+
 runFFmpegCommand
   :: (MonadSafe m, MonadIO m)
   => (Double -> ProgressUpdate)
@@ -35,19 +42,20 @@ runFFmpegCommand
   -> Command
   -> Producer ProgressUpdate m ()
 runFFmpegCommand toProgress totalDuration cmd = do
-  yield (toProgress 0)
   -- If it's rendering to a file, try removing any existing file first.
   case output cmd of
     FileOutput path -> liftIO $ removeFile path `catch` \case
       e | isDoesNotExistError e -> return ()
         | otherwise             -> throwIO e
     _ -> return ()
-  let verbosityArgs = ["-v", "quiet"]
+  let verbosityArgs = if isStreaming cmd then [] else ["-v", "quiet"]
       allArgs = verbosityArgs <> ["-stats", "-nostdin"] <> map toS (printCommandLineArgs cmd)
       process = proc "ffmpeg" allArgs & setStderr createPipe
   liftIO (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
   bracket (startProcess process) stopProcess $ \p -> do
     liftIO (IO.hSetBuffering (getStderr p) IO.NoBuffering)
+    delayIfStreaming
+    yield (toProgress 0)
     fromCarriageReturnSplit (getStderr p) >-> yieldLines
     waitForExit p
   where
@@ -60,6 +68,14 @@ runFFmpegCommand toProgress totalDuration cmd = do
             (durationToSeconds currentDuration / durationToSeconds totalDuration)
           )
         Nothing -> return ()
+
+    -- TODO: This is a horrible hack to await the FFmpeg streaming
+    -- server's start. If there's some reliable way of parsing the output to
+    -- ensure the server is up, that would be preferable.
+    delayIfStreaming =
+      if isStreaming cmd then liftIO (threadDelay 500000) else return ()
+
+
     waitForExit p = waitExitCode p >>= \case
       ExitSuccess   -> return ()
       ExitFailure e -> throwIO

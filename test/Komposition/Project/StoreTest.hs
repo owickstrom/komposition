@@ -11,14 +11,16 @@ module Komposition.Project.StoreTest where
 import           Komposition.Prelude
 import qualified Prelude
 
+import           Control.Effect
 import           Control.Lens
 import           Hedgehog                       hiding (Parallel)
-import System.IO.Temp
+import           System.IO.Temp
 
-import qualified Komposition.Project.Generators as Gen
-import           Komposition.Project.Store
 import           Komposition.History
 import           Komposition.Project
+import qualified Komposition.Project.Generators as Gen
+import           Komposition.Project.Store
+import           Komposition.Project.Store.File
 
 hprop_createAndOpenNewProject =
   withTests 100 $ property $ do
@@ -43,18 +45,20 @@ hprop_createAndSaveNewProject =
       maybe failure pure (existingModified & projectHistory %%~ undo)
     current (undoneExisting ^. projectHistory) === current (initialExisting ^. projectHistory)
 
+runStore = liftIO . runM . runFileProjectStoreIO
+
 create path newProject =
-  liftIO (createNewProject path newProject) >>= \case
+  runStore (createNewProject path newProject) >>= \case
     Left err -> footnoteShow err >> failure
     Right existing -> return existing
 
 open path =
-  liftIO (openExistingProject path) >>= \case
+  runStore (openExistingProject path) >>= \case
     Left err -> footnoteShow err >> failure
     Right loaded -> return loaded
 
 save existing =
-  liftIO (saveExistingProject existing) >>= \case
+  runStore (saveExistingProject existing) >>= \case
     Left err -> footnoteShow err >> failure
     Right () -> return ()
 

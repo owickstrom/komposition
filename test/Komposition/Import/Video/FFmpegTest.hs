@@ -4,31 +4,31 @@
 {-# LANGUAGE TypeApplications  #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Komposition.Import.VideoTest where
+module Komposition.Import.Video.FFmpegTest where
 
 import           Komposition.Prelude
 import qualified Prelude
 
-import qualified Data.List.Extra      as List
-import           Data.Massiv.Array    (Ix2 (..))
-import qualified Data.Massiv.Array    as A
+import qualified Data.List.Extra                 as List
+import           Data.Massiv.Array               (Ix2 (..))
+import qualified Data.Massiv.Array               as A
 import           Graphics.ColorSpace
 import           Hedgehog
-import qualified Hedgehog.Gen         as Gen
-import qualified Hedgehog.Range       as Range
+import qualified Hedgehog.Gen                    as Gen
+import qualified Hedgehog.Range                  as Range
 import qualified Pipes
-import qualified Pipes.Prelude        as Pipes
+import qualified Pipes.Prelude                   as Pipes
 import           Test.Tasty.Hspec
 
-import           Komposition.Import.Video
+import           Komposition.Import.Video.FFmpeg
 
-colorImage :: Pixel RGB Word8 -> Timed RGB8Frame
+colorImage :: Pixel RGB Word8 -> Timed MassivFrame
 colorImage c = Timed (A.makeArray A.Par (640 :. 480) (const c)) 0
 
 red = PixelRGB 255 0 0
 green = PixelRGB 0 255 0
 
-f1, f2 :: Timed RGB8Frame
+f1, f2 :: Timed MassivFrame
 f1 = colorImage red
 f2 = colorImage green
 
@@ -66,12 +66,12 @@ data TestFrame = TestFrame Ix2 [[TestPixel]]
 toPixel :: TestPixel -> Pixel RGB Word8
 toPixel (TestPixel c) = PixelRGB c c c
 
-toFrame :: TestFrame -> RGB8Frame
+toFrame :: TestFrame -> MassivFrame
 toFrame (TestFrame _size pxs) =
   A.fromLists' A.Par (fmap toPixel <$> pxs)
 
 genFrame :: MonadGen m => Ix2 -> m TestPixel -> m TestFrame
-genFrame s@(width :. height) genPixel = do
+genFrame s@(width :. height) genPixel =
   TestFrame s <$> genColumns
   where
     genColumns = Gen.list (Range.singleton width) genRow

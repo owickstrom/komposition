@@ -1,31 +1,18 @@
 {-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
-module Komposition.Application.Base
-  ( (>>)
-  , (>>=)
-  , Application
-  , module X
-  )
-where
+{-# LANGUAGE PolyKinds        #-}
+module Komposition.Application.Base ((>>), (>>=), Application, module X) where
 
-import           Komposition.Prelude           as X
-                                         hiding ( State
-                                                , get
-                                                , (>>)
-                                                , (>>=)
-                                                )
+import           Komposition.Prelude         as X hiding (State, get, (>>),
+                                                   (>>=))
 
-import           Control.Monad.Indexed.IO      as X
-import           Control.Monad.Indexed.Trans   as X
-import           Komposition.UserInterface     as X
+import           Control.Effect
+import           Control.Monad.Indexed.Trans as X
+import           Komposition.UserInterface   as X
+import           Motor.FSM                   as X hiding (Delete, delete)
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
-import           Motor.FSM                     as X
-                                         hiding ( Delete
-                                                , delete
-                                                )
+import           Komposition.Logging         as X
 
 (>>) :: IxMonad m => m i j a -> m j k b -> m i k b
 (>>) = (>>>)
@@ -33,11 +20,12 @@ import           Motor.FSM                     as X
 (>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
 (>>=) = (>>>=)
 
-type Application t m
+type Application t m sig
    = ( IxPointed (t m)
-     , IxMonad (t m)
-     , IxMonadIO (t m)
+     , UserInterface (t m)
      , IxMonadTrans t
+     , Member Log sig
+     , Carrier sig m
      , Monad m
      , WindowUserInterface (t m)
      , DialogView (WindowMarkup (t m))

@@ -1,6 +1,6 @@
 module Komposition.Prelude (module X, readOne, readDecimal, readDouble) where
 
-import           Protolude      as X hiding (Proxy (..))
+import           Protolude      as X hiding (Proxy (..), (:+:), log)
 
 import qualified Data.Text.Read as Text
 

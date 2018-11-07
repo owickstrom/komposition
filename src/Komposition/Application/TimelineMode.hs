@@ -5,6 +5,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RebindableSyntax    #-}
@@ -15,25 +16,27 @@ module Komposition.Application.TimelineMode where
 import           Komposition.Application.Base
 import qualified Prelude
 
+import           Control.Effect                      (Member)
+import           Control.Effect.Carrier              (Carrier)
 import           Control.Lens
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Row.Records                    hiding (split)
 import           Data.String                         (fromString)
-import           System.Directory
-import           Text.Printf
 
 import           Komposition.Composition
 import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Split
 import           Komposition.Duration
-import qualified Komposition.FFmpeg.Command          as FFmpeg
 import           Komposition.Focus
 import           Komposition.History
+import           Komposition.Import.Audio
+import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.Render
 import qualified Komposition.Render.Composition      as Render
 import qualified Komposition.Render.FFmpeg           as Render
 import           Komposition.UserInterface.Dialog
@@ -44,22 +47,34 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.LibraryMode
 
 data TimelineModeResult
-  = TimelineExit
+  = TimelineExit TimelineModel
   | TimelineClose
 
+type TimelineEffects sig =
+  ( Member ProjectStore sig
+  , Member VideoImport sig
+  , Member AudioImport sig
+  , Member Render sig
+  )
+
 timelineMode
-  :: (Application t m, r ~ (n .== (Window (t m) (Event TimelineMode))))
+  :: ( Application t m sig
+     , TimelineEffects sig
+     , Carrier sig m
+     , r ~ (n .== (Window (t m) (Event TimelineMode)))
+     )
   => Name n
   -> TimelineModel
   -> t m r r TimelineModeResult
 timelineMode gui model = do
   patchWindow gui (timelineView model)
-  nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
+  nextEvent gui >>>= onNextEvent
+  -- nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
     continue = timelineMode gui model
     continueWithStatusMessage msg =
       model & statusMessage ?~ msg & timelineMode gui
-    resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
+    -- resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
     confirmExit =
       dialog
           gui
@@ -69,7 +84,7 @@ timelineMode gui model = do
             , dialogChoices = [No, Yes]
             }
         >>= \case
-              Just Yes -> ireturn TimelineExit
+              Just Yes -> ireturn (TimelineExit model)
               Just No  -> continue
               Nothing  -> continue
     onNextEvent = \case
@@ -105,7 +120,7 @@ timelineMode gui model = do
                 of
                   Left err -> do
                     beep gui
-                    iliftIO (putStrLn ("Deleting failed: " <> show err :: Text))
+                    ilift (logLnText Error ("Deleting failed: " <> show err))
                     continueWithStatusMessage "Delete failed."
                   Right newFocus ->
                     model
@@ -140,23 +155,20 @@ timelineMode gui model = do
       CommandKeyMappedEvent Render ->
         case Render.flattenTimeline (currentProject model ^. timeline) of
           Just flat -> do
-            outDir <- iliftIO getUserDocumentsDirectory
+            outDir <- ilift getDefaultProjectsDirectory
             chooseFile gui (Save File) "Render To File" outDir >>>= \case
-              Just outFile ->
-                progressBar
-                    gui
-                    "Rendering"
-                    (Render.renderComposition
-                      (currentProject model ^. videoSettings)
-                      Render.VideoOriginal
-                      (FFmpeg.FileOutput outFile)
-                      flat
-                    )
-                  >>= \case
-                        Just (Right ()) -> continue
-                        Just (Left (err :: Render.RenderError)) ->
-                          iliftIO (print err) >>> continue
-                        Nothing -> continue
+              Just outFile -> do
+                stream <-
+                  ilift $ renderComposition
+                    (currentProject model ^. videoSettings)
+                    VideoOriginal
+                    (FileOutput outFile)
+                    flat
+                progressBar gui "Rendering" stream >>= \case
+                  Just (Right ()) -> continue
+                  Just (Left (SomeException err)) ->
+                    ilift (logLnShow Error err) >>> continue
+                  Nothing -> continue
               Nothing -> continue
           Nothing -> do
             beep gui
@@ -173,7 +185,7 @@ timelineMode gui model = do
           Just m  -> timelineMode gui m
           Nothing -> beep gui >> timelineMode gui model
       CommandKeyMappedEvent SaveProject ->
-        iliftIO (saveExistingProject (model ^. existingProject)) >>= \case
+        ilift (saveExistingProject (model ^. existingProject)) >>= \case
           _ -> continue
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
       CommandKeyMappedEvent Cancel       -> continue
@@ -184,15 +196,18 @@ timelineMode gui model = do
       CommandKeyMappedEvent Exit -> confirmExit
       ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
       WindowClosed               -> confirmExit
-    printUnexpectedFocusError err cmd = case err of
-      UnhandledFocusModification{} -> iliftIO
-        (printf "Error: could not handle focus modification %s\n"
-                (show cmd :: Text)
-        )
-      _ -> ireturn ()
+
+printUnexpectedFocusError err cmd = case err of
+  UnhandledFocusModification{} ->
+    ilift (logLnText Warning ("Could not handle focus modification: " <> show cmd))
+  _ -> ireturn ()
 
 insertIntoTimeline
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m sig
+     , TimelineEffects sig
+     , Carrier sig m
+     , r ~ (n .== Window (t m) (Event TimelineMode))
+     )
   => Name n
   -> TimelineModel
   -> InsertType
@@ -230,20 +245,15 @@ insertIntoTimeline gui model type' position =
       (InsertGap Nothing, Just FocusedAudioPart{}) ->
         insertGap gui model SAudio position >>>= timelineMode gui
       (c, Just f) -> do
-        let
-          msg =
-            "Cannot perform "
-              <> show c
-              <> " when focused at "
-              <> prettyFocusedAt f
+        let msg = "Cannot perform " <> show c <> " when focused at " <> prettyFocusedAt f
         timelineMode gui (model & statusMessage ?~ msg)
       (_, Nothing) -> do
-        iliftIO (putStrLn ("Warning: focus is invalid." :: Text))
+        ilift (logLnText Warning "Focus is invalid.")
         continue
   where continue = timelineMode gui model
 
 insertGap
-  :: (Application t m, HasType parent (Window (t m) parentEvent) r)
+  :: (Application t m sig, HasType parent (Window (t m) parentEvent) r)
   => Name parent
   -> TimelineModel
   -> SMediaType mt
@@ -282,14 +292,19 @@ prettyFocusedAt = \case
   FocusedAudioPart{} -> "audio track"
 
 previewFocusedComposition
-  :: Application t m => Name n -> TimelineModel -> t m r r TimelineModel
+  :: ( Application t m sig
+     , Carrier sig m
+     , TimelineEffects sig
+     )
+  => Name n
+  -> TimelineModel -> t m r r TimelineModel
 previewFocusedComposition gui model = case flatComposition of
   Just flat -> do
-    let streamingProcess = void $ Render.renderComposition
-          (currentProject model ^. proxyVideoSettings)
-          Render.VideoProxy
-          (FFmpeg.HttpStreamingOutput "localhost" 12345)
-          flat
+    streamingProcess <- ilift $ renderComposition
+      (currentProject model ^. proxyVideoSettings)
+      VideoProxy
+      (HttpStreamingOutput "localhost" 12345)
+      flat
     _ <- previewStream "http://localhost:12345"
                        streamingProcess
                        (currentProject model ^. proxyVideoSettings)
@@ -320,7 +335,11 @@ noAssetsMessage mt =
       SAudio -> "audio"
 
 selectAssetAndInsert
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m sig
+    , TimelineEffects sig
+    , Carrier sig m
+    , r ~ (n .== Window (t m) (Event TimelineMode))
+    )
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -340,8 +359,13 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
           >>>= insertSelectedAssets gui model SAudio position
       Nothing -> onNoAssets gui SAudio
   where
-    onNoAssets
-      :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+    onNoAssets ::
+        ( Application t m sig
+        , TimelineEffects sig
+        , Carrier sig m
+        , r ~ (n .== Window (t m) (Event 'TimelineMode))
+        , IxPointed (t m)
+        )
       => Name n
       -> SMediaType mt
       -> t m r r TimelineModeResult
@@ -350,7 +374,11 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       model & statusMessage ?~ noAssetsMessage mt & timelineMode gui'
 
 insertSelectedAssets
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m sig
+    , Carrier sig m
+    , TimelineEffects sig
+    , r ~ (n .== Window (t m) (Event TimelineMode))
+    )
   => Name n
   -> TimelineModel
   -> SMediaType mt
@@ -372,31 +400,41 @@ insertSelectedAssets gui model mediaType' position result = do
       model & statusMessage ?~ noAssetsMessage mediaType' & ireturn
   timelineMode gui model'
 
-insertionOf
-  :: (IxMonad (t m), IxMonadIO (t m))
+insertionOf ::
+     (IxMonadTrans t, IxMonad (t m), Monad m, Carrier sig m, Member Render sig)
   => TimelineModel
   -> SMediaType mt
   -> [Asset mt]
   -> t m r r (Insertion ())
-insertionOf model SVideo a =
-  iliftIO (InsertVideoParts <$> mapM (toVideoClip model) a)
+insertionOf model SVideo a = ilift (InsertVideoParts <$> mapM (toVideoClip model) a)
 insertionOf _ SAudio a = ireturn (InsertAudioParts (AudioClip () <$> a))
 
-toVideoClip :: TimelineModel -> VideoAsset -> IO (VideoPart ())
+toVideoClip
+  :: (Monad m, Carrier sig m, Member Render sig)
+  => TimelineModel
+  -> VideoAsset
+  -> m (VideoPart ())
 toVideoClip model videoAsset =
-  let ts = maybe (TimeSpan 0 (durationOf videoAsset))
-                 snd
-                 (videoAsset ^. videoClassifiedScene)
-  in  VideoClip () videoAsset ts <$> Render.extractFrameToFile
+  let ts =
+        maybe
+          (TimeSpan 0 (durationOf videoAsset))
+          snd
+          (videoAsset ^. videoClassifiedScene)
+  in VideoClip () videoAsset ts <$>
+      extractFrameToFile
         (currentProject model ^. videoSettings)
         Render.FirstFrame
-        Render.VideoProxy
+        VideoProxy
         videoAsset
         ts
         (model ^. existingProject . projectPath . unProjectPath)
 
 addImportedAssetsToLibrary
-  :: (Application t m, r ~ (n .== Window (t m) (Event TimelineMode)))
+  :: ( Application t m sig
+    , Carrier sig m
+    , TimelineEffects sig
+    , r ~ (n .== Window (t m) (Event TimelineMode))
+    )
   => Name n
   -> TimelineModel
   -> Maybe (FilePath, Bool)
@@ -405,7 +443,7 @@ addImportedAssetsToLibrary gui model (Just selected) = do
   model' <-
     importSelectedFile gui (model ^. existingProject) selected >>>= \case
       Just (Left err) -> do
-        iliftIO (print err)
+        ilift (logLnShow Error err)
         _ <- dialog
           gui
           DialogProperties
