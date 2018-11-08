@@ -73,18 +73,6 @@ timelineMode gui model = do
     continueWithStatusMessage msg =
       model & statusMessage ?~ msg & timelineMode gui
     -- resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
-    confirmExit =
-      dialog
-          gui
-          DialogProperties
-            { dialogTitle   = "Confirm Exit"
-            , dialogMessage = "Are you sure you want to exit Komposition?"
-            , dialogChoices = [No, Yes]
-            }
-        >>= \case
-              Just Yes -> ireturn (TimelineExit model)
-              Just No  -> continue
-              Nothing  -> continue
     onNextEvent = \case
       CommandKeyMappedEvent (FocusCommand cmd) ->
         case
@@ -191,9 +179,9 @@ timelineMode gui model = do
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
           Just HelpClosed -> continue
           Nothing         -> continue
-      CommandKeyMappedEvent Exit -> confirmExit
+      CommandKeyMappedEvent Exit -> ireturn (TimelineExit model)
       ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
-      WindowClosed               -> confirmExit
+      WindowClosed               -> ireturn (TimelineExit model)
 
     printUnexpectedFocusError err cmd = case err of
       UnhandledFocusModification{} ->
