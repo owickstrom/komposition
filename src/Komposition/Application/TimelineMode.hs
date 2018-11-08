@@ -66,13 +66,12 @@ timelineMode
   -> t m r r TimelineModeResult
 timelineMode gui model = do
   patchWindow gui (timelineView model)
-  nextEvent gui >>>= onNextEvent
-  -- nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
+  nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
     continue = timelineMode gui model
     continueWithStatusMessage msg =
       model & statusMessage ?~ msg & timelineMode gui
-    -- resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
+    resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
     onNextEvent = \case
       CommandKeyMappedEvent (FocusCommand cmd) ->
         case
