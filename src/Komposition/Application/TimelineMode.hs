@@ -161,7 +161,7 @@ timelineMode gui model = do
             continueWithStatusMessage
               "Cannot render a composition without video clips."
       CommandKeyMappedEvent Preview ->
-        previewFocusedComposition #preview model >>> continue
+        previewFocusedComposition gui model >>> continue
       CommandKeyMappedEvent Undo ->
         case model & existingProject . projectHistory %%~ undo of
           Just m  -> timelineMode gui m
@@ -277,9 +277,10 @@ prettyFocusedAt = \case
 
 previewFocusedComposition
   :: ( Application t m sig
-     , Carrier sig m
-     , TimelineEffects sig
-     )
+    , HasType n (Window (t m) e) r
+    , Carrier sig m
+    , TimelineEffects sig
+    )
   => Name n
   -> TimelineModel -> t m r r TimelineModel
 previewFocusedComposition gui model = case flatComposition of
@@ -289,9 +290,10 @@ previewFocusedComposition gui model = case flatComposition of
       VideoProxy
       (HttpStreamingOutput "localhost" 12345)
       flat
-    _ <- previewStream "http://localhost:12345"
-                       streamingProcess
-                       (currentProject model ^. proxyVideoSettings)
+    _ <- previewStream gui
+                      "http://localhost:12345"
+                      streamingProcess
+                      (currentProject model ^. proxyVideoSettings)
     ireturn model
   Nothing -> do
     beep gui

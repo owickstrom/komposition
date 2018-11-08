@@ -275,7 +275,9 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer
     -> m r r (Maybe (Either e a))
   previewStream
-    :: Text -- ^ URI to stream
+    :: HasType n (Window m event) r
+    => Name n -- ^ Name of parent window
+    -> Text -- ^ URI to stream
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
     -> VideoSettings
     -> m r r (Maybe ())

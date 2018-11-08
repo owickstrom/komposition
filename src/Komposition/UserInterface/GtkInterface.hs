@@ -40,9 +40,11 @@ import           Control.Effect.Carrier                                   (Carri
 import           Control.Effect.Reader                                    (ReaderC,
                                                                            ask,
                                                                            runReader)
+import           Control.Lens
 import           Control.Monad                                            (void)
 import           Control.Monad.Indexed                                    ()
 import           Control.Monad.Indexed.Trans
+import qualified Data.GI.Base.Properties                                  as GI
 import qualified Data.HashSet                                             as HashSet
 import           Data.Row.Records                                         (Empty,
                                                                            HasType)
@@ -70,6 +72,7 @@ import           Komposition.Progress
 import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
+import           Komposition.VideoSettings
 
 import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
 import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
@@ -99,7 +102,8 @@ data GtkWindow event = GtkWindow
   }
 
 asGtkWindow :: GtkWindow event -> IO Gtk.Window
-asGtkWindow w = Declarative.someStateWidget (widgetState w) >>= Gtk.unsafeCastTo Gtk.Window
+asGtkWindow w =
+  Declarative.someStateWidget (widgetState w) >>= Gtk.unsafeCastTo Gtk.Window
 
 instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterface (GtkUserInterface m) where
   type Window (GtkUserInterface m) = GtkWindow
@@ -274,7 +278,72 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
 
       readMVar result
 
-  previewStream = undefined
+  previewStream n uri streamingProcess videoSettings =
+    let setUp d content = do
+          playbin <-
+            Gst.elementFactoryMake "playbin" Nothing `orFailCreateWith` "playbin"
+          playbinBus <- Gst.elementGetBus playbin `orFailCreateWith` "playbin bus"
+          void . Gst.busAddWatch playbinBus GLib.PRIORITY_DEFAULT $ \_bus msg -> do
+            msgType <- Gst.getMessageType msg
+            case msgType of
+              [Gst.MessageTypeError] -> do
+                (gError, _) <- Gst.messageParseError msg
+                gErrorText     <- Gst.gerrorMessage gError
+                liftIO . putStrLn $ show gError <> ": " <> gErrorText
+              [Gst.MessageTypeStateChanged] ->
+                -- (oldState, newState, _) <- Gst.messageParseStateChanged msg
+                -- putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                return ()
+              [Gst.MessageTypeEos] ->
+                #destroy d
+              _ -> return ()
+            return True
+          gtkSink <-
+            Gst.elementFactoryMake "gtksink" Nothing `orFailCreateWith` "GTK sink"
+          GI.setObjectPropertyObject playbin "video-sink" (Just gtkSink)
+          GI.setObjectPropertyBool playbin "force-aspect-ratio" True
+
+          videoWidget <-
+            GI.getObjectPropertyObject gtkSink "widget" Gtk.Widget `orFailCreateWith`
+            "sink widget"
+          GI.setObjectPropertyBool playbin "force-aspect-ratio" True
+          void $ GI.setObjectPropertyString playbin "uri" (Just uri)
+
+          streamingStarted <- newEmptyMVar
+
+          let updateProgress = do
+                -- We await the first progress update so that we know the
+                -- streaming has started.
+                void await
+                liftIO (putMVar streamingStarted ())
+                forever (void await)
+          ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
+
+          void . Gtk.onWidgetRealize content $ do
+            #packStart content videoWidget True True 0
+            #show videoWidget
+            #setSizeRequest
+              videoWidget
+              (fromIntegral (videoSettings ^. resolution . width))
+              (fromIntegral (videoSettings ^. resolution . height))
+            takeMVar streamingStarted
+            -- Start streaming once the server is ready.
+            void $ Gst.elementSetState playbin Gst.StatePlaying
+
+          void . Gtk.onWidgetDestroy d $ do
+            void $ Gst.elementSetState playbin Gst.StateNull
+            void . async $ cancel ffmpegRenderer
+
+        toResponse _ _ = const (return Nothing)
+        tearDown d _ = #destroy d
+        classes = HashSet.fromList ["preview"]
+        orFailCreateWith :: IO (Maybe t) -> Prelude.String -> IO t
+        orFailCreateWith action what =
+          action >>=
+          maybe
+            (Prelude.fail ("Couldn't create GStreamer " <> what <> "."))
+            return
+    in inNewModalDialog n ModalDialog { title = "Preview", message = Nothing, .. }
 
   beep _ = irunUI Gdk.beep
 
@@ -284,10 +353,8 @@ instance UserInterfaceMarkup GtkWindowMarkup where
   libraryView = GtkWindowMarkup . View.libraryView
   importView = GtkWindowMarkup . View.importView
 
-runGtkUserInterface ::
-    ( Monad m
-    , Carrier sig m
-    )
+runGtkUserInterface
+  :: (Monad m, Carrier sig m)
   => FilePath
   -> (m () -> IO ())
   -> GtkUserInterface (Eff (ReaderC Env m)) Empty Empty ()
@@ -308,17 +375,13 @@ printFractionAsPercent fraction =
   toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
 
 runUI_ :: IO () -> IO ()
-runUI_ ma =
-  void (Gdk.threadsAddIdle GLib.PRIORITY_HIGH (ma *> return False))
+runUI_ ma = void (Gdk.threadsAddIdle GLib.PRIORITY_HIGH (ma *> return False))
 
 runUI :: IO a -> IO a
 runUI ma = do
   ret <- newEmptyMVar
   runUI_ (ma >>= putMVar ret)
   takeMVar ret
-
-irunUI_ :: IxMonadIO m => IO () -> m i i ()
-irunUI_ = iliftIO . runUI_
 
 irunUI :: IxMonadIO m => IO a -> m i i a
 irunUI = iliftIO . runUI
@@ -363,17 +426,13 @@ inNewModalDialog
   => Name n
   -> ModalDialog ctx t
   -> m r r (Maybe t)
-inNewModalDialog n ModalDialog {..} =
-  FSM.get n >>>= \parentWindow -> iliftIO $ do
+inNewModalDialog n ModalDialog {..} = FSM.get n >>>= \parentWindow ->
+  iliftIO $ do
     response <- newEmptyMVar
     runUI $ do
       pw <- asGtkWindow parentWindow
-      d <- Gtk.new
-        Gtk.Dialog
-        [ #title := title
-        , #transientFor := pw
-        , #modal := True
-        ]
+      d  <- Gtk.new Gtk.Dialog
+                    [#title := title, #transientFor := pw, #modal := True]
 
       content      <- Gtk.dialogGetContentArea d
       contentStyle <- Gtk.widgetGetStyleContext content
