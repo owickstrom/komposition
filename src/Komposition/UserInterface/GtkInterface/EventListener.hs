@@ -58,7 +58,7 @@ subscribeKeyEvents w = do
       keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
       case toKeyCombo keyChar keyVal modifiers of
         Just keyCombo -> writeChan events keyCombo $> False
-        _ -> return False
+        _             -> return False
   return EventListener {unsubscribe = GObject.signalHandlerDisconnect w sid, ..}
   where
     toKey =
@@ -72,7 +72,6 @@ subscribeKeyEvents w = do
         (_, Gdk.KEY_space) -> Just KeySpace
         (c, _) -> Just (KeyChar c)
     toModifier = \case
-      Gdk.ModifierTypeShiftMask -> Just (KeyModifier Shift)
       Gdk.ModifierTypeControlMask -> Just (KeyModifier Ctrl)
       Gdk.ModifierTypeMetaMask -> Just (KeyModifier Meta)
       _ -> Nothing

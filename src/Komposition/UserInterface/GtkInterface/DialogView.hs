@@ -4,15 +4,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Komposition.UserInterface.GtkInterface.DialogView where
 
-import           Komposition.Prelude     hiding ( on )
+import           Komposition.Prelude                                    hiding
+                                                                         (on)
 
-import           GI.Gtk                         ( Label(..)
-                                                , Align(..)
-                                                , Window(..)
-                                                , Box(..)
-                                                , Button(..)
-                                                , Orientation(..)
-                                                )
+import           GI.Gtk                                                 (Align (..),
+                                                                         Box (..),
+                                                                         Button (..),
+                                                                         Label (..),
+                                                                         Orientation (..),
+                                                                         Window (..))
 import           GI.Gtk.Declarative
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
