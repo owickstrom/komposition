@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedLabels      #-}
+{-# LANGUAGE OverloadedLists       #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TypeOperators         #-}
 module Komposition.UserInterface.Help where
@@ -37,4 +38,5 @@ help parent keyMap =
            HelpClosed -> ireturn Nothing
   where
     helpKeyMap :: KeyMap HelpEvent
-    helpKeyMap = KeyMap mempty
+    helpKeyMap = KeyMap
+      [([KeyChar 'q'], Mapping HelpClosed), ([KeyEscape], Mapping HelpClosed)]
