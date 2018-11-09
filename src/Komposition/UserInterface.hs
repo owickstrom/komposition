@@ -52,12 +52,6 @@ modeTitle = \case
   SLibraryMode  -> "Library Mode"
   SImportMode   -> "Import Mode"
 
-class ReturnsToTimeline (mode :: Mode)
-
-instance ReturnsToTimeline WelcomeScreenMode
-instance ReturnsToTimeline LibraryMode
-instance ReturnsToTimeline ImportMode
-
 data InsertType
   = InsertComposition
   | InsertClip (Maybe MediaType)
@@ -144,14 +138,12 @@ data Event mode where
   ImportClicked :: Event ImportMode
   LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
   LibrarySelectionConfirmed :: Event LibraryMode
+  WindowClosed :: Event mode
 
 data ModeKeyMap where
   ModeKeyMap :: forall mode. Ord (Command mode) => SMode mode -> KeyMap (Command mode) -> ModeKeyMap
 
 type KeyMaps = forall mode. SMode mode -> KeyMap (Event mode)
-
-class Enum c => DialogChoice c where
-  toButtonLabel :: c -> Text
 
 data FileChooserType
   = File
@@ -160,10 +152,6 @@ data FileChooserType
 data FileChooserMode
   = Open FileChooserType
   | Save FileChooserType
-
-data PromptMode ret where
-  NumberPrompt :: (Double, Double) -> PromptMode Double
-  TextPrompt :: PromptMode Text
 
 newtype ZoomLevel = ZoomLevel Double
 
@@ -190,112 +178,106 @@ data SelectAssetsModel mt = SelectAssetsModel
   , selectedAssets :: [Asset mt]
   }
 
-data Ok = Ok deriving (Eq, Enum)
+data PromptMode ret where
+  PromptNumber :: (Double, Double, Double) -> PromptMode Double
+  PromptText :: PromptMode Text
 
-instance DialogChoice Ok where
-  toButtonLabel Ok = "OK"
+class UserInterfaceMarkup markup where
+  welcomeView :: markup (Event WelcomeScreenMode)
+  timelineView :: TimelineModel -> markup (Event TimelineMode)
+  libraryView :: SelectAssetsModel mediaType -> markup (Event LibraryMode)
+  importView :: ImportFileModel -> markup (Event ImportMode)
 
-class MonadFSM m =>
-      UserInterface m where
-  type State m :: Mode -> Type
+class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
+  type Window m :: Type -> Type
+  type WindowMarkup m :: Type -> Type
 
-  start ::
-       Name n
-    -> KeyMaps
-    -> Actions m '[ n !+ State m WelcomeScreenMode] r ()
-  updateWelcomeScreen
+  newWindow
     :: Name n
-    -> Actions m '[ n := State m WelcomeScreenMode !--> State m WelcomeScreenMode] r ()
-  returnToWelcomeScreen
-    :: Name n
-    -> Actions m '[ n := State m TimelineMode !--> State m WelcomeScreenMode] r ()
-  updateTimeline
-    :: Name n
-    -> TimelineModel
-    -> Actions m '[ n := State m TimelineMode !--> State m TimelineMode] r ()
-  returnToTimeline
-    :: ReturnsToTimeline mode
+    -> WindowMarkup m event
+    -> KeyMap event
+    -> m r (Extend n (Window m event) r) ()
+
+  patchWindow
+    :: HasType n (Window m event) r
+    => Modify n (Window m event) r ~ r
     => Name n
-    -> TimelineModel
-    -> Actions m '[ n := State m mode !--> State m TimelineMode] r ()
+    -> WindowMarkup m event
+    -> m r r ()
 
-  enterLibrary
+  setTransientFor
+    :: HasType child (Window m e1) r
+    => HasType parent (Window m e2) r
+    => Name child
+    -> Name parent
+    -> m r r ()
+
+  destroyWindow
     :: Name n
-    -> SelectAssetsModel mt
-    -> Actions m '[ n := State m TimelineMode !--> State m LibraryMode] r ()
-  updateLibrary
-    :: Name n
-    -> SelectAssetsModel mt
-    -> Actions m '[ n := State m LibraryMode !--> State m LibraryMode] r ()
-  enterImport
-    :: Name n
-    -> ImportFileModel
-    -> Actions m '[ n := State m TimelineMode !--> State m ImportMode] r ()
-  updateImport
-    :: Name n
-    -> ImportFileModel
-    -> Actions m '[ n := State m ImportMode !--> State m ImportMode] r ()
+    -> Actions m '[ n !- Window m e] r ()
+
+  withNewWindow
+    :: ( r' ~ (n .== Window m event)
+       )
+    => Name n
+    -> WindowMarkup m event
+    -> KeyMap event
+    -> m r' r' a
+    -> m r r a
+
+  withNewModalWindow
+    :: ( HasType parent (Window m parentEvent) r
+       , r' ~ (modal .== Window m event)
+       )
+    => Name parent
+    -> Name modal
+    -> WindowMarkup m event
+    -> KeyMap event
+    -> m r' r' a
+    -> m r r a
+
   nextEvent
-    :: Name n
-    -> Actions m '[ n := Remain (State m t)] r (Event t)
-  nextEventOrTimeout
-    :: Name n
-    -> DiffTime
-    -> Actions m '[ n := Remain (State m t)] r (Maybe (Event t))
-  beep :: Name n -> Actions m '[] r ()
-  dialog
-    :: DialogChoice c
+    :: HasType n (Window m e) r
     => Name n
-    -> Text -- ^ Dialog window title.
-    -> Text -- ^ Dialog message.
-    -> [c] -- ^ Choices of the dialog, rendered as buttons.
-    -> Actions m '[ n := Remain (State m t)] r (Maybe c)
+    -> m r r e
+
+  nextEventOrTimeout
+    :: HasType n (Window m e) r
+    => Name n
+    -> DiffTime
+    -> m r r (Maybe e)
+
+  beep :: Name n -> m r r ()
+
   prompt
-    :: Name n
+    :: HasType n (Window m event) r
+    => Name n
     -> Text -- ^ Prompt window title.
     -> Text -- ^ Prompt message.
     -> Text -- ^ Button text for confirming the choice.
     -> PromptMode ret -- ^ Type of prompt, decides the return value type.
-    -> Actions m '[ n := Remain (State m t)] r (Maybe ret)
+    -> m r r (Maybe ret)
+
+  -- TODO: Move these to separate functions or widgets
+
   chooseFile
-    :: Name n
+    :: HasType n (Window m e) r
+    => Name n
     -> FileChooserMode
     -> Text -- ^ Dialog window title.
     -> FilePath
-    -> Actions m '[ n := Remain (State m t)] r (Maybe FilePath)
+    -> m r r (Maybe FilePath)
   progressBar
     :: Exception e
-    => Name n
-    -> Text -- ^ Progress window title.
-    -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer.
-    -> Actions m '[ n := Remain (State m t)] r (Maybe (Either e a))
+    => HasType n (Window m event) r
+    => Name n -- ^ Name of parent window
+    -> Text -- ^ Progress window title
+    -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer
+    -> m r r (Maybe (Either e a))
   previewStream
-    :: Name n
+    :: HasType n (Window m event) r
+    => Name n -- ^ Name of parent window
     -> Text -- ^ URI to stream
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
     -> VideoSettings
-    -> Actions m '[ n := Remain (State m t)] r (Maybe ())
-  help
-    :: Name n
-    -> [ModeKeyMap]
-    -> Actions m '[ n := Remain (State m t)] r ()
-  exit :: Name n -> Actions m '[ n !- State m s] r ()
-
--- | Convenient type for actions that transition from one mode (of
--- type 'mode1') into another mode (of type 'mode2'), doing some user
--- interactions, and returning back to the first mode with a value of
--- type 'a' using the supplied continuation.
-type ThroughMode origin mode m n a
-   = forall r1 r2 r3 state2 state1 b.
-   ( UserInterface m
-     , HasType n state1 r1
-     , HasType n state1 r3
-     , Modify n state2 r1 ~ r2
-     , HasType n state2 r2
-     , Modify n state1 r2 ~ r3
-     , Modify n state2 r2 ~ r2
-     , state1 ~ State m origin
-     , state2 ~ State m mode
-     )
-   => (a -> m r2 r3 b)
-   -> m r1 r3 b
+    -> m r r (Maybe ())

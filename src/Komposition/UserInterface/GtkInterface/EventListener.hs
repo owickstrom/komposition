@@ -11,8 +11,8 @@ import qualified Data.HashSet                   as HashSet
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GObject.Functions           as GObject
 import qualified GI.Gtk                         as Gtk
-import qualified GI.Gtk.Declarative             as Declarative
 import qualified GI.Gtk.Declarative.EventSource as Declarative
+import qualified GI.Gtk.Declarative.State       as Declarative
 
 import           Komposition.KeyMap
 
@@ -25,10 +25,10 @@ readEvent :: EventListener e -> IO e
 readEvent = readChan . events
 
 subscribeToDeclarativeWidget
-  :: Declarative.Widget e -> Gtk.Widget -> IO (EventListener e)
-subscribeToDeclarativeWidget declWidget gtkWidget = do
+  :: Declarative.EventSource s => s e -> Declarative.SomeState -> IO (EventListener e)
+subscribeToDeclarativeWidget declWidget st = do
   events       <- newChan
-  _subscription <- Declarative.subscribe declWidget gtkWidget (writeChan events)
+  _subscription <- Declarative.subscribe declWidget st (writeChan events)
   -- TODO: Fix unsubscribe bug in gi-gtk-declarative and go back to doing this:
   -- pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
   pure EventListener { unsubscribe = return (), .. }
@@ -48,7 +48,7 @@ mergeEvents a b = do
     }
   where readInto c el = forkIO (forever (readEvent el >>= writeChan c))
 
-subscribeKeyEvents :: Gtk.Window -> IO (EventListener KeyCombo)
+subscribeKeyEvents :: Gtk.Widget -> IO (EventListener KeyCombo)
 subscribeKeyEvents w = do
   events <- newChan
   sid <-
@@ -58,7 +58,7 @@ subscribeKeyEvents w = do
       keyChar <- toEnum . fromIntegral <$> Gdk.keyvalToUnicode keyVal
       case toKeyCombo keyChar keyVal modifiers of
         Just keyCombo -> writeChan events keyCombo $> False
-        _ -> return False
+        _             -> return False
   return EventListener {unsubscribe = GObject.signalHandlerDisconnect w sid, ..}
   where
     toKey =
@@ -72,7 +72,6 @@ subscribeKeyEvents w = do
         (_, Gdk.KEY_space) -> Just KeySpace
         (c, _) -> Just (KeyChar c)
     toModifier = \case
-      Gdk.ModifierTypeShiftMask -> Just (KeyModifier Shift)
       Gdk.ModifierTypeControlMask -> Just (KeyModifier Ctrl)
       Gdk.ModifierTypeMetaMask -> Just (KeyModifier Meta)
       _ -> Nothing

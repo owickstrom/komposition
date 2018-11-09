@@ -1,7 +1,7 @@
 {
   "url": "git@github.com:owickstrom/gi-gtk-declarative",
-  "rev": "0bcc55e675659e4d266caf2662bad63deb6a4196",
-  "date": "2018-09-14T18:12:48+02:00",
-  "sha256": "0i0qd1p0m9ldlf73j9a40403z4j761j2afk6mqcyjc2dinipffbm",
-  "fetchSubmodules": true
+  "rev": "14111b23540bc33545585b94503ecdf88071c852",
+  "date": "2018-11-08T20:47:46+01:00",
+  "sha256": "0h1gwiiyic9m81f9g3xl01ks34c2kfr5gb4a3rgzy91a5fvn1dzp",
+  "fetchSubmodules": false
 }

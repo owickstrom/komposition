@@ -16,9 +16,8 @@ module Komposition.Application where
 import           Komposition.Application.Base
 
 import           Control.Effect.Carrier                    (Carrier)
-import           Data.Row.Records
+import           Data.Row.Records                          (Empty)
 
-import           Komposition.Application.KeyMaps
 import           Komposition.Application.WelcomeScreenMode
 
 komposition
@@ -27,6 +26,4 @@ komposition
     , Carrier sig m
     )
   => t m Empty Empty ()
-komposition = do
-  start #gui (fmap CommandKeyMappedEvent . keymaps)
-  welcomeScreenMode #gui
+komposition = welcomeScreenMode

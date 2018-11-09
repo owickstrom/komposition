@@ -63,14 +63,19 @@ library
                       , Komposition.Render.Composition
                       , Komposition.Render.FFmpeg
                       , Komposition.UserInterface
+                      , Komposition.UserInterface.Dialog
                       , Komposition.UserInterface.GtkInterface
+                      , Komposition.UserInterface.GtkInterface.CustomWidget
+                      , Komposition.UserInterface.GtkInterface.DialogView
                       , Komposition.UserInterface.GtkInterface.EventListener
+                      , Komposition.UserInterface.GtkInterface.GtkWindowMarkup
                       , Komposition.UserInterface.GtkInterface.HelpView
                       , Komposition.UserInterface.GtkInterface.ImportView
                       , Komposition.UserInterface.GtkInterface.LibraryView
                       , Komposition.UserInterface.GtkInterface.TimelineView
                       , Komposition.UserInterface.GtkInterface.ThumbnailPreview
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView
+                      , Komposition.UserInterface.Help
                       , Komposition.Timestamp
                       , Komposition.VideoSettings
   build-depends:        base >=4.10 && <4.12
@@ -128,6 +133,7 @@ executable komposition
                       , komposition
                       , fast-logger
                       , filepath
+                      , fused-effects
                       , gi-gobject
                       , gi-glib
                       , gi-gtk

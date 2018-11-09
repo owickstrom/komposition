@@ -1,55 +1,63 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE GADTs   #-}
+{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 module Komposition.UserInterface.GtkInterface.ThumbnailPreview where
 
 import           Komposition.Prelude
 
+import Data.IORef
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GdkPixbuf                   as Pixbuf
 import qualified GI.GLib                        as GLib
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.State
 
-data ThumbnailPreview event = ThumbnailPreview
-  { thumbnailPath :: FilePath
-  }
+import Komposition.UserInterface.GtkInterface.CustomWidget
+
+type CustomState = IORef FilePath
 
 thumbnailPreview :: FilePath -> Widget a
-thumbnailPreview thumbnailPath =
-  Widget ThumbnailPreview {..}
+thumbnailPreview customData = Widget (CustomWidget {..})
+  where
+    customWidget = Gtk.Layout
+    customCreate thumbnailPath = do
+      src <- newIORef thumbnailPath
+      layout <- Gtk.layoutNew Gtk.noAdjustment Gtk.noAdjustment
+      sc <- Gtk.widgetGetStyleContext layout
+      image <- Gtk.imageNewFromPixbuf Pixbuf.noPixbuf
+      Gtk.widgetSetSizeRequest layout 200 200
+      Gtk.layoutPut layout image 0 0
+      Gtk.widgetShowAll layout
+      let redraw w h = void . async $ do
+            srcPath <- readIORef src
+            scaled <- Pixbuf.pixbufNewFromFileAtSize srcPath w h
+            void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+              Gtk.imageSetFromPixbuf image (Just scaled)
+              return False
+      void . Gtk.onWidgetMapEvent layout $ \_ -> do
+        (_, r) <- Gtk.widgetGetPreferredSize layout
+        w <- Gtk.getRequisitionWidth r
+        h <- Gtk.getRequisitionHeight r
+        redraw w h
+        return True
+      void . Gtk.onWidgetSizeAllocate layout $ \a -> do
+        w <- Gdk.getRectangleWidth a
+        h <- Gdk.getRectangleHeight a
+        redraw w h
+      return (SomeState (StateTreeWidget (StateTreeNode layout sc mempty src)))
 
-instance Functor ThumbnailPreview where
-  fmap _ ThumbnailPreview {..} = ThumbnailPreview {..}
+    customPatch (SomeState (stateTree :: StateTree stateType w e c cs)) old (new :: FilePath)
+      | old == new = CustomKeep
+      | otherwise =
+        case (stateTree, eqT @cs @CustomState) of
+          (StateTreeWidget top, Just Refl) -> CustomModify $ \_ -> do
+            writeIORef (stateTreeCustomState top) new
+            return (SomeState (StateTreeWidget top))
 
-instance Patchable ThumbnailPreview where
-  create ThumbnailPreview {..} = do
-    layout <- Gtk.layoutNew Gtk.noAdjustment Gtk.noAdjustment
-    image <- Gtk.imageNewFromPixbuf Pixbuf.noPixbuf
-    Gtk.widgetSetSizeRequest layout 200 200
-    Gtk.layoutPut layout image 0 0
-    let redraw w h = void . async $ do
-          scaled <- Pixbuf.pixbufNewFromFileAtSize thumbnailPath w h
-          void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
-            Gtk.imageSetFromPixbuf image (Just scaled)
-            return False
-    void . Gtk.onWidgetMapEvent layout $ \_ -> do
-      (_, r) <- Gtk.widgetGetPreferredSize layout
-      w <- Gtk.getRequisitionWidth r
-      h <- Gtk.getRequisitionHeight r
-      redraw w h
-      return True
-    void . Gtk.onWidgetSizeAllocate layout $ \a -> do
-      w <- Gdk.getRectangleWidth a
-      h <- Gdk.getRectangleHeight a
-      redraw w h
-    Gtk.toWidget layout
-  patch old new
-    | thumbnailPath old == thumbnailPath new = Keep
-    | otherwise = Replace (create new)
+          _ -> CustomReplace
 
-instance EventSource ThumbnailPreview where
-  subscribe ThumbnailPreview{..} _ _ = do
-    -- TODO: Implement event source
-    return (fromCancellation (return ()))
+    customSubscribe _ _ _ =
+      return (fromCancellation (return ()))

@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- | The library view of Komposition's GTK interface.
@@ -26,7 +27,7 @@ import           Text.Printf
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
-import           Komposition.UserInterface
+import           Komposition.UserInterface hiding (libraryView, Window)
 
 printTimestamp :: Duration -> Text
 printTimestamp d =
@@ -88,12 +89,12 @@ renderAudioAsset asset' =
         Label
         [#label := printTimestamp (asset' ^. assetMetadata . duration)]
 
-libraryView ::  SelectAssetsModel mt -> Widget (Event LibraryMode)
+libraryView ::  SelectAssetsModel mt -> Bin Window Widget (Event LibraryMode)
 libraryView SelectAssetsModel {..} =
   bin
     Window
     [ #title := "Library"
-    , on #destroy (CommandKeyMappedEvent Cancel)
+    , on #deleteEvent (const (True, WindowClosed))
     , #defaultWidth := 300
     , #defaultHeight := 400
     , classes ["library"]

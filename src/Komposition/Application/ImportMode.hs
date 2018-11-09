@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -18,10 +19,10 @@ module Komposition.Application.ImportMode
 
 import           Komposition.Application.Base
 
-import           Control.Effect                  (Member)
+import           Control.Effect                   (Member)
 import           Control.Lens
 import           Data.Row.Records
-import           Data.String                     (fromString)
+import           Data.String                      (fromString)
 
 import           Komposition.Classification
 import           Komposition.History
@@ -29,6 +30,8 @@ import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Project
+import           Komposition.UserInterface.Dialog
+import           Komposition.UserInterface.Help
 
 import           Komposition.Application.KeyMaps
 
@@ -43,26 +46,27 @@ data ImportFileForm = ImportFileForm
   }
 
 selectFileToImport
-  :: (ImportEffects sig)
-  => Application t m sig
-  => Name n
-  -> ThroughMode TimelineMode ImportMode (t m) n (Maybe (FilePath, Bool))
-selectFileToImport gui returnToOrigin = do
+  :: ( Application t m sig
+    , ImportEffects sig
+    )
+  => t m r r (Maybe (FilePath, Bool))
+selectFileToImport =
   let initialModel = ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
-  enterImport gui initialModel
-  result <- fillForm initialModel ImportFileForm {selectedFile = Nothing, classify = False}
-  case result of
-    Just f  -> returnToOrigin (Just f)
-    Nothing -> returnToOrigin Nothing
+  in
+    withNewWindow
+      #import
+      (importView initialModel)
+      (CommandKeyMappedEvent <$> keymaps SImportMode)
+      (fillForm initialModel ImportFileForm {selectedFile = Nothing, classify = False})
   where
     fillForm model mf = do
-      updateImport gui model
-      cmd <- nextEvent gui
+      patchWindow #import (importView model)
+      cmd <- nextEvent #import
       case (cmd, mf) of
-        (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
-        (CommandKeyMappedEvent Help  , _) -> do
-          help gui [ModeKeyMap SImportMode (keymaps SImportMode)]
-          fillForm model mf
+        (CommandKeyMappedEvent Help  , _) ->
+          help #import [ModeKeyMap SImportMode (keymaps SImportMode)] >>>= \case
+            Just HelpClosed -> fillForm model mf
+            Nothing -> fillForm model mf
         (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
           ireturn (Just (file, classify))
         (ImportClicked          , form) -> fillForm model form
@@ -78,16 +82,15 @@ selectFileToImport gui returnToOrigin = do
             form { selectedFile = file }
         (ImportAutoSplitSet s, form) ->
           fillForm model { autoSplitValue = s } form { classify = s }
-
-isImportable
-  :: (ImportEffects sig, Application t m sig) => FilePath -> t m r r Bool
-isImportable f = do
-  v <- ilift (isSupportedVideoFile f)
-  a <- ilift (isSupportedAudioFile f)
-  ireturn (v || a)
+        (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
+        (WindowClosed, _) -> ireturn Nothing
 
 importSelectedFile
-  :: (ImportEffects sig, Application t m sig, (r .! n) ~ State (t m) s)
+  :: ( Application t m sig
+     , r ~ (n .== Window (t m) e)
+     , DialogView (WindowMarkup (t m))
+     , ImportEffects sig
+     )
   => Name n
   -> ExistingProject
   -> (FilePath, Bool)
@@ -104,24 +107,39 @@ importSelectedFile gui project (filepath, classify) = do
   let classification = bool Unclassified Classified classify
   case (v, a) of
     (True, _) -> do
-      action <- ilift $ importVideoFile
-        classification
-        (current (project ^. projectHistory) ^. proxyVideoSettings)
-        filepath
-        (project ^. projectPath . unProjectPath)
+      action <-
+        ilift $
+        importVideoFile
+          classification
+          (current (project ^. projectHistory) ^. proxyVideoSettings)
+          filepath
+          (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Video" action
       ireturn (bimap ImportError Left <$> result)
     (False, True) -> do
-      action <- ilift $ importAudioFile
-        classification
-        filepath
-        (project ^. projectPath . unProjectPath)
+      action <-
+        ilift $
+        importAudioFile
+          classification
+          filepath
+          (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Audio" action
       ireturn (bimap ImportError Right <$> result)
     _ -> do
-      _ <- dialog
-        gui
-        "Unsupported File"
-        "The file extension of the file you've selected is not supported."
-        [Ok]
+      _ <-
+        dialog
+          gui
+          DialogProperties
+          { dialogTitle = "Unsupported File"
+          , dialogMessage =
+              "The file extension of the file you've selected is not supported."
+          , dialogChoices = [Ok]
+          }
       ireturn Nothing
+
+isImportable
+  :: (ImportEffects sig, Application t m sig) => FilePath -> t m r r Bool
+isImportable f = do
+  v <- ilift (isSupportedVideoFile f)
+  a <- ilift (isSupportedAudioFile f)
+  ireturn (v || a)

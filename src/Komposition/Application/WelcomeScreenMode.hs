@@ -16,6 +16,7 @@ import           Komposition.Application.Base
 
 import           Control.Effect                       (Member)
 import           Control.Effect.Carrier               (Carrier)
+import           Control.Lens
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
 
@@ -27,10 +28,12 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
+import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
+import           Komposition.UserInterface.Help
 
 type WelcomeScreenModeEffects sig =
     ( Member ProjectStore sig
@@ -44,68 +47,77 @@ welcomeScreenMode
     , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
-  => Name n
-  -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
-welcomeScreenMode gui = do
-  updateWelcomeScreen gui
-  nextEvent gui >>= \case
-    OpenExistingProjectClicked -> do
-      outDir <- ilift getDefaultProjectsDirectory
-      chooseFile gui (Open Directory) "Open Project Directory" outDir >>= \case
-        Just path' ->
-          ilift (openExistingProject path') >>= \case
-            Left err -> do
-              ilift (logLnText Error ("Opening existing project failed: " <> show err))
-              welcomeScreenMode gui
-            Right existingProject' -> toTimelineWithProject gui existingProject'
-        Nothing -> welcomeScreenMode gui
-    CreateNewProjectClicked -> do
-      outDir <- ilift getDefaultProjectsDirectory
-      chooseFile gui (Save Directory) "Choose Project Directory" outDir >>= \case
-        Just path' ->
-          ilift (createNewProject path' initialProject) >>= \case
-            Left err -> do
-              beep gui
-              ilift (logLnText Error ("Create new project failed: " <> show err))
-              welcomeScreenMode gui
-            Right newProject -> toTimelineWithProject gui newProject
-        Nothing -> welcomeScreenMode gui
-    CommandKeyMappedEvent Cancel -> exit gui
-    CommandKeyMappedEvent Help -> do
-      help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)]
-      welcomeScreenMode gui
+  => t m Empty Empty ()
+welcomeScreenMode = do
+  newWindow #welcome welcomeView (CommandKeyMappedEvent <$> keymaps SWelcomeScreenMode)
+  inWelcomeScreenMode
+  where
+    inWelcomeScreenMode = do
+      patchWindow #welcome welcomeView
+      nextEvent #welcome >>= \case
+        OpenExistingProjectClicked -> do
+          dir <- ilift getDefaultProjectsDirectory
+          chooseFile #welcome (Open Directory) "Open Project Directory" dir >>= \case
+            Just path' ->
+              ilift (openExistingProject path') >>= \case
+                Left err -> do
+                  ilift (logLnText Error ("Opening existing project failed: " <> show err))
+                  inWelcomeScreenMode
+                Right existingProject' -> toTimelineWithProject existingProject'
+            Nothing -> inWelcomeScreenMode
+        CreateNewProjectClicked ->
+          prompt
+            #welcome
+            "New Project Name"
+            "What do you want to name your new project?"
+            "OK"
+            PromptText >>>= \case
+            Just projectName' -> do
+              dir <- ilift getDefaultProjectsDirectory
+              let defaultDir = dir
+              chooseFile #welcome (Save Directory) "Choose Project Directory" defaultDir >>= \case
+                Just path' ->
+                  ilift (createNewProject path' (initialProject & projectName .~ projectName')) >>= \case
+                    Left err -> do
+                      beep #welcome
+                      ilift (logLnText Error ("Create new project failed: " <> show err))
+                      inWelcomeScreenMode
+                    Right newProject -> toTimelineWithProject newProject
+                Nothing -> inWelcomeScreenMode
+            Nothing -> inWelcomeScreenMode
+        WindowClosed -> destroyWindow #welcome
+        CommandKeyMappedEvent Cancel -> destroyWindow #welcome
+        CommandKeyMappedEvent Help ->
+          help #welcome [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
+            Just HelpClosed -> inWelcomeScreenMode
+            Nothing -> inWelcomeScreenMode
 
 toTimelineWithProject
   :: ( Application t m sig
-    , Carrier sig m
     , WelcomeScreenModeEffects sig
+    , Carrier sig m
     )
-  => Name n
-  -> ExistingProject
-  -> t m (n .== State (t m) WelcomeScreenMode) Empty ()
-toTimelineWithProject gui project = do
+  => ExistingProject
+  -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
+toTimelineWithProject project = do
   let model = TimelineModel project initialFocus Nothing (ZoomLevel 1)
-  returnToTimeline gui model
+  destroyWindow #welcome
+  newWindow
+    #timeline
+    (timelineView model)
+    (CommandKeyMappedEvent <$> keymaps STimelineMode)
   runTimeline model
   where
     runTimeline model =
-      timelineMode gui model >>= \case
+      timelineMode #timeline model >>= \case
         TimelineExit model' ->
-          dialog gui "Confirm Exit" "Are you sure you want to exit?" [No, Yes] >>>= \case
-            Just Yes -> exit gui
+          dialog #timeline DialogProperties { dialogTitle = "Confirm Exit", dialogMessage = "Are you sure you want to exit?", dialogChoices = [No, Yes]} >>>= \case
+            Just Yes -> destroyWindow #timeline
             Just No -> runTimeline model'
             Nothing -> runTimeline model'
-        TimelineClose -> returnToWelcomeScreen gui >>> welcomeScreenMode gui
-
-data Confirmation
-  = Yes
-  | No
-  deriving (Show, Eq, Enum)
-
-instance DialogChoice Confirmation where
-  toButtonLabel = \case
-    Yes -> "Yes"
-    No -> "No"
+        TimelineClose -> do
+          destroyWindow #timeline
+          welcomeScreenMode
 
 initialProject :: Project
 initialProject =
