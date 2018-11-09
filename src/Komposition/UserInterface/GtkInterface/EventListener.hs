@@ -28,10 +28,8 @@ subscribeToDeclarativeWidget
   :: Declarative.EventSource s => s e -> Declarative.SomeState -> IO (EventListener e)
 subscribeToDeclarativeWidget declWidget st = do
   events       <- newChan
-  _subscription <- Declarative.subscribe declWidget st (writeChan events)
-  -- TODO: Fix unsubscribe bug in gi-gtk-declarative and go back to doing this:
-  -- pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
-  pure EventListener { unsubscribe = return (), .. }
+  subscription <- Declarative.subscribe declWidget st (writeChan events)
+  pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
 
 mergeEvents :: EventListener e -> EventListener e -> IO (EventListener e)
 mergeEvents a b = do
