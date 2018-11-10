@@ -27,7 +27,6 @@ import           GI.Gtk                                                  (Align 
                                                                           MenuItem (..),
                                                                           Orientation (..),
                                                                           PolicyType (..),
-                                                                          Scale (..),
                                                                           ScrolledWindow (..),
                                                                           Window (..))
 import           GI.Gtk.Declarative
@@ -40,7 +39,9 @@ import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
-import           Komposition.UserInterface                               hiding (timelineView, Window)
+import           Komposition.UserInterface                               hiding (Window,
+                                                                          timelineView)
+import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
@@ -195,8 +196,7 @@ renderMenu = container MenuBar [] $ do
     insertSubMenu Audio
     labelledItem Split
     labelledItem Delete
-  subMenu "Help" $
-    labelledItem Help
+  subMenu "Help" $ labelledItem Help
   where
     labelledItem cmd =
       menuItem MenuItem [on #activate (CommandKeyMappedEvent cmd)]
@@ -220,42 +220,37 @@ renderBottomBar model =
           , #ellipsize := EllipsizeModeEnd
           , #halign := AlignStart
           ]
-        boxChild False False 0 $ widget
-          Scale
-          [ classes ["zoom-level"]
-          , onM #valueChanged onZoomLevelChange
-          , afterCreated afterZoomLevelCreate
-          , #drawValue := False
-          ]
-  where
-    afterZoomLevelCreate :: Scale -> IO ()
-    afterZoomLevelCreate scale = #setRange scale 1 9
-
-    onZoomLevelChange = fmap (ZoomLevelChanged . ZoomLevel) . #getValue
+        boxChild False False 0 $ toZoomEvent <$> rangeSlider
+          (RangeSliderProperties (1, 9) ["zoom-level"])
+  where toZoomEvent (RangeSliderChanged d) = ZoomLevelChanged (ZoomLevel d)
 
 timelineView :: TimelineModel -> Bin Window Widget (Event TimelineMode)
 timelineView model =
-  bin Window [ #title := (currentProject model ^. projectName)
-             , on #deleteEvent (const (True, WindowClosed))
-             ] $ container Box [#orientation := OrientationVertical] $ do
-    boxChild False False 0 renderMenu
-    boxChild
-      True
-      True
-      0
-      (renderPreviewPane
-        (firstCompositionPart (model ^. currentFocus)
-                              (currentProject model ^. timeline)
-        )
-      )
-    boxChild False False 0 $ bin
-      ScrolledWindow
-      [ #hscrollbarPolicy := PolicyTypeAutomatic
-      , #vscrollbarPolicy := PolicyTypeNever
-      , classes ["timeline-container"]
+  bin
+      Window
+      [ #title := (currentProject model ^. projectName)
+      , on #deleteEvent (const (True, WindowClosed))
       ]
-      (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
-    boxChild False False 0 (renderBottomBar model)
+    $ container Box [#orientation := OrientationVertical]
+    $ do
+        boxChild False False 0 renderMenu
+        boxChild
+          True
+          True
+          0
+          (renderPreviewPane
+            (firstCompositionPart (model ^. currentFocus)
+                                  (currentProject model ^. timeline)
+            )
+          )
+        boxChild False False 0 $ bin
+          ScrolledWindow
+          [ #hscrollbarPolicy := PolicyTypeAutomatic
+          , #vscrollbarPolicy := PolicyTypeNever
+          , classes ["timeline-container"]
+          ]
+          (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
+        boxChild False False 0 (renderBottomBar model)
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci = withAllFoci (currentProject model ^. timeline)

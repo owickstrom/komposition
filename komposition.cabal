@@ -72,6 +72,7 @@ library
                       , Komposition.UserInterface.GtkInterface.HelpView
                       , Komposition.UserInterface.GtkInterface.ImportView
                       , Komposition.UserInterface.GtkInterface.LibraryView
+                      , Komposition.UserInterface.GtkInterface.RangeSlider
                       , Komposition.UserInterface.GtkInterface.TimelineView
                       , Komposition.UserInterface.GtkInterface.ThumbnailPreview
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView
