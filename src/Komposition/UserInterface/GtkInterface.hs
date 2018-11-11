@@ -98,6 +98,7 @@ data GtkWindow event = GtkWindow
   { markup       :: GtkWindowMarkup event
   , widgetState  :: Declarative.SomeState
   , windowEvents :: EventListener event
+  , viewEvents   :: EventListener event
   , windowKeyMap :: KeyMap event
   }
 
@@ -117,12 +118,11 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
         -- Set up CSS provider
         loadCss env win
         -- Set up event listeners
+        windowEvents <- applyKeyMap keyMap =<< subscribeKeyEvents =<< Gtk.toWidget win
         viewEvents <- subscribeToDeclarativeWidget decl s
-        keyEvents <- applyKeyMap keyMap =<< subscribeKeyEvents =<< Gtk.toWidget win
-        allEvents <- mergeEvents viewEvents keyEvents
         -- And show recursively as this is a new widget tree
         #showAll win
-        return (GtkWindow markup' s allEvents keyMap)))
+        return (GtkWindow markup' s windowEvents viewEvents keyMap)))
 
   patchWindow name (GtkWindowMarkup decl) =
     FSM.get name >>>= \w ->
@@ -136,10 +136,8 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
             s' <- create'
             win <- Gtk.unsafeCastTo Gtk.Window =<< Declarative.someStateWidget s'
             viewEvents <- subscribeToDeclarativeWidget decl s'
-            keyEvents <- applyKeyMap (windowKeyMap w) =<< subscribeKeyEvents =<< Gtk.toWidget win
-            allEvents <- mergeEvents viewEvents keyEvents
             #showAll win
-            return (GtkWindow (GtkWindowMarkup decl) s' allEvents (windowKeyMap w))
+            return (GtkWindow (GtkWindowMarkup decl) s' (windowEvents w) viewEvents (windowKeyMap w))
           Declarative.Keep -> ireturn w
 
   destroyWindow name =
@@ -159,7 +157,7 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
       call $
         newWindow name markup keymap
         >>> FSM.get name
-        >>>= \w -> (irunUI $ do
+        >>>= \w -> irunUI (do
           cw <- asGtkWindow w
           pw <- asGtkWindow p
           Gtk.windowSetTransientFor cw (Just pw))
@@ -169,13 +167,13 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
           >>> ireturn x
 
   nextEvent name =
-    FSM.get name >>>= (iliftIO . readEvent . windowEvents)
+    FSM.get name >>>= (\w -> iliftIO (raceEvent (windowEvents w) (viewEvents w)))
 
   nextEventOrTimeout n t = FSM.get n >>>= \w -> iliftIO $ do
     let microseconds = round (fromIntegral (diffTimeToPicoseconds t) / 1000000 :: Double)
     race
       (threadDelay microseconds)
-      (readEvent (windowEvents w)) >>= \case
+      (raceEvent (windowEvents w) (viewEvents w)) >>= \case
         Left () -> return Nothing
         Right e -> return (Just e)
 

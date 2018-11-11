@@ -6,6 +6,7 @@ module Komposition.UserInterface.GtkInterface.EventListener where
 
 import           Komposition.Prelude
 
+import           Control.Concurrent.Async       (race)
 import qualified Data.HashMap.Strict            as HashMap
 import qualified Data.HashSet                   as HashSet
 import qualified GI.Gdk                         as Gdk
@@ -31,20 +32,9 @@ subscribeToDeclarativeWidget declWidget st = do
   subscription <- Declarative.subscribe declWidget st (writeChan events)
   pure EventListener { unsubscribe = Declarative.cancel subscription, .. }
 
-mergeEvents :: EventListener e -> EventListener e -> IO (EventListener e)
-mergeEvents a b = do
-  c  <- newChan
-  ta <- readInto c a
-  tb <- readInto c b
-  pure EventListener
-    { events      = c
-    , unsubscribe = do
-      killThread ta
-      killThread tb
-      unsubscribe a
-      unsubscribe b
-    }
-  where readInto c el = forkIO (forever (readEvent el >>= writeChan c))
+raceEvent :: EventListener e -> EventListener e -> IO e
+raceEvent a b =
+  either pure pure =<< race (readEvent a) (readEvent b)
 
 subscribeKeyEvents :: Gtk.Widget -> IO (EventListener KeyCombo)
 subscribeKeyEvents w = do
