@@ -24,8 +24,8 @@ where
 import           Komposition.Prelude
 import qualified Prelude
 
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Text          as Text
+import qualified Data.List.NonEmpty    as NonEmpty
+import qualified Data.Text             as Text
 import           Text.Printf
 
 import           Komposition.Duration
@@ -53,7 +53,6 @@ data Command = Command
 data Source
   = FileSource FilePath
   | StillFrameSource FilePath FrameRate Duration
-  | AudioNullSource Duration
 
 type Name = Text
 
@@ -91,6 +90,8 @@ data Filter
               , trimDuration :: Duration }
   | SetPTSStart
   | AudioSetPTSStart
+
+  | AudioEvalSource { audioEvalSourceDuration :: Duration }
 
 data RoutedFilter = RoutedFilter
   { filterInputs  :: [StreamSelector]
@@ -138,12 +139,6 @@ printSourceArgs =
       , printTimestamp duration
       , "-i"
       , toS path
-      ]
-    AudioNullSource d ->
-      [ "-f"
-      , "lavfi"
-      , "-i"
-      , "aevalsrc=0:duration=" <> show (durationToSeconds d)
       ]
 
 printMapping :: StreamSelector -> [Text]
@@ -194,6 +189,11 @@ printFilter =
            -- decimal numbers
            (durationToSeconds trimStart)
            (durationToSeconds trimDuration) :: Prelude.String)
+
+    AudioEvalSource {..} ->
+      toS (printf
+            "aevalsrc=0:duration=%f"
+            (durationToSeconds audioEvalSourceDuration) :: Prelude.String)
     AudioTrim {..} ->
       toS
         (printf

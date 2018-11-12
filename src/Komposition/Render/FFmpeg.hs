@@ -27,7 +27,6 @@ import           Control.Effect.Carrier
 import           Control.Effect.Sum
 import           Control.Lens
 import qualified Data.List.NonEmpty             as NonEmpty
-import qualified Data.Text                      as Text
 import           Data.Vector                    (Vector)
 import qualified Data.Vector                    as Vector
 import           Pipes.Safe                     (bracket)
@@ -66,7 +65,7 @@ data PartStream mt where
   VideoClipStream :: InputIndex -> TimeSpan -> PartStream Video
   AudioClipStream :: InputIndex -> TimeSpan -> PartStream Audio
   StillFrameStream :: InputIndex -> PartStream Video
-  SilenceStream :: InputIndex -> PartStream Audio
+  SilenceStream :: Duration -> PartStream Audio
 
 data CommandInput mt = CommandInput
   { inputs       :: NonEmpty (Input mt)
@@ -82,9 +81,11 @@ toCommandInput
   -> NonEmpty (Composition.CompositionPart mt)
   -> IO (CommandInput mt)
 toCommandInput mediaType tmpDir videoSettings source startAt parts' =
-  parts' & NonEmpty.zip (startAt :| [succ startAt ..]) & traverse toPartStream &
-  (`runStateT` mempty) &
-  (>>= toCommandInputOrPanic)
+  parts'
+    & NonEmpty.zip (startAt :| [succ startAt..])
+    & traverse (toPartStream mediaType source)
+    & (`runStateT` mempty)
+    & (>>= toCommandInputOrPanic)
   where
     toInputIndex i = InputIndex (fromIntegral (i + startAt))
     addUniqueInput ::
@@ -96,23 +97,22 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
         Nothing -> do
           put (is `Vector.snoc` input)
           return (toInputIndex (Vector.length is))
-    toPartStream (i, p) =
-      case (mediaType, i, p) of
+    toPartStream mediaType' source' (i, p) =
+      case (mediaType', i, p) of
         (SVideo, vi, Composition.VideoClip asset ts) -> do
           ii <- addUniqueInput (VideoAssetInput (asset ^. assetMetadata . path))
           return ("v" <> show vi, VideoClipStream ii ts)
         (SVideo, vi, Composition.StillFrame mode asset ts duration') -> do
           frameFile <-
-            lift (extractFrameToFile' videoSettings mode source asset ts tmpDir)
+            lift (extractFrameToFile' videoSettings mode source' asset ts tmpDir)
           ii <- addUniqueInput (StillFrameInput frameFile duration')
           return ("v" <> show vi, StillFrameStream ii)
         (SAudio, ai, Composition.AudioClip asset) -> do
           ii <- addUniqueInput (AudioAssetInput (asset ^. assetMetadata . path))
           return
             ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf asset)))
-        (SAudio, ai, Composition.Silence duration') -> do
-          ii <- addUniqueInput (SilenceInput duration')
-          return ("a" <> show ai, SilenceStream ii)
+        (SAudio, ai, Composition.Silence d) ->
+          return ("a" <> show ai, SilenceStream d)
     toCommandInputOrPanic (streams, is) = do
       is' <-
         maybe
@@ -130,12 +130,13 @@ toRenderCommand
 toRenderCommand videoSettings output videoInput audioInput =
   Command
   { output = output
-  , inputs =
-      NonEmpty.map toVideoInput (inputs videoInput) <>
-      NonEmpty.map toAudioInput (inputs audioInput)
+  -- NOTE: We know the video inputs are non-empty, so this is safe.
+  , inputs = NonEmpty.fromList (toList videoInputs <> audioInputs)
   , filterGraph =
       Just . Command.FilterGraph $
-        videoInputChains <> audioInputChains <> (videoChain :| [audioChain])
+         videoInputChains
+         <> audioInputChains
+         <> (videoChain :| [audioChain])
   , mappings = [videoStream, audioStream]
   , format =
       case output of
@@ -147,6 +148,8 @@ toRenderCommand videoSettings output videoInput audioInput =
   , frameRate = Just (videoSettings ^. frameRate)
   }
   where
+    videoInputs = NonEmpty.map toVideoInput (inputs videoInput)
+    audioInputs = mapMaybe toAudioInput (NonEmpty.toList (inputs audioInput))
     namedStream n =
       Command.StreamSelector (Command.StreamName n) Nothing Nothing
     videoStream = namedStream "video"
@@ -182,11 +185,11 @@ toRenderCommand videoSettings output videoInput audioInput =
             frameFile
             (videoSettings ^. frameRate)
             duration'
-    toAudioInput :: Input Audio -> Command.Source
+    toAudioInput :: Input Audio -> Maybe Command.Source
     toAudioInput =
       \case
-        AudioAssetInput p -> Command.FileSource (p ^. unOriginalPath)
-        SilenceInput duration' -> Command.AudioNullSource duration'
+        AudioAssetInput p -> Just (Command.FileSource (p ^. unOriginalPath))
+        SilenceInput{} -> Nothing
     toStreamNameOnlySelector streamName =
       Command.StreamSelector (Command.StreamName streamName) Nothing Nothing
     toVideoInputChain ::
@@ -208,15 +211,14 @@ toRenderCommand videoSettings output videoInput audioInput =
              [])
     toAudioInputChain ::
          (PartStreamName, PartStream Audio) -> Command.FilterChain
-    toAudioInputChain (streamName, partStream) =
-      case partStream of
-        AudioClipStream ii ts ->
-          trimmedIndexedInput Audio streamName ii ts
-        SilenceStream i ->
+    toAudioInputChain (streamName, ps) =
+      case ps of
+        AudioClipStream ii ts -> trimmedIndexedInput Audio streamName ii ts
+        SilenceStream d       ->
           Command.FilterChain
             (Command.RoutedFilter
-               [indexedStreamSelector Command.Audio i]
-               Command.AudioSetPTSStart
+               []
+               (Command.AudioEvalSource d)
                [ Command.StreamSelector
                    (Command.StreamName streamName)
                    Nothing
