@@ -347,7 +347,7 @@ extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
               , "1"
               , frameFileName
               ]
-        putStrLn $ Text.unwords ("ffmpeg" : map toS allArgs)
+        printEscapedFFmpegInvocation (map toS allArgs)
         runFFmpeg $ proc "ffmpeg" allArgs
     runFFmpeg cmd = do
       (exit, _, err) <- readCreateProcessWithExitCode cmd ""
