@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
-{-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
@@ -9,12 +8,12 @@ module Komposition.FFmpeg.Process where
 import           Komposition.Prelude        hiding (bracket)
 import qualified Prelude
 
-import qualified Data.Text              as Text
+import qualified Data.Text                  as Text
 import           Pipes
-import           Pipes.Safe             (MonadSafe, bracket)
+import           Pipes.Safe                 (MonadSafe, bracket)
 import           System.Directory
-import qualified System.IO              as IO
-import           System.IO.Error        (isDoesNotExistError)
+import qualified System.IO                  as IO
+import           System.IO.Error            (isDoesNotExistError)
 import           System.Process.Typed
 
 import           Komposition.Duration
@@ -32,8 +31,8 @@ isStreaming :: Command -> Bool
 isStreaming cmd =
   case output cmd of
     HttpStreamingOutput{} -> True
-    UdpStreamingOutput{} -> True
-    FileOutput{} -> False
+    UdpStreamingOutput{}  -> True
+    FileOutput{}          -> False
 
 runFFmpegCommand
   :: (MonadSafe m, MonadIO m)
@@ -51,7 +50,7 @@ runFFmpegCommand toProgress totalDuration cmd = do
   let verbosityArgs = if isStreaming cmd then [] else ["-v", "quiet"]
       allArgs = verbosityArgs <> ["-stats", "-nostdin"] <> map toS (printCommandLineArgs cmd)
       process = proc "ffmpeg" allArgs & setStderr createPipe
-  liftIO (putStrLn (Prelude.unwords ("ffmpeg" : allArgs)))
+  printEscapedFFmpegInvocation allArgs
   bracket (startProcess process) stopProcess $ \p -> do
     liftIO (IO.hSetBuffering (getStderr p) IO.NoBuffering)
     delayIfStreaming
@@ -100,3 +99,7 @@ parseTimestampFromProgress line = parseTimestamp
       filter (not . Text.null) . Text.split (`elem` ['\t', ' ', '='])
     toPairs (key : value : rest) = (key, value) : toPairs rest
     toPairs _                    = []
+
+printEscapedFFmpegInvocation :: MonadIO m => [Prelude.String] -> m ()
+printEscapedFFmpegInvocation args =
+  liftIO (putStrLn (Prelude.unwords ("ffmpeg" : map (\a -> "'" <> a <> "'") args)))
