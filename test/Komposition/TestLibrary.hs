@@ -11,13 +11,13 @@ import           Komposition.Library
 video4s =
   VideoClip
     ()
-    (VideoAsset (AssetMetadata (OriginalPath "1.mp4") 4) (ProxyPath "1.proxy.mp4") Nothing)
+    (VideoAsset (AssetMetadata (OriginalPath "1.mp4") 4) (TranscodedPath "1.proxy.mp4") Nothing)
     (TimeSpan 0 4)
     "thumb.png"
 video10s =
   VideoClip
     ()
-    (VideoAsset (AssetMetadata (OriginalPath "2.mp4") 10) (ProxyPath "2.proxy.mp4") Nothing)
+    (VideoAsset (AssetMetadata (OriginalPath "2.mp4") 10) (TranscodedPath "2.proxy.mp4") Nothing)
     (TimeSpan 0 10)
     "thumb.png"
 audio1s = AudioClip () $ AudioAsset (AssetMetadata (OriginalPath "1.m4a") 1)

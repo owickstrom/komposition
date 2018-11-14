@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 module Komposition.UserInterface.GtkInterface.CustomWidget where
 
-import Komposition.Prelude
+import           Komposition.Prelude
 
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative

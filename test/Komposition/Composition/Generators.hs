@@ -40,8 +40,8 @@ parallelWithClips = Parallel () <$> vs <*> as
 videoAsset :: MonadGen m => m VideoAsset
 videoAsset = do
   meta <- assetMetadata
-  proxyPath <- ProxyPath <$> Gen.string (linear 1 50) Gen.unicode
-  pure (VideoAsset meta proxyPath Nothing)
+  tp <- TranscodedPath <$> Gen.string (linear 1 50) Gen.unicode
+  pure (VideoAsset meta tp Nothing)
 
 audioAsset :: MonadGen m => m AudioAsset
 audioAsset = AudioAsset <$> assetMetadata

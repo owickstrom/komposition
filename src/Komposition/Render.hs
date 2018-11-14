@@ -78,13 +78,13 @@ extractFrameToFile settings stillFrameMode videoSource asset timeSpan outDir =
   send (ExtractFrameToFile settings stillFrameMode videoSource asset timeSpan outDir ret)
 
 data Source (mt :: MediaType) where
-  VideoOriginal :: Source Video
+  VideoTranscoded :: Source Video
   VideoProxy :: Source Video
   AudioOriginal :: Source Audio
 
 instance Hashable (Source mt) where
   hashWithSalt s = \case
-    VideoOriginal -> s
+    VideoTranscoded -> s
     VideoProxy    -> s + 1
     AudioOriginal -> s + 2
 

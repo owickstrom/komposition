@@ -72,7 +72,10 @@ library
                       , Komposition.UserInterface.GtkInterface.HelpView
                       , Komposition.UserInterface.GtkInterface.ImportView
                       , Komposition.UserInterface.GtkInterface.LibraryView
+                      , Komposition.UserInterface.GtkInterface.NewProjectView
+                      , Komposition.UserInterface.GtkInterface.NumberInput
                       , Komposition.UserInterface.GtkInterface.RangeSlider
+                      , Komposition.UserInterface.GtkInterface.SelectBox
                       , Komposition.UserInterface.GtkInterface.TimelineView
                       , Komposition.UserInterface.GtkInterface.ThumbnailPreview
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView

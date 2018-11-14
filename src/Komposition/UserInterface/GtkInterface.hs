@@ -76,6 +76,7 @@ import           Komposition.VideoSettings
 
 import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
 import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
+import qualified Komposition.UserInterface.GtkInterface.NewProjectView    as View
 import qualified Komposition.UserInterface.GtkInterface.TimelineView      as View
 import qualified Komposition.UserInterface.GtkInterface.WelcomeScreenView as View
 
@@ -160,6 +161,8 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
         >>>= \w -> irunUI (do
           cw <- asGtkWindow w
           pw <- asGtkWindow p
+          Gtk.windowSetModal cw True
+          Gtk.windowSetTypeHint cw Gdk.WindowTypeHintDialog
           Gtk.windowSetTransientFor cw (Just pw))
         >>> action
         >>>= \x ->
@@ -347,6 +350,7 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
 
 instance UserInterfaceMarkup GtkWindowMarkup where
   welcomeView = GtkWindowMarkup View.welcomeScreenView
+  newProjectView = GtkWindowMarkup . View.newProjectView
   timelineView = GtkWindowMarkup . View.timelineView
   libraryView = GtkWindowMarkup . View.libraryView
   importView = GtkWindowMarkup . View.importView

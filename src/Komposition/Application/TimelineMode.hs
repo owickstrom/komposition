@@ -39,6 +39,7 @@ import           Komposition.Render
 import qualified Komposition.Render.Composition      as Render
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
+import           Komposition.VideoSettings
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
@@ -145,8 +146,8 @@ timelineMode gui model = do
               Just outFile -> do
                 stream <-
                   ilift $ renderComposition
-                    (currentProject model ^. videoSettings)
-                    VideoOriginal
+                    (currentProject model ^. videoSettings . renderVideoSettings)
+                    VideoTranscoded
                     (FileOutput outFile)
                     flat
                 progressBar gui "Rendering" stream >>= \case
@@ -285,14 +286,14 @@ previewFocusedComposition
 previewFocusedComposition gui model = case flatComposition of
   Just flat -> do
     streamingProcess <- ilift $ renderComposition
-      (currentProject model ^. proxyVideoSettings)
+      (currentProject model ^. videoSettings . proxyVideoSettings)
       VideoProxy
       (HttpStreamingOutput "localhost" 12345)
       flat
     _ <- previewStream gui
                       "http://localhost:12345"
                       streamingProcess
-                      (currentProject model ^. proxyVideoSettings)
+                      (currentProject model ^. videoSettings . proxyVideoSettings)
     ireturn model
   Nothing -> do
     beep gui
@@ -407,7 +408,7 @@ toVideoClip model videoAsset =
           (videoAsset ^. videoClassifiedScene)
   in VideoClip () videoAsset ts <$>
       extractFrameToFile
-        (currentProject model ^. videoSettings)
+        (currentProject model ^. videoSettings . proxyVideoSettings)
         Render.FirstFrame
         VideoProxy
         videoAsset

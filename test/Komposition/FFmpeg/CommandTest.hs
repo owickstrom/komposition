@@ -8,7 +8,6 @@ import           Komposition.Prelude
 
 import           Test.Tasty.Hspec
 
-import           Komposition.Duration
 import           Komposition.FFmpeg.Command
 
 spec_printCommandLineArgs = do

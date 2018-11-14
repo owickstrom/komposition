@@ -111,7 +111,7 @@ importSelectedFile gui project (filepath, classify) = do
         ilift $
         importVideoFile
           classification
-          (current (project ^. projectHistory) ^. proxyVideoSettings)
+          (current (project ^. projectHistory) ^. videoSettings)
           filepath
           (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Video" action
