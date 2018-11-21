@@ -56,8 +56,10 @@ data Input mt where
   SilenceInput :: Duration -> Input Audio
 
 deriving instance Eq (Input mt)
+deriving instance Show (Input mt)
 
 newtype InputIndex = InputIndex Integer
+  deriving (Show)
 
 type PartStreamName = Text
 
@@ -67,10 +69,23 @@ data PartStream mt where
   StillFrameStream :: InputIndex -> PartStream Video
   SilenceStream :: Duration -> PartStream Audio
 
-data CommandInput mt = CommandInput
-  { inputs       :: NonEmpty (Input mt)
-  , inputStreams :: NonEmpty (PartStreamName, PartStream mt)
-  }
+deriving instance Show (PartStream mt)
+
+data CommandInput mt where
+  VideoCommandInput :: NonEmpty (Input Video) -> NonEmpty (PartStreamName, PartStream Video) -> CommandInput Video
+  AudioCommandInput :: [Input Audio] -> NonEmpty (PartStreamName, PartStream Audio) -> CommandInput Audio
+
+type family Inputs mt where
+  Inputs Video = NonEmpty (Input Video)
+  Inputs Audio = [Input Audio]
+
+inputs :: CommandInput mt -> Inputs mt
+inputs (VideoCommandInput is _) = is
+inputs (AudioCommandInput as _) = as
+
+inputStreams :: CommandInput mt -> NonEmpty (PartStreamName, PartStream mt)
+inputStreams (VideoCommandInput _ ss) = ss
+inputStreams (AudioCommandInput _ ss) = ss
 
 toCommandInput
   :: SMediaType mt
@@ -85,7 +100,7 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
     & NonEmpty.zip (startAt :| [succ startAt..])
     & traverse (toPartStream mediaType source)
     & (`runStateT` mempty)
-    & (>>= toCommandInputOrPanic)
+    & (>>= toCommandInputOrPanic mediaType)
   where
     toInputIndex i = InputIndex (fromIntegral (i + startAt))
     addUniqueInput ::
@@ -113,13 +128,17 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
             ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf asset)))
         (SAudio, ai, Composition.Silence d) ->
           return ("a" <> show ai, SilenceStream d)
-    toCommandInputOrPanic (streams, is) = do
+    toCommandInputOrPanic :: SMediaType mt -> (NonEmpty (PartStreamName, PartStream mt), Vector (Input mt)) -> IO (CommandInput mt)
+
+    toCommandInputOrPanic SVideo (streams, is) = do
       is' <-
         maybe
           (panic "No inputs found for FFmpeg command.")
           pure
           (NonEmpty.nonEmpty (Vector.toList is))
-      pure (CommandInput is' streams)
+      pure (VideoCommandInput is' streams)
+    toCommandInputOrPanic SAudio (streams, is) =
+      pure (AudioCommandInput (Vector.toList is) streams)
 
 toRenderCommand
   :: VideoSettings
@@ -149,7 +168,7 @@ toRenderCommand videoSettings output videoInput audioInput =
   }
   where
     videoInputs = NonEmpty.map toVideoInput (inputs videoInput)
-    audioInputs = mapMaybe toAudioInput (NonEmpty.toList (inputs audioInput))
+    audioInputs = mapMaybe toAudioInput (inputs audioInput)
     namedStream n =
       Command.StreamSelector (Command.StreamName n) Nothing Nothing
     videoStream = namedStream "video"
