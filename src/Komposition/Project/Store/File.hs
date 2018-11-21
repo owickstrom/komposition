@@ -16,6 +16,7 @@ import           Komposition.Prelude       hiding (Type, list)
 import           Control.Effect
 import           Control.Effect.Carrier
 import           Control.Effect.Sum
+import           Control.Exception.Safe
 import           Control.Lens
 import           Data.Binary               (Binary)
 import qualified Data.Binary               as Binary
@@ -62,15 +63,19 @@ projectDataFilePath :: ProjectPath -> FilePath
 projectDataFilePath p =
   p ^. unProjectPath </> "project-history.bin"
 
-writeProject :: MonadIO m => ExistingProject -> m ()
-writeProject existingProject =
-  liftIO $
-    writeProjectDataFile
-      (projectDataFilePath (existingProject ^. projectPath))
-      (existingProject ^. projectHistory)
+writeProject ::  ExistingProject -> IO (Either SaveProjectError ())
+writeProject existingProject = runExceptT $
+  liftIO
+  (writeProjectDataFile
+     (projectDataFilePath (existingProject ^. projectPath))
+     (existingProject ^. projectHistory))
+  `catchAny`
+  (\(e :: SomeException) -> throwError (UnexpectedSaveError (show e)))
 
-readProjectDataFile :: FilePath -> IO (History Project)
-readProjectDataFile = Binary.decodeFile
+readProjectDataFile :: FilePath -> IO (Either OpenProjectError (History Project))
+readProjectDataFile p = runExceptT $
+  liftIO (Binary.decodeFile p)
+  `catchAny` (\(e :: SomeException) -> throwError (InvalidProjectDataFile p (show e)))
 
 writeProjectDataFile :: FilePath -> History Project -> IO ()
 writeProjectDataFile = Binary.encodeFile
@@ -86,14 +91,11 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
         throwError (ProjectDirectoryNotEmpty targetPath)
       liftIO (createDirectoryIfMissing False targetPath)
       let existingProject =  ExistingProject (ProjectPath targetPath) (initialise newProject)
-      writeProject existingProject
-        `catchE` (\(e :: SomeException) -> throwError (UnexpectedSaveError (show e)))
+      ExceptT (liftIO (writeProject existingProject))
       return existingProject)
 
     SaveExistingProject existingProject k -> k =<<
-      (liftIO . runExceptT $
-        writeProject existingProject
-          `catchE` (\(e :: SomeException) -> throwError (UnexpectedSaveError (show e))))
+      liftIO (writeProject existingProject)
 
     OpenExistingProject path' k -> k =<< runExceptT (do
       whenM (liftIO (not <$> doesPathExist path')) $
@@ -102,10 +104,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
           dataFilePath = projectDataFilePath projectPath'
       whenM (liftIO (not <$> doesPathExist dataFilePath)) $
         throwError (ProjectDataFileDoesNotExist dataFilePath)
-      existingHistory <- liftIO (readProjectDataFile dataFilePath)
-        `catchE` (\(e :: SomeException) -> do
-            putStrLn ("Invalid project data file: " <> show e)
-            throwError (InvalidProjectDataFile dataFilePath))
+      existingHistory <- ExceptT (liftIO (readProjectDataFile dataFilePath))
       return (ExistingProject projectPath' existingHistory))
     GetDefaultProjectsDirectory k -> k =<< liftIO getUserDocumentsDirectory
 

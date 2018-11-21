@@ -76,5 +76,5 @@ data OpenProjectError
   = ProjectDirectoryDoesNotExist FilePath
   | ProjectDataFileDoesNotExist FilePath
   | InvalidProjectDirectory FilePath
-  | InvalidProjectDataFile FilePath
+  | InvalidProjectDataFile FilePath Text
   deriving (Eq, Show)

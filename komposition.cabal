@@ -118,6 +118,7 @@ library
                       , process
                       , typed-process >= 0.2 && < 0.3
                       , row-types
+                      , safe-exceptions
                       , transformers
                       , temporary
                       , text
