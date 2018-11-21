@@ -259,14 +259,15 @@ getVideoFileDuration f =
 
 filePathToVideoAsset ::
      (MonadMask m, MonadSafe m, MonadIO m)
-  => VideoSettings
+  => AllVideoSettings
   -> FilePath
   -> OriginalPath
   -> Producer ProgressUpdate m VideoAsset
-filePathToVideoAsset videoSettings outDir p = do
+filePathToVideoAsset vs outDir p = do
   d <- liftIO (getVideoFileDuration (p ^. unOriginalPath))
-  proxyPath <- generateProxy' videoSettings p d (outDir </> "proxies")
-  pure (VideoAsset (AssetMetadata p d) proxyPath Nothing)
+  transcodedPath <- transcode' (vs ^. renderVideoSettings) p d (outDir </> "transcoded") "Transcoding video file"
+  proxyPath <- transcode' (vs ^. proxyVideoSettings) p d (outDir </> "proxies") "Generating proxy video"
+  pure (VideoAsset (AssetMetadata p d) transcodedPath proxyPath Nothing)
 
 generateVideoThumbnail' ::
      (MonadIO m)
@@ -285,16 +286,17 @@ generateVideoThumbnail' (view unOriginalPath -> sourceFile) outDir = do
       liftIO cleanup
       pure Nothing
 
-generateProxy' ::
+transcode' ::
      (MonadIO m, MonadSafe m)
   => VideoSettings
   -> OriginalPath
   -> Duration
   -> FilePath
-  -> Producer ProgressUpdate m ProxyPath
-generateProxy' videoSettings (view unOriginalPath -> sourceFile) fullLength outDir = do
+  -> Text
+  -> Producer ProgressUpdate m TranscodedPath
+transcode' videoSettings (view unOriginalPath -> sourceFile) fullLength outDir progressMsg = do
   liftIO (createDirectoryIfMissing True outDir)
-  let proxyPath = outDir </> takeBaseName sourceFile <> ".proxy.mp4"
+  let proxyPath = outDir </> takeBaseName sourceFile <> ".transcoded.mp4"
       cmd =
         Command
         { output = Command.FileOutput proxyPath
@@ -314,11 +316,11 @@ generateProxy' videoSettings (view unOriginalPath -> sourceFile) fullLength outD
         , frameRate = Just (videoSettings ^. frameRate)
         , mappings = []
         , vcodec = Just "h264"
-        , acodec = Nothing
+        , acodec = Just "aac"
         , format = Just "mp4"
         }
-  runFFmpegCommand (ProgressUpdate "Generating proxy") fullLength cmd
-  return (ProxyPath proxyPath)
+  runFFmpegCommand (ProgressUpdate progressMsg) fullLength cmd
+  return (TranscodedPath proxyPath)
 
 newtype FFmpegVideoImportC m a = FFmpegVideoImportC { runFFmpegVideoImportC :: m a }
   deriving (Functor, Applicative, Monad, MonadIO)
@@ -326,9 +328,9 @@ newtype FFmpegVideoImportC m a = FFmpegVideoImportC { runFFmpegVideoImportC :: m
 instance (MonadIO m, Carrier sig m) => Carrier (VideoImport :+: sig) (FFmpegVideoImportC m) where
   ret = pure
   eff = handleSum (FFmpegVideoImportC . eff . handleCoercible) $ \case
-    GenerateProxy settings original fullLength outDir k -> k (generateProxy' settings original fullLength outDir)
+    Transcode settings original fullLength outDir k -> k (transcode' settings original fullLength outDir "Transcoding video file")
     GenerateVideoThumbnail original outDir k -> k =<< generateVideoThumbnail' original outDir
-    ImportVideoFile classification settings srcFile outDir k ->
+    ImportVideoFile classification vs srcFile outDir k ->
       case classification of
         Unclassified -> k $ do
           -- Copy asset to working directory
@@ -338,20 +340,22 @@ instance (MonadIO m, Carrier sig m) => Carrier (VideoImport :+: sig) (FFmpegVide
             copyFile srcFile assetPath
             return (OriginalPath assetPath)
           -- Generate thumbnail and return asset
-          pure <$> filePathToVideoAsset settings outDir assetPath
+          pure <$> filePathToVideoAsset vs outDir assetPath
         Classified   -> k $ do
           fullLength <- liftIO (getVideoFileDuration srcFile)
-          generateProxy' settings original fullLength (outDir </> "proxies")
-            & flip divideProgress2 (classifyScenes fullLength)
+          divideProgress3
+            (transcode' (vs ^. renderVideoSettings) original fullLength (outDir </> "transcoded") "Transcoding video to project settings")
+            (\x -> (x,) <$> transcode' (vs ^. proxyVideoSettings) original fullLength (outDir </> "proxies") "Generating proxy video")
+            (classifyScenes fullLength)
           where
             original = OriginalPath srcFile
-            toSceneAsset proxyPath fullLength n timeSpan = do
+            toSceneAsset (transcodedPath, proxyPath) fullLength n timeSpan = do
               let meta = AssetMetadata original fullLength
-              return (VideoAsset meta proxyPath (Just (n, timeSpan)))
-            classifyScenes fullLength proxyPath =
+              return (VideoAsset meta transcodedPath proxyPath (Just (n, timeSpan)))
+            classifyScenes fullLength paths@(_, proxyPath) =
               classifyMovement 1.0 (readVideoFile (proxyPath ^. unProxyPath) >-> toMassiv)
                 & classifyMovingScenes fullLength
-                & (>>= zipWithM (toSceneAsset proxyPath fullLength) [1 ..])
+                & (>>= zipWithM (toSceneAsset paths fullLength) [1 ..])
     IsSupportedVideoFile p k ->
         -- TODO: actual check using FFmpeg
         k (takeExtension p `elem` [".mp4", ".m4v", ".webm", ".avi", ".mkv", ".mov", ".flv"])

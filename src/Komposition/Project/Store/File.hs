@@ -34,7 +34,7 @@ import           System.FilePath
 instance Binary AssetMetadata
 instance Binary VideoAsset
 instance Binary AudioAsset
-instance Binary ProxyPath
+instance Binary TranscodedPath
 instance Binary OriginalPath
 
 instance Binary Duration where
@@ -51,6 +51,7 @@ instance Binary a => Binary (Timeline a)
 instance Binary Library
 instance Binary Resolution
 instance Binary VideoSettings
+instance Binary AllVideoSettings
 instance Binary Project
 
 instance Binary a => Binary (History a)

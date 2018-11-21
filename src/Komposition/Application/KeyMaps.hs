@@ -39,6 +39,11 @@ keymaps =
       , ([KeyEscape], Mapping Cancel)
       , ([KeyChar '?'], Mapping Help)
       ]
+    SNewProjectMode ->
+      [ ([KeyChar 'q'], Mapping Cancel)
+      , ([KeyEscape], Mapping Cancel)
+      , ([KeyChar '?'], Mapping Help)
+      ]
     STimelineMode ->
       [ ([KeyChar 'h'], Mapping (FocusCommand FocusLeft))
       , ([KeyChar 'j'], Mapping (FocusCommand FocusDown))

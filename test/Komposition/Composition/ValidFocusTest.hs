@@ -42,19 +42,26 @@ data TestCommand
 currentProject p = current (p ^. projectHistory)
 
 changeFocusCommand
-  :: MonadGen m => ExistingProject -> Focus (ToFocusType Timeline) -> m TestCommand
-changeFocusCommand p focus = case atFocus focus (currentProject p ^. timeline) of
-  Just FocusedSequence{} ->
-    Gen.element (TestChangeFocus <$> [FocusDown, FocusLeft, FocusRight])
-  Just FocusedParallel{}  -> TestChangeFocus <$> Gen.enumBounded
-  Just FocusedVideoPart{} -> Gen.element
-    (TestChangeFocus <$> [FocusUp, FocusDown, FocusLeft, FocusRight])
-  Just FocusedAudioPart{} ->
-    Gen.element (TestChangeFocus <$> [FocusUp, FocusLeft, FocusRight])
-  Nothing -> Gen.discard
+  :: MonadGen m
+  => ExistingProject
+  -> Focus (ToFocusType Timeline)
+  -> m TestCommand
+changeFocusCommand p focus =
+  case atFocus focus (currentProject p ^. timeline) of
+    Just FocusedSequence{} ->
+      Gen.element (TestChangeFocus <$> [FocusDown, FocusLeft, FocusRight])
+    Just FocusedParallel{}  -> TestChangeFocus <$> Gen.enumBounded
+    Just FocusedVideoPart{} -> Gen.element
+      (TestChangeFocus <$> [FocusUp, FocusDown, FocusLeft, FocusRight])
+    Just FocusedAudioPart{} ->
+      Gen.element (TestChangeFocus <$> [FocusUp, FocusLeft, FocusRight])
+    Nothing -> Gen.discard
 
 insertCommand
-  :: MonadGen m => ExistingProject -> Focus (ToFocusType Timeline) -> m TestCommand
+  :: MonadGen m
+  => ExistingProject
+  -> Focus (ToFocusType Timeline)
+  -> m TestCommand
 insertCommand _ focus = case focusType focus of
   SequenceFocusType ->
     TestInsert
@@ -76,31 +83,44 @@ insertCommand _ focus = case focusType focus of
             ]
       <*> Gen.enumBounded
 
-splitCommands :: MonadGen m => ExistingProject -> Focus (ToFocusType Timeline) -> [m TestCommand]
+splitCommands
+  :: MonadGen m
+  => ExistingProject
+  -> Focus (ToFocusType Timeline)
+  -> [m TestCommand]
 splitCommands p focus =
   case (parentAtFocus focus (currentProject p ^. timeline), focus) of
     (Just (SequenceParent (Sequence _ pars)), SequenceFocus _ (Just (ParallelFocus pIdx Nothing)))
-      | pars `validToSplitAt` pIdx -> [pure TestSplit]
+      | pars `validToSplitAt` pIdx
+      -> [pure TestSplit]
     (Just (ParallelParent (Parallel _ vs as)), SequenceFocus _ (Just (ParallelFocus _ (Just (ClipFocus mt cIdx)))))
-      | mt == Video && vs `validToSplitAt` cIdx -> [pure TestSplit]
-      | mt == Audio && as `validToSplitAt` cIdx -> [pure TestSplit]
+      | mt == Video && vs `validToSplitAt` cIdx
+      -> [pure TestSplit]
+      | mt == Audio && as `validToSplitAt` cIdx
+      -> [pure TestSplit]
     _ -> []
   where
-    validToSplitAt xs idx =
-      length xs >= 2 && idx > 0 && idx < (length xs - 1)
+    validToSplitAt xs idx = length xs >= 2 && idx > 0 && idx < (length xs - 1)
 
 deleteCommands
-  :: MonadGen m => ExistingProject -> Focus (ToFocusType Timeline) -> [m TestCommand]
-deleteCommands p focus = case parentAtFocus focus (currentProject p ^. timeline) of
-  Just (TimelineParent (Timeline seqs)) | length seqs >= 2 ->
-    [pure TestDelete]
-  Just (SequenceParent (Sequence _ pars)) | length pars >= 2 ->
-    [pure TestDelete]
-  Just (ParallelParent _) -> [pure TestDelete]
-  _                       -> []
+  :: MonadGen m
+  => ExistingProject
+  -> Focus (ToFocusType Timeline)
+  -> [m TestCommand]
+deleteCommands p focus =
+  case parentAtFocus focus (currentProject p ^. timeline) of
+    Just (TimelineParent (Timeline seqs)) | length seqs >= 2 ->
+      [pure TestDelete]
+    Just (SequenceParent (Sequence _ pars)) | length pars >= 2 ->
+      [pure TestDelete]
+    Just (ParallelParent _) -> [pure TestDelete]
+    _                       -> []
 
 testCommand
-  :: MonadGen m => ExistingProject -> Focus (ToFocusType Timeline) -> m TestCommand
+  :: MonadGen m
+  => ExistingProject
+  -> Focus (ToFocusType Timeline)
+  -> m TestCommand
 testCommand composition focus = Gen.frequency
   (  [(20, insertCommand composition focus)]
   <> map (10, ) (splitCommands composition focus)
@@ -115,27 +135,26 @@ applyTestCommand
   -> TestCommand
   -> PropertyT m (ExistingProject, Focus SequenceFocusType)
 applyTestCommand focus ep = \case
-  TestChangeFocus cmd -> modifyTimeline $ \tl -> case modifyFocus tl cmd focus of
+  TestChangeFocus cmd ->
+    modifyTimeline $ \tl -> case modifyFocus tl cmd focus of
     -- We ignore out of bounds movements as the generator isn't smart enough yet.
-    Left  OutOfBounds -> pure (tl, focus)
-    -- Other movement errors are considered failures.
-    Left  e           -> footnoteShow e >> failure
-    Right focus'      -> pure (tl, focus')
-  TestInsert insertion position ->  modifyTimeline $ \tl ->
+      Left  OutOfBounds -> pure (tl, focus)
+      -- Other movement errors are considered failures.
+      Left  e           -> footnoteShow e >> failure
+      Right focus'      -> pure (tl, focus')
+  TestInsert insertion position -> modifyTimeline $ \tl ->
     maybe failure (pure . (, focus)) (insert focus insertion position tl)
-  TestSplit -> modifyTimeline $ \tl ->
-    maybe failure pure (split focus tl)
-  TestDelete -> modifyTimeline $ \tl ->
-    handleDeleteResult focus tl (delete focus tl)
+  TestSplit -> modifyTimeline $ \tl -> maybe failure pure (split focus tl)
+  TestDelete ->
+    modifyTimeline $ \tl -> handleDeleteResult focus tl (delete focus tl)
   TestUndo -> pure (ep & projectHistory %%~ undo & fromMaybe ep, focus)
   TestRedo -> pure (ep & projectHistory %%~ undo & fromMaybe ep, focus)
-
- where
+  where
     modifyTimeline f = do
       (tl, focus') <- f (currentProject ep ^. timeline)
       return (ep & projectHistory %~ edit (set timeline tl), focus')
     handleDeleteResult initialFocus tl = \case
-      Nothing                -> failure
+      Nothing              -> failure
       Just (tl', Just cmd) -> do
         focus' <- either (\e -> footnoteShow e >> failure)
                          pure
@@ -143,8 +162,8 @@ applyTestCommand focus ep = \case
         pure (tl', focus')
       Just (tl', Nothing) -> pure (tl', initialFocus)
 
-generateAndApplyTestCommands ::
-     Monad m
+generateAndApplyTestCommands
+  :: Monad m
   => ExistingProject
   -> Focus SequenceFocusType
   -> Int
@@ -152,21 +171,26 @@ generateAndApplyTestCommands ::
 generateAndApplyTestCommands ep focus n
   | n == 0 = pure (ep, focus)
   | otherwise = do
-    cmd <- forAll (testCommand ep focus)
+    cmd           <- forAll (testCommand ep focus)
     (ep', focus') <- applyTestCommand focus ep cmd
     generateAndApplyTestCommands ep' focus' (pred n)
 
 initialProject :: Timeline () -> Project
-initialProject tl =
-  Project
-    { _projectName = "Test"
-    , _timeline = tl
-    , _library = Library [] []
-    , _videoSettings =
-        VideoSettings {_frameRate = 25, _resolution = Resolution 1920 1080}
-    , _proxyVideoSettings =
-        VideoSettings {_frameRate = 25, _resolution = Resolution 960 540}
+initialProject tl = Project
+  { _projectName   = "Test"
+  , _timeline      = tl
+  , _library       = Library [] []
+  , _videoSettings = AllVideoSettings
+    { _renderVideoSettings = VideoSettings
+      { _frameRate  = 25
+      , _resolution = Resolution 1920 1080
+      }
+    , _proxyVideoSettings  = VideoSettings
+      { _frameRate  = 25
+      , _resolution = Resolution 960 540
+      }
     }
+  }
 
 hprop_focusNeverGoesInvalid = withTests 1000 $ property $ do
   (tl, focus, n) <- forAll $ do

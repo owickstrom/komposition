@@ -17,6 +17,7 @@ import           Komposition.Application.Base
 import           Control.Effect                       (Member)
 import           Control.Effect.Carrier               (Carrier)
 import           Control.Lens
+import qualified Data.List.NonEmpty                   as NonEmpty
 import           Data.Row.Records                     hiding (split)
 import           Data.String                          (fromString)
 
@@ -66,18 +67,16 @@ welcomeScreenMode = do
                 Right existingProject' -> toTimelineWithProject existingProject'
             Nothing -> inWelcomeScreenMode
         CreateNewProjectClicked ->
-          prompt
-            #welcome
-            "New Project Name"
-            "What do you want to name your new project?"
-            "OK"
-            PromptText >>>= \case
-            Just projectName' -> do
-              dir <- ilift getDefaultProjectsDirectory
-              let defaultDir = dir
+          editNewProject initialNewProjectModel >>>= \case
+            Just model -> do
+              defaultDir <- ilift getDefaultProjectsDirectory
               chooseFile #welcome (Save Directory) "Choose Project Directory" defaultDir >>= \case
-                Just path' ->
-                  ilift (createNewProject path' (initialProject & projectName .~ projectName')) >>= \case
+                Just path' -> do
+                  let customizedProject =
+                        initialProject
+                          & projectName .~ (model ^. newProjectName)
+                          & videoSettings . renderVideoSettings .~ VideoSettings (model ^. newProjectFrameRate) (model ^. newProjectResolution)
+                  ilift (createNewProject path' customizedProject) >>= \case
                     Left err -> do
                       beep #welcome
                       ilift (logLnText Error ("Create new project failed: " <> show err))
@@ -125,11 +124,49 @@ initialProject =
     { _projectName = "Test"
     , _timeline = emptyTimeline
     , _library = Library [] []
-    , _videoSettings =
-        VideoSettings {_frameRate = 25, _resolution = Resolution 1920 1080}
-    , _proxyVideoSettings =
-        VideoSettings {_frameRate = 25, _resolution = Resolution 960 540}
+    , _videoSettings = AllVideoSettings
+                       { _renderVideoSettings =
+                         VideoSettings {_frameRate = 25, _resolution = Resolution 1920 1080}
+                       , _proxyVideoSettings =
+                         VideoSettings {_frameRate = 25, _resolution = Resolution 960 540}
+                       }
     }
 
 initialFocus :: Focus SequenceFocusType
 initialFocus = SequenceFocus 0 Nothing
+
+initialNewProjectModel :: NewProjectModel
+initialNewProjectModel =
+  NewProjectModel "Untitled" 25 (NonEmpty.head resolutions)
+
+editNewProject
+  :: ( Application t m sig
+    , HasType "welcome" (Window (t m) (Event WelcomeScreenMode)) r
+    )
+  => NewProjectModel -> t m r r (Maybe NewProjectModel)
+editNewProject initialModel =
+  withNewModalWindow
+    #welcome
+    #newProject
+    (newProjectView initialModel)
+    (CommandKeyMappedEvent <$> keymaps SNewProjectMode)
+    (go initialModel)
+  where
+    go
+      :: ( Application t m sig
+        , r ~ ("newProject" .== Window (t m) (Event NewProjectMode))
+        )
+      => NewProjectModel
+      -> t m r r (Maybe NewProjectModel)
+    go model =
+      nextEvent #newProject >>>= \case
+        ProjectNameChanged n -> go (model & newProjectName .~ n)
+        FrameRateChanged fr -> go (model & newProjectFrameRate .~ fr )
+        ResolutionChanged r -> go (model & newProjectResolution .~ r )
+        CreateClicked -> ireturn (Just model)
+        WindowClosed -> ireturn Nothing
+        CommandKeyMappedEvent Cancel -> ireturn Nothing
+        CommandKeyMappedEvent Help ->
+          help #newProject [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
+            Just HelpClosed -> go model
+            Nothing -> go model

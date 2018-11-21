@@ -35,12 +35,14 @@ import           Komposition.VideoSettings
 
 data Mode
   = WelcomeScreenMode
+  | NewProjectMode
   | TimelineMode
   | LibraryMode
   | ImportMode
 
 data SMode m where
   SWelcomeScreenMode :: SMode WelcomeScreenMode
+  SNewProjectMode :: SMode NewProjectMode
   STimelineMode :: SMode TimelineMode
   SLibraryMode :: SMode LibraryMode
   SImportMode :: SMode ImportMode
@@ -48,6 +50,7 @@ data SMode m where
 modeTitle :: SMode m -> Text
 modeTitle = \case
   SWelcomeScreenMode -> "Welcome Screen Mode"
+  SNewProjectMode -> "New Project Mode"
   STimelineMode -> "Timeline Mode"
   SLibraryMode  -> "Library Mode"
   SImportMode   -> "Import Mode"
@@ -132,6 +135,10 @@ data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
   CreateNewProjectClicked :: Event WelcomeScreenMode
   OpenExistingProjectClicked :: Event WelcomeScreenMode
+  ProjectNameChanged :: Text -> Event NewProjectMode
+  FrameRateChanged :: FrameRate -> Event NewProjectMode
+  ResolutionChanged :: Resolution -> Event NewProjectMode
+  CreateClicked :: Event NewProjectMode
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportAutoSplitSet :: Bool -> Event ImportMode
@@ -164,6 +171,14 @@ data TimelineModel = TimelineModel
 
 makeLenses ''TimelineModel
 
+data NewProjectModel = NewProjectModel
+  { _newProjectName       :: Text
+  , _newProjectFrameRate  :: FrameRate
+  , _newProjectResolution :: Resolution
+  }
+
+makeLenses ''NewProjectModel
+
 currentProject :: TimelineModel -> Project
 currentProject = current . view (existingProject . projectHistory)
 
@@ -184,6 +199,7 @@ data PromptMode ret where
 
 class UserInterfaceMarkup markup where
   welcomeView :: markup (Event WelcomeScreenMode)
+  newProjectView :: NewProjectModel -> markup (Event NewProjectMode)
   timelineView :: TimelineModel -> markup (Event TimelineMode)
   libraryView :: SelectAssetsModel mediaType -> markup (Event LibraryMode)
   importView :: ImportFileModel -> markup (Event ImportMode)

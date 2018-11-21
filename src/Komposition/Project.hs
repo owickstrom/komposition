@@ -14,17 +14,16 @@ import           Komposition.Prelude
 import           Control.Lens
 import           Data.Text                 (Text)
 
-import           Komposition.History
 import           Komposition.Composition
+import           Komposition.History
 import           Komposition.Library
 import           Komposition.VideoSettings
 
 data Project = Project
-  { _projectName        :: Text
-  , _timeline           :: Timeline ()
-  , _library            :: Library
-  , _videoSettings      :: VideoSettings
-  , _proxyVideoSettings :: VideoSettings
+  { _projectName   :: Text
+  , _timeline      :: Timeline ()
+  , _library       :: Library
+  , _videoSettings :: AllVideoSettings
   } deriving (Eq, Show, Generic)
 
 makeLenses ''Project
@@ -35,7 +34,7 @@ newtype ProjectPath = ProjectPath { _unProjectPath :: FilePath }
 makeLenses ''ProjectPath
 
 data ExistingProject = ExistingProject
-  { _projectPath :: ProjectPath
+  { _projectPath    :: ProjectPath
   , _projectHistory :: History Project
   } deriving (Eq, Show)
 

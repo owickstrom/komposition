@@ -28,15 +28,16 @@ data AssetMetadata = AssetMetadata
 
 makeLenses ''AssetMetadata
 
-newtype ProxyPath = ProxyPath
+newtype TranscodedPath = TranscodedPath
   { _unProxyPath :: FilePath
   } deriving (Show, Eq, Generic)
 
-makeLenses ''ProxyPath
+makeLenses ''TranscodedPath
 
 data VideoAsset =
   VideoAsset { _videoAssetMetadata   :: AssetMetadata
-             , _videoAssetProxy      :: ProxyPath
+             , _videoAssetTranscoded :: TranscodedPath
+             , _videoAssetProxy      :: TranscodedPath
              , _videoClassifiedScene :: Maybe (Integer, TimeSpan)
              }
   deriving (Show, Eq, Generic)

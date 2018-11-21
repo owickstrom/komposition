@@ -20,9 +20,9 @@ import           Komposition.Progress
 import           Komposition.VideoSettings
 
 data VideoImport (m :: * -> *) k
-  = GenerateProxy VideoSettings OriginalPath Duration FilePath (Producer ProgressUpdate (SafeT IO) ProxyPath -> k)
+  = Transcode VideoSettings OriginalPath Duration FilePath (Producer ProgressUpdate (SafeT IO) TranscodedPath -> k)
   | GenerateVideoThumbnail OriginalPath FilePath (Maybe FilePath -> k)
-  | ImportVideoFile Classification VideoSettings FilePath FilePath (Producer ProgressUpdate (SafeT IO) [VideoAsset] -> k)
+  | ImportVideoFile Classification AllVideoSettings FilePath FilePath (Producer ProgressUpdate (SafeT IO) [VideoAsset] -> k)
   | IsSupportedVideoFile FilePath (Bool -> k)
   deriving (Functor)
 
@@ -38,20 +38,20 @@ generateVideoThumbnail
 generateVideoThumbnail srcFile outDir =
   send (GenerateVideoThumbnail srcFile outDir ret)
 
-generateProxy
+transcode
   :: (Member VideoImport sig, Carrier sig m)
   => VideoSettings
   -> OriginalPath
   -> Duration
   -> FilePath
-  -> m (Producer ProgressUpdate (SafeT IO) ProxyPath)
-generateProxy settings original fullLength outDir =
-  send (GenerateProxy settings original fullLength outDir ret)
+  -> m (Producer ProgressUpdate (SafeT IO) TranscodedPath)
+transcode settings original fullLength outDir =
+  send (Transcode settings original fullLength outDir ret)
 
 importVideoFile
   :: (Member VideoImport sig, Carrier sig m)
   => Classification
-  -> VideoSettings
+  -> AllVideoSettings
   -> FilePath
   -> FilePath
   -> m (Producer ProgressUpdate (SafeT IO) [VideoAsset])
