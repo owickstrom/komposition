@@ -265,8 +265,8 @@ filePathToVideoAsset ::
   -> Producer ProgressUpdate m VideoAsset
 filePathToVideoAsset vs outDir p = do
   d <- liftIO (getVideoFileDuration (p ^. unOriginalPath))
-  transcodedPath <- transcode' (vs ^. renderVideoSettings) p d (outDir </> "transcoded")
-  proxyPath <- transcode' (vs ^. proxyVideoSettings) p d (outDir </> "proxies")
+  transcodedPath <- transcode' (vs ^. renderVideoSettings) p d (outDir </> "transcoded") "Transcoding video file"
+  proxyPath <- transcode' (vs ^. proxyVideoSettings) p d (outDir </> "proxies") "Generating proxy video"
   pure (VideoAsset (AssetMetadata p d) transcodedPath proxyPath Nothing)
 
 generateVideoThumbnail' ::

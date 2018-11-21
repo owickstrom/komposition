@@ -2,16 +2,18 @@
 
 module Komposition.Project.Generators where
 
-import           Komposition.Prelude                   hiding ( nonEmpty )
+import           Komposition.Prelude                hiding (nonEmpty)
 
 import           Hedgehog
-import qualified Hedgehog.Gen                  as Gen hiding (parallel)
+import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import           Hedgehog.Range
 
-import           Komposition.Project (Project(..))
-import           Komposition.Library
-import           Komposition.VideoSettings (VideoSettings(..), Resolution(..))
 import qualified Komposition.Composition.Generators as Gen
+import           Komposition.Library
+import           Komposition.Project                (Project (..))
+import           Komposition.VideoSettings          (AllVideoSettings (..),
+                                                     Resolution (..),
+                                                     VideoSettings (..))
 
 library :: MonadGen m => m Library
 library =
@@ -34,6 +36,8 @@ project = do
   _projectName <- Gen.text (linear 1 5) Gen.unicode
   _timeline <- Gen.timeline (linear 1 10) Gen.parallel
   _library <- library
-  _videoSettings <- videoSettings
-  _proxyVideoSettings <- videoSettings
+  _videoSettings <-
+    AllVideoSettings
+      <$> videoSettings
+      <*> videoSettings
   return Project{..}

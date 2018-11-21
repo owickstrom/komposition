@@ -41,7 +41,8 @@ videoAsset :: MonadGen m => m VideoAsset
 videoAsset = do
   meta <- assetMetadata
   tp <- TranscodedPath <$> Gen.string (linear 1 50) Gen.unicode
-  pure (VideoAsset meta tp Nothing)
+  pp <- TranscodedPath <$> Gen.string (linear 1 50) Gen.unicode
+  pure (VideoAsset meta tp pp Nothing)
 
 audioAsset :: MonadGen m => m AudioAsset
 audioAsset = AudioAsset <$> assetMetadata
