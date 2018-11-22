@@ -16,10 +16,14 @@ When launching Komposition, you will be presented with the welcome screen.
 From there, you can either create a new project, or opening an existing
 project.
 
-When creating a new project, you will be prompted for a directory in which
-the project files will be saved. Depending on your operating system's file
-selector dialog, you might need to create a directory manually and select
-that.
+When creating a new project, you will be prompted for:
+
+* The settings for your final video render, i.e. video resolution
+and frame rate. These are currently the only configurable parameters.
+Also, these cannot be reconfigured once the project has been created.
+* A directory in which the project files will be saved. Depending on
+your operating system's file selector dialog, you might need to create
+a directory manually and select that.
 
 To open an existing project, use the file selector to select the same
 directory you specified when creating the project.
