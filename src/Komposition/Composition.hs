@@ -8,7 +8,6 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeFamilies          #-}
 module Komposition.Composition where
 
@@ -42,7 +41,7 @@ instance HasDuration (AudioPart a) where
     AudioClip _ a -> durationOf a
     AudioGap _ d -> d
 
-data Timeline a =
+newtype Timeline a =
   Timeline (NonEmpty (Sequence a))
   deriving (Eq, Show, Functor, Generic)
 
@@ -69,3 +68,10 @@ instance HasDuration (Parallel a) where
 
 emptyTimeline :: Timeline ()
 emptyTimeline = Timeline (Sequence () (Parallel () [] [] :| []) :| [])
+
+data SomeComposition a
+  = SomeSequence (Sequence a)
+  | SomeParallel (Parallel a)
+  | SomeVideoPart (CompositionPart Video a)
+  | SomeAudioPart (CompositionPart Audio a)
+  deriving (Show, Eq)

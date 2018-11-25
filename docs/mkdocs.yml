@@ -12,6 +12,7 @@ nav:
             - user-guide/concepts/timeline.md
             - user-guide/concepts/navigation.md
             - user-guide/concepts/commands.md
+            - user-guide/concepts/clipboard.md
             - user-guide/concepts/undo-redo.md
             - user-guide/concepts/library.md
             - user-guide/concepts/importing.md

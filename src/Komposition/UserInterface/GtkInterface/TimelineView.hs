@@ -13,34 +13,37 @@ module Komposition.UserInterface.GtkInterface.TimelineView
   )
 where
 
-import           Komposition.Prelude                                     hiding
-                                                                          (on)
+import           Komposition.Prelude     hiding ( on )
 
 import           Control.Lens
-import           Data.Int                                                (Int32)
-import           Data.Text                                               (Text)
-import           GI.Gtk                                                  (Align (..),
-                                                                          Box (..),
-                                                                          Button (..),
-                                                                          Label (..),
-                                                                          MenuBar (..),
-                                                                          MenuItem (..),
-                                                                          Orientation (..),
-                                                                          PolicyType (..),
-                                                                          ScrolledWindow (..),
-                                                                          Window (..))
+import           Data.Int                       ( Int32 )
+import           Data.Text                      ( Text )
+import           GI.Gtk                         ( Align(..)
+                                                , Box(..)
+                                                , Button(..)
+                                                , Label(..)
+                                                , MenuBar(..)
+                                                , MenuItem(..)
+                                                , Orientation(..)
+                                                , PolicyType(..)
+                                                , ScrolledWindow(..)
+                                                , Window(..)
+                                                )
 import           GI.Gtk.Declarative
-import           GI.Pango                                                (EllipsizeMode (..))
+import           GI.Pango                       ( EllipsizeMode(..) )
 
 import           Komposition.Composition
+import           Komposition.Composition.Paste  ( PastePosition(..) )
 import           Komposition.Composition.Focused
 import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
-import           Komposition.UserInterface                               hiding (Window,
-                                                                          timelineView)
+import           Komposition.UserInterface
+                                         hiding ( Window
+                                                , timelineView
+                                                )
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
 
@@ -192,6 +195,10 @@ renderMenu = container MenuBar [] $ do
     labelledItem Render
     labelledItem Exit
   subMenu "Timeline" $ do
+    labelledItem Copy
+    subMenu "Paste" $ do
+      labelledItem (Paste PasteRightOf)
+      labelledItem (Paste PasteLeftOf)
     insertSubMenu Video
     insertSubMenu Audio
     labelledItem Split

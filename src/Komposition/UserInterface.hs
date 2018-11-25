@@ -14,16 +14,20 @@
 
 module Komposition.UserInterface where
 
-import           Komposition.Prelude            hiding (State)
+import           Komposition.Prelude     hiding ( State )
 
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
-import           Motor.FSM                      hiding (Delete)
+import           Motor.FSM               hiding ( Delete )
 import           Pipes
-import           Pipes.Safe                     (SafeT)
+import           Pipes.Safe                     ( SafeT )
 
-import           Komposition.Composition.Insert
+import           Komposition.Composition
+import qualified Komposition.Composition.Paste as Paste
+
+import qualified Komposition.Composition.Insert
+                                               as Insert
 import           Komposition.Focus
 import           Komposition.History
 import           Komposition.KeyMap
@@ -50,10 +54,10 @@ data SMode m where
 modeTitle :: SMode m -> Text
 modeTitle = \case
   SWelcomeScreenMode -> "Welcome Screen Mode"
-  SNewProjectMode -> "New Project Mode"
-  STimelineMode -> "Timeline Mode"
-  SLibraryMode  -> "Library Mode"
-  SImportMode   -> "Import Mode"
+  SNewProjectMode    -> "New Project Mode"
+  STimelineMode      -> "Timeline Mode"
+  SLibraryMode       -> "Library Mode"
+  SImportMode        -> "Import Mode"
 
 data InsertType
   = InsertComposition
@@ -67,9 +71,11 @@ data Command (mode :: Mode) where
 
   FocusCommand :: FocusCommand -> Command TimelineMode
   JumpFocus :: Focus SequenceFocusType -> Command TimelineMode
-  InsertCommand :: InsertType -> InsertPosition -> Command TimelineMode
+  InsertCommand :: InsertType -> Insert.InsertPosition -> Command TimelineMode
   Split :: Command TimelineMode
   Delete :: Command TimelineMode
+  Copy :: Command TimelineMode
+  Paste :: Paste.PastePosition -> Command TimelineMode
   Import :: Command TimelineMode
   Render :: Command TimelineMode
   Preview :: Command TimelineMode
@@ -84,52 +90,47 @@ deriving instance Eq (Command mode)
 deriving instance Ord (Command mode)
 
 commandName :: Command mode -> Text
-commandName =
-  \case
-    Cancel -> "Cancel"
-    Help -> "Show Help"
-    FocusCommand cmd ->
-      case cmd of
-        FocusUp    -> "Move Focus Up"
-        FocusDown  -> "Move Focus Down"
-        FocusLeft  -> "Move Focus Left"
-        FocusRight -> "Move Focus Right"
-    JumpFocus _ -> "Jump Focus To"
-    InsertCommand insertType insertPosition ->
-      mconcat
-        [ insertTypeName insertType
-        , " ("
-        , insertPositionName insertPosition
-        , ")"
-        ]
-    Split -> "Split"
-    Delete -> "Delete"
-    Import -> "Import Assets"
-    Render -> "Render"
-    Preview -> "Preview"
-    Undo -> "Undo"
-    Redo -> "Redo"
-    SaveProject -> "Save"
-    CloseProject -> "Close"
-    Exit -> "Exit"
+commandName = \case
+  Cancel           -> "Cancel"
+  Help             -> "Show Help"
+  FocusCommand cmd -> case cmd of
+    FocusUp    -> "Move Focus Up"
+    FocusDown  -> "Move Focus Down"
+    FocusLeft  -> "Move Focus Left"
+    FocusRight -> "Move Focus Right"
+  JumpFocus _                             -> "Jump Focus To"
+  InsertCommand insertType insertPosition -> mconcat
+    [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
+  Split     -> "Split"
+  Delete    -> "Delete"
+  Copy      -> "Copy"
+  Paste pos -> case pos of
+    Paste.PasteLeftOf  -> "Paste Left Of"
+    Paste.PasteRightOf -> "Paste Right Of"
+  Import       -> "Import Assets"
+  Render       -> "Render"
+  Preview      -> "Preview"
+  Undo         -> "Undo"
+  Redo         -> "Redo"
+  SaveProject  -> "Save"
+  CloseProject -> "Close"
+  Exit         -> "Exit"
   where
     insertTypeName :: InsertType -> Text
-    insertTypeName =
-      \case
-        InsertClip Nothing -> "Insert Clip"
-        InsertGap Nothing -> "Insert Gap"
-        InsertClip (Just Video) -> "Insert Video Clip"
-        InsertGap (Just Video) -> "Insert Video Gap"
-        InsertClip (Just Audio) -> "Insert Audio Clip"
-        InsertGap (Just Audio) -> "Insert Audio Gap"
-        InsertComposition -> "Insert Composition"
-    insertPositionName :: InsertPosition -> Text
-    insertPositionName =
-      \case
-        LeftMost -> "Leftmost"
-        LeftOf -> "Left of"
-        RightOf -> "Right of"
-        RightMost -> "Rightmost"
+    insertTypeName = \case
+      InsertClip Nothing      -> "Insert Clip"
+      InsertGap  Nothing      -> "Insert Gap"
+      InsertClip (Just Video) -> "Insert Video Clip"
+      InsertGap  (Just Video) -> "Insert Video Gap"
+      InsertClip (Just Audio) -> "Insert Audio Clip"
+      InsertGap  (Just Audio) -> "Insert Audio Gap"
+      InsertComposition       -> "Insert Composition"
+    insertPositionName :: Insert.InsertPosition -> Text
+    insertPositionName = \case
+      Insert.LeftMost  -> "Leftmost"
+      Insert.LeftOf    -> "Left of"
+      Insert.RightOf   -> "Right of"
+      Insert.RightMost -> "Rightmost"
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
@@ -167,6 +168,7 @@ data TimelineModel = TimelineModel
   , _currentFocus    :: Focus SequenceFocusType
   , _statusMessage   :: Maybe Text
   , _zoomLevel       :: ZoomLevel
+  , _clipboard       :: Maybe (SomeComposition ())
   }
 
 makeLenses ''TimelineModel

@@ -15,8 +15,8 @@ module Komposition.Focus where
 import           Komposition.Prelude
 
 import           Control.Lens
-import           Control.Monad.Except (throwError)
-import qualified Data.List.NonEmpty   as NonEmpty
+import           Control.Monad.Except           ( throwError )
+import qualified Data.List.NonEmpty            as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Duration
@@ -61,11 +61,11 @@ instance Ord (Focus ClipFocusType) where
 
 focusType :: Focus t -> FocusType
 focusType = \case
-  SequenceFocus _ Nothing -> SequenceFocusType
+  SequenceFocus _ Nothing  -> SequenceFocusType
   SequenceFocus _ (Just f) -> focusType f
-  ParallelFocus _ Nothing -> ParallelFocusType
+  ParallelFocus _ Nothing  -> ParallelFocusType
   ParallelFocus _ (Just f) -> focusType f
-  ClipFocus{} -> ClipFocusType
+  ClipFocus{}              -> ClipFocusType
 
 data FocusCommand = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show, Ord, Enum, Bounded)
@@ -81,8 +81,8 @@ indicesWithStartPoints :: HasDuration a => [a] -> [(Int, Duration)]
 indicesWithStartPoints clips =
   zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
 
-nearestPartIndexLeftOf ::
-     (HasDuration a, HasDuration b) => [a] -> Int -> [b] -> Maybe Int
+nearestPartIndexLeftOf
+  :: (HasDuration a, HasDuration b) => [a] -> Int -> [b] -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
   = let cutoffPoint = foldMap durationOf (take i focusedParts)
@@ -92,8 +92,7 @@ nearestPartIndexLeftOf focusedParts i blurredParts
   | otherwise
   = Nothing
 
-compositionAt
-  :: NonEmpty (t a) -> Int -> Either FocusError (t a)
+compositionAt :: NonEmpty (t a) -> Int -> Either FocusError (t a)
 compositionAt ss i = maybe (throwError OutOfBounds) pure (toList ss `atMay` i)
 
 class ModifyFocus (t :: * -> *) where
@@ -267,29 +266,24 @@ instance MapAtFocus Parallel where
 mapAt :: Applicative f => Int -> (a -> f a) -> NonEmpty a -> f (NonEmpty a)
 mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList
 
-data FocusedAt a
-  = FocusedSequence (Sequence a)
-  | FocusedParallel (Parallel a)
-  | FocusedVideoPart (CompositionPart Video a)
-  | FocusedAudioPart (CompositionPart Audio a)
-  deriving (Show, Eq)
+type FocusedAt = SomeComposition
 
 atFocus :: Focus SequenceFocusType -> Timeline a -> Maybe (FocusedAt a)
 atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
- where
-  remember
-    :: forall (t :: * -> *) a
-     . (t a -> FocusedAt a)
-    -> t a
-    -> State (Maybe (FocusedAt a)) (t a)
-  remember focused x = put (Just (focused x)) >> pure x
-  traversal = FocusedTraversal
-    { mapSequence        = remember FocusedSequence
-    , mapParallel        = remember FocusedParallel
-    , mapCompositionPart = \case
-      SVideo -> remember FocusedVideoPart
-      SAudio -> remember FocusedAudioPart
-    }
+  where
+    remember
+      :: forall (t :: * -> *) a
+       . (t a -> FocusedAt a)
+      -> t a
+      -> State (Maybe (FocusedAt a)) (t a)
+    remember focused x = put (Just (focused x)) >> pure x
+    traversal = FocusedTraversal
+      { mapSequence        = remember SomeSequence
+      , mapParallel        = remember SomeParallel
+      , mapCompositionPart = \case
+        SVideo -> remember SomeVideoPart
+        SAudio -> remember SomeAudioPart
+      }
 
 data FirstCompositionPart a
   = FirstVideoPart (CompositionPart Video a)
@@ -298,17 +292,15 @@ data FirstCompositionPart a
 firstCompositionPart
   :: Focus SequenceFocusType -> Timeline a -> Maybe (FirstCompositionPart a)
 firstCompositionPart f s = atFocus f s >>= \case
-  FocusedSequence  s' -> firstInSequence s'
-  FocusedParallel  p  -> firstInParallel p
-  FocusedVideoPart v  -> Just (FirstVideoPart v)
-  FocusedAudioPart a  -> Just (FirstAudioPart a)
- where
-  firstInSequence
-    :: Sequence a -> Maybe (FirstCompositionPart a)
-  firstInSequence (Sequence _ ps) = firstInParallel (NonEmpty.head ps)
-  firstInParallel
-    :: Parallel a -> Maybe (FirstCompositionPart a)
-  firstInParallel = \case
-    Parallel _ (v : _) _       -> Just (FirstVideoPart v)
-    Parallel _ []      (a : _) -> Just (FirstAudioPart a)
-    _                          -> Nothing
+  SomeSequence  s' -> firstInSequence s'
+  SomeParallel  p  -> firstInParallel p
+  SomeVideoPart v  -> Just (FirstVideoPart v)
+  SomeAudioPart a  -> Just (FirstAudioPart a)
+  where
+    firstInSequence :: Sequence a -> Maybe (FirstCompositionPart a)
+    firstInSequence (Sequence _ ps) = firstInParallel (NonEmpty.head ps)
+    firstInParallel :: Parallel a -> Maybe (FirstCompositionPart a)
+    firstInParallel = \case
+      Parallel _ (v : _) _       -> Just (FirstVideoPart v)
+      Parallel _ []      (a : _) -> Just (FirstAudioPart a)
+      _                          -> Nothing
