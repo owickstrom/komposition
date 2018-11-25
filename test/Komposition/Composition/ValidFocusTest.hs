@@ -50,12 +50,12 @@ changeFocusCommand
   -> m TestCommand
 changeFocusCommand p focus =
   case atFocus focus (currentProject p ^. timeline) of
-    Just FocusedSequence{} ->
+    Just SomeSequence{} ->
       Gen.element (TestChangeFocus <$> [FocusDown, FocusLeft, FocusRight])
-    Just FocusedParallel{}  -> TestChangeFocus <$> Gen.enumBounded
-    Just FocusedVideoPart{} -> Gen.element
+    Just SomeParallel{}  -> TestChangeFocus <$> Gen.enumBounded
+    Just SomeVideoPart{} -> Gen.element
       (TestChangeFocus <$> [FocusUp, FocusDown, FocusLeft, FocusRight])
-    Just FocusedAudioPart{} ->
+    Just SomeAudioPart{} ->
       Gen.element (TestChangeFocus <$> [FocusUp, FocusLeft, FocusRight])
     Nothing -> Gen.discard
 
