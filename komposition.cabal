@@ -38,6 +38,7 @@ library
                       , Komposition.Composition.Delete
                       , Komposition.Composition.Focused
                       , Komposition.Composition.Insert
+                      , Komposition.Composition.Paste
                       , Komposition.Composition.Split
                       , Komposition.Duration
                       , Komposition.FFmpeg.Command

@@ -12,8 +12,9 @@ import           Komposition.Prelude
 import qualified Prelude
 
 import           Control.Lens
-import           Hedgehog                           hiding (Parallel)
-import qualified Hedgehog.Gen                       as Gen hiding (parallel)
+import           Hedgehog                hiding ( Parallel )
+import qualified Hedgehog.Gen                  as Gen
+                                         hiding ( parallel )
 import           Hedgehog.Range
 
 import           Komposition.Composition
@@ -28,7 +29,8 @@ import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.VideoSettings
 
-import qualified Komposition.Composition.Generators as Gen
+import qualified Komposition.Composition.Generators
+                                               as Gen
 
 data TestCommand
   = TestChangeFocus FocusCommand
@@ -154,13 +156,13 @@ applyTestCommand focus ep = \case
       (tl, focus') <- f (currentProject ep ^. timeline)
       return (ep & projectHistory %~ edit (set timeline tl), focus')
     handleDeleteResult initialFocus tl = \case
-      Nothing              -> failure
-      Just (tl', Just cmd) -> do
+      Nothing -> failure
+      Just (DeletionResult tl' _ (Just cmd)) -> do
         focus' <- either (\e -> footnoteShow e >> failure)
                          pure
                          (modifyFocus tl cmd initialFocus)
         pure (tl', focus')
-      Just (tl', Nothing) -> pure (tl', initialFocus)
+      Just (DeletionResult tl' _ Nothing) -> pure (tl', initialFocus)
 
 generateAndApplyTestCommands
   :: Monad m
