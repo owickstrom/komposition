@@ -36,6 +36,7 @@ rangeSlider customData = Widget (CustomWidget {..})
       Gtk.scaleSetDrawValue scale False
       sc <- Gtk.widgetGetStyleContext scale
       updateClasses sc mempty rangeSliderClasses
+      Gtk.widgetShow scale
       return (SomeState (StateTreeWidget (StateTreeNode scale sc mempty ())))
 
     customPatch (SomeState st) old new

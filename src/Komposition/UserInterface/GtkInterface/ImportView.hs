@@ -10,16 +10,28 @@ module Komposition.UserInterface.GtkInterface.ImportView
   ( importView
   ) where
 
-import           Komposition.Prelude       hiding (State, on)
+import           Control.Lens
+import           Komposition.Prelude                                hiding
+                                                                     (State, on)
 
-import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
-                                        FileChooserButton (..),
-                                        Orientation (..), Window (..),
-                                        fileChooserGetFilename,
-                                        toggleButtonGetActive)
-import           GI.Gtk.Declarative    as Gtk
+import           GI.Gtk                                             (Align (..),
+                                                                     Box (..),
+                                                                     Button (..),
+                                                                     CheckButton (..),
+                                                                     FileChooserButton (..),
+                                                                     Label (..),
+                                                                     Orientation (..),
+                                                                     Window (..),
+                                                                     fileChooserGetFilename,
+                                                                     toggleButtonGetActive)
+import           GI.Gtk.Declarative                                 as Gtk
 
-import           Komposition.UserInterface hiding (importView, Window)
+import           Komposition.Library
+import           Komposition.MediaType
+import           Komposition.UserInterface                          hiding
+                                                                     (Window,
+                                                                     importView)
+import           Komposition.UserInterface.GtkInterface.NumberInput
 
 importView :: ImportFileModel -> Bin Window Widget (Event ImportMode)
 importView ImportFileModel {..} =
@@ -37,13 +49,36 @@ importView ImportFileModel {..} =
             #selectionChanged
             (fmap ImportFileSelected . fileChooserGetFilename)
         ]
-    boxChild False False 10 $
-      widget
-        CheckButton
-        [ #label := "Classify parts automatically"
-        , #active := autoSplitValue
-        , #sensitive := autoSplitAvailable
-        , onM #toggled (fmap ImportAutoSplitSet . toggleButtonGetActive)
-        ]
+    mediaTypeSpecificSettings
     boxChild False False 10 $
       widget Button [#label := "Import", on #clicked ImportClicked]
+  where
+    mediaTypeSpecificSettings =
+      case selectedFileMediaType of
+        Just Video -> do
+          classifyCheckBox
+          videoSpeedControl
+        Just Audio -> classifyCheckBox
+        Nothing    -> pass
+    classifyCheckBox =
+      boxChild False False 10 $
+        widget
+          CheckButton
+          [ #label := "Classify parts automatically"
+          , #active := classifyValue
+          , #sensitive := classifyAvailable
+          , onM #toggled (fmap ImportClassifySet . toggleButtonGetActive)
+          ]
+    videoSpeedControl = do
+      boxChild False False 5 $
+        widget Label [#label := "Video Speed", #halign := AlignStart]
+      boxChild False False 5 $
+        toDefaultVideoSpeedChanged <$>
+        numberInput NumberInputProperties{ value = setDefaultVideoSpeed ^. unVideoSpeed
+                                         , range = (0.1, 10.0)
+                                         , step = 0.1
+                                         , digits = 1
+                                         , numberInputClasses = []
+                                         }
+      where
+        toDefaultVideoSpeedChanged (NumberInputChanged v) = ImportDefaultVideoSpeedChanged (VideoSpeed v)

@@ -28,6 +28,7 @@ library
   exposed-modules:      Control.Monad.Indexed.IO
                       , Komposition.Application
                       , Komposition.Application.Base
+                      , Komposition.Application.Form
                       , Komposition.Application.ImportMode
                       , Komposition.Application.KeyMaps
                       , Komposition.Application.LibraryMode

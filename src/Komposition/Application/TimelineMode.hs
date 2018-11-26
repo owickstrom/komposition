@@ -22,6 +22,7 @@ import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Row.Records        hiding ( split )
 import           Data.String                    ( fromString )
 
+import           Komposition.Application.Form
 import           Komposition.Composition
 import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
@@ -426,7 +427,7 @@ addImportedAssetsToLibrary
      )
   => Name n
   -> TimelineModel
-  -> Maybe (FilePath, Bool)
+  -> Maybe (ImportFileForm Valid)
   -> t m r r TimelineModeResult
 addImportedAssetsToLibrary gui model (Just selected) = do
   model' <-

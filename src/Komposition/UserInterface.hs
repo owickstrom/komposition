@@ -142,7 +142,8 @@ data Event mode where
   CreateClicked :: Event NewProjectMode
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
-  ImportAutoSplitSet :: Bool -> Event ImportMode
+  ImportClassifySet :: Bool -> Event ImportMode
+  ImportDefaultVideoSpeedChanged :: VideoSpeed -> Event ImportMode
   ImportClicked :: Event ImportMode
   LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
   LibrarySelectionConfirmed :: Event LibraryMode
@@ -185,8 +186,10 @@ currentProject :: TimelineModel -> Project
 currentProject = current . view (existingProject . projectHistory)
 
 data ImportFileModel = ImportFileModel
-  { autoSplitValue     :: Bool
-  , autoSplitAvailable :: Bool
+  { classifyValue :: Bool
+  , classifyAvailable :: Bool
+  , setDefaultVideoSpeed :: VideoSpeed
+  , selectedFileMediaType :: Maybe MediaType
   }
 
 data SelectAssetsModel mt = SelectAssetsModel

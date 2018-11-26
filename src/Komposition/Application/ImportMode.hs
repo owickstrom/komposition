@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
@@ -10,9 +11,11 @@
 {-# LANGUAGE RebindableSyntax    #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 module Komposition.Application.ImportMode
   ( ImportError(..)
+  , ImportFileForm(..)
   , selectFileToImport
   , importSelectedFile
   ) where
@@ -24,11 +27,13 @@ import           Control.Lens
 import           Data.Row.Records
 import           Data.String                      (fromString)
 
+import           Komposition.Application.Form
 import           Komposition.Classification
 import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
+import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
@@ -40,25 +45,40 @@ type ImportEffects sig = (Member AudioImport sig, Member VideoImport sig)
 newtype ImportError = ImportError SomeException
   deriving (Show)
 
-data ImportFileForm = ImportFileForm
-  { selectedFile :: Maybe FilePath
-  , classify     :: Bool
+data ImportFileForm f = ImportFileForm
+  { selectedFile      :: FormData f FilePath
+  , classify          :: FormData Valid Bool
+  , defaultVideoSpeed :: FormData Valid VideoSpeed
   }
 
 selectFileToImport
   :: ( Application t m sig
     , ImportEffects sig
     )
-  => t m r r (Maybe (FilePath, Bool))
+  => t m r r (Maybe (ImportFileForm Valid))
 selectFileToImport =
-  let initialModel = ImportFileModel {autoSplitValue = False, autoSplitAvailable = True}
+  let initialModel = ImportFileModel { classifyValue = False
+                                     , classifyAvailable = False
+                                     , setDefaultVideoSpeed = VideoSpeed 1.0
+                                     , selectedFileMediaType = Nothing
+                                     }
+      initialForm = ImportFileForm { selectedFile = Nothing
+                                   , classify = False
+                                   , defaultVideoSpeed = VideoSpeed 1.0
+                                   }
   in
     withNewWindow
       #import
       (importView initialModel)
       (CommandKeyMappedEvent <$> keymaps SImportMode)
-      (fillForm initialModel ImportFileForm {selectedFile = Nothing, classify = False})
+      (fillForm initialModel initialForm)
   where
+    fillForm
+      :: ( Application t m sig
+      , ImportEffects sig
+      , r ~ ("import" .== Window (t m) (Event ImportMode))
+      )
+      => ImportFileModel -> ImportFileForm Maybe -> t m r r (Maybe (ImportFileForm Valid))
     fillForm model mf = do
       patchWindow #import (importView model)
       cmd <- nextEvent #import
@@ -68,20 +88,22 @@ selectFileToImport =
             Just HelpClosed -> fillForm model mf
             Nothing -> fillForm model mf
         (ImportClicked, ImportFileForm { selectedFile = Just file, ..}) ->
-          ireturn (Just (file, classify))
+          ireturn (Just ImportFileForm { selectedFile = file, .. })
         (ImportClicked          , form) -> fillForm model form
         (ImportFileSelected file, form) -> do
-          isClassificationAvailable <-
+          fileMediaType <-
             case file of
-                Just f  -> isImportable f
-                Nothing -> ireturn False
+                Just f  -> getImportableFileMediaType f
+                Nothing -> ireturn Nothing
           fillForm
-            model { autoSplitValue     = False
-                  , autoSplitAvailable = isClassificationAvailable
+            model { classifyAvailable = isJust fileMediaType
+                  , selectedFileMediaType = fileMediaType
                   }
             form { selectedFile = file }
-        (ImportAutoSplitSet s, form) ->
-          fillForm model { autoSplitValue = s } form { classify = s }
+        (ImportClassifySet s, form) ->
+          fillForm model { classifyValue = s } form { classify = s }
+        (ImportDefaultVideoSpeedChanged s, form) ->
+          fillForm model { setDefaultVideoSpeed = s } form { defaultVideoSpeed = s }
         (CommandKeyMappedEvent Cancel, _) -> ireturn Nothing
         (WindowClosed, _) -> ireturn Nothing
 
@@ -93,7 +115,7 @@ importSelectedFile
      )
   => Name n
   -> ExistingProject
-  -> (FilePath, Bool)
+  -> ImportFileForm Valid
   -> t
        m
        r
@@ -101,9 +123,9 @@ importSelectedFile
        ( Maybe
            (Either ImportError (Either [VideoAsset] [AudioAsset]))
        )
-importSelectedFile gui project (filepath, classify) = do
-  v <- ilift (isSupportedVideoFile filepath)
-  a <- ilift (isSupportedAudioFile filepath)
+importSelectedFile gui project ImportFileForm{selectedFile, classify, defaultVideoSpeed} = do
+  v <- ilift (isSupportedVideoFile selectedFile)
+  a <- ilift (isSupportedAudioFile selectedFile)
   let classification = bool Unclassified Classified classify
   case (v, a) of
     (True, _) -> do
@@ -112,7 +134,8 @@ importSelectedFile gui project (filepath, classify) = do
         importVideoFile
           classification
           (current (project ^. projectHistory) ^. videoSettings)
-          filepath
+          defaultVideoSpeed
+          selectedFile
           (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Video" action
       ireturn (bimap ImportError Left <$> result)
@@ -121,7 +144,7 @@ importSelectedFile gui project (filepath, classify) = do
         ilift $
         importAudioFile
           classification
-          filepath
+          selectedFile
           (project ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Audio" action
       ireturn (bimap ImportError Right <$> result)
@@ -137,9 +160,12 @@ importSelectedFile gui project (filepath, classify) = do
           }
       ireturn Nothing
 
-isImportable
-  :: (ImportEffects sig, Application t m sig) => FilePath -> t m r r Bool
-isImportable f = do
+getImportableFileMediaType
+  :: (ImportEffects sig, Application t m sig) => FilePath -> t m r r (Maybe MediaType)
+getImportableFileMediaType f = do
   v <- ilift (isSupportedVideoFile f)
   a <- ilift (isSupportedAudioFile f)
-  ireturn (v || a)
+  case (v, a) of
+    (True, _) -> ireturn (Just Video)
+    (_, True) -> ireturn (Just Audio)
+    (_, _)    -> ireturn Nothing

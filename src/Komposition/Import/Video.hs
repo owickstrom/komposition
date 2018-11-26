@@ -5,12 +5,12 @@
 {-# LANGUAGE RankNTypes       #-}
 module Komposition.Import.Video where
 
-import           Komposition.Prelude        hiding (catch)
+import           Komposition.Prelude     hiding ( catch )
 
 import           Control.Effect
 import           Control.Effect.Carrier
 import           Data.Coerce
-import           Pipes                      (Producer)
+import           Pipes                          ( Producer )
 import           Pipes.Safe
 
 import           Komposition.Classification
@@ -22,7 +22,7 @@ import           Komposition.VideoSettings
 data VideoImport (m :: * -> *) k
   = Transcode VideoSettings OriginalPath Duration FilePath (Producer ProgressUpdate (SafeT IO) TranscodedPath -> k)
   | GenerateVideoThumbnail OriginalPath FilePath (Maybe FilePath -> k)
-  | ImportVideoFile Classification AllVideoSettings FilePath FilePath (Producer ProgressUpdate (SafeT IO) [VideoAsset] -> k)
+  | ImportVideoFile Classification AllVideoSettings VideoSpeed FilePath FilePath (Producer ProgressUpdate (SafeT IO) [VideoAsset] -> k)
   | IsSupportedVideoFile FilePath (Bool -> k)
   deriving (Functor)
 
@@ -52,13 +52,13 @@ importVideoFile
   :: (Member VideoImport sig, Carrier sig m)
   => Classification
   -> AllVideoSettings
+  -> VideoSpeed
   -> FilePath
   -> FilePath
   -> m (Producer ProgressUpdate (SafeT IO) [VideoAsset])
-importVideoFile classification settings srcFile outDir =
-  send (ImportVideoFile classification settings srcFile outDir ret)
+importVideoFile classification settings videoSettings srcFile outDir = send
+  (ImportVideoFile classification settings videoSettings srcFile outDir ret)
 
 isSupportedVideoFile
   :: (Member VideoImport sig, Carrier sig m) => FilePath -> m Bool
-isSupportedVideoFile srcFile =
-  send (IsSupportedVideoFile srcFile ret)
+isSupportedVideoFile srcFile = send (IsSupportedVideoFile srcFile ret)

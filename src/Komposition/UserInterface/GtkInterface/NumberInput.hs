@@ -1,3 +1,5 @@
+{-# LANGUAGE DefaultSignatures   #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedLabels    #-}
@@ -23,6 +25,8 @@ import           Komposition.UserInterface.GtkInterface.CustomWidget
 data NumberInputProperties n = NumberInputProperties
   { value              :: n
   , range              :: (n, n)
+  , step               :: n
+  , digits             :: Word32
   , numberInputClasses :: ClassSet
   } deriving (Eq, Show)
 
@@ -30,7 +34,7 @@ data NumberInputProperties n = NumberInputProperties
 newtype NumberInputEvent n = NumberInputChanged n
 
 numberInput
-  :: (Typeable n, Integral n)
+  :: (Typeable n, Eq n, NumberInputNum n)
   => NumberInputProperties n
   -> Widget (NumberInputEvent n)
 numberInput customData = Widget (CustomWidget {..})
@@ -40,8 +44,10 @@ numberInput customData = Widget (CustomWidget {..})
       spin <- Gtk.new Gtk.SpinButton []
       adj <- propsToAdjustment props
       Gtk.spinButtonSetAdjustment spin adj
+      Gtk.spinButtonSetDigits spin (digits props)
       sc <- Gtk.widgetGetStyleContext spin
       updateClasses sc mempty (numberInputClasses props)
+      Gtk.widgetShow spin
       return (SomeState (StateTreeWidget (StateTreeNode spin sc mempty ())))
 
     customPatch (SomeState st) old new
@@ -49,17 +55,42 @@ numberInput customData = Widget (CustomWidget {..})
       | otherwise = CustomModify $ \(spin :: Gtk.SpinButton) -> do
         adj <- propsToAdjustment new
         Gtk.spinButtonSetAdjustment spin adj
+        Gtk.spinButtonSetDigits spin (digits new)
         updateClasses (stateTreeStyleContext (stateTreeNode st))
                       (numberInputClasses old)
                       (numberInputClasses new)
         return (SomeState st)
 
     customSubscribe _ (spin :: Gtk.SpinButton) cb = do
-      h <- Gtk.on spin
-                  #valueChanged
-                  (cb . NumberInputChanged . round =<< #getValue spin)
+      h <- Gtk.on spin #valueChanged $ do
+        putStrLn "Value changed."
+        cb . NumberInputChanged . fromDouble =<< #getValue spin
       return (fromCancellation (GI.signalHandlerDisconnect spin h))
 
-propsToAdjustment :: Integral n => NumberInputProperties n -> IO Gtk.Adjustment
-propsToAdjustment NumberInputProperties { value, range } =
-  Gtk.adjustmentNew (fromIntegral value) (fromIntegral (fst range)) (fromIntegral (snd range)) 1 1 0
+propsToAdjustment :: NumberInputNum n => NumberInputProperties n -> IO Gtk.Adjustment
+propsToAdjustment NumberInputProperties { value, range, step } =
+  Gtk.adjustmentNew
+    (toDouble value)
+    (toDouble (fst range))
+    (toDouble (snd range))
+    (toDouble step)
+    0.1
+    0
+
+class NumberInputNum n where
+  fromDouble :: Double -> n
+  toDouble :: n -> Double
+
+  default fromDouble :: Integral n => Double -> n
+  fromDouble = round
+
+  default toDouble :: Integral n => n -> Double
+  toDouble = fromIntegral
+
+instance NumberInputNum Word
+instance NumberInputNum Int
+instance NumberInputNum Integer
+
+instance NumberInputNum Double where
+  fromDouble = identity
+  toDouble = identity

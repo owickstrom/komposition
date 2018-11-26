@@ -34,17 +34,25 @@ newtype TranscodedPath = TranscodedPath
 
 makeLenses ''TranscodedPath
 
+newtype VideoSpeed = VideoSpeed { _unVideoSpeed :: Double
+                                -- ^ Video speed factor, where 1.0 is normal speed.
+                                }
+  deriving (Show, Eq, Generic)
+
+makeLenses ''VideoSpeed
+
 data VideoAsset =
   VideoAsset { _videoAssetMetadata   :: AssetMetadata
              , _videoAssetTranscoded :: TranscodedPath
              , _videoAssetProxy      :: TranscodedPath
+             , _videoSpeed           :: VideoSpeed
              , _videoClassifiedScene :: Maybe (Integer, TimeSpan)
              }
   deriving (Show, Eq, Generic)
 
 makeLenses ''VideoAsset
 
-data AudioAsset =
+newtype AudioAsset =
   AudioAsset { _audioAssetMetadata :: AssetMetadata }
   deriving (Show, Eq, Generic)
 
