@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 import           Komposition.Prelude
@@ -27,4 +28,7 @@ main = do
         . runFFmpegRender
         . runFFmpegVideoImport
         . runSoxAudioImport
-  runGtkUserInterface cssPath runEffects komposition
+  getArgs >>= \case
+      [] -> runGtkUserInterface cssPath runEffects komposition
+      [projectPath] -> runGtkUserInterface cssPath runEffects (kompositionWithProject projectPath)
+      _ -> putStrLn ("Can only open a single project." :: Text)
