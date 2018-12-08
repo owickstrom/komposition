@@ -15,12 +15,12 @@ module Komposition.Application.TimelineMode where
 import           Komposition.Application.Base
 import qualified Prelude
 
-import           Control.Effect                 ( Member )
-import           Control.Effect.Carrier         ( Carrier )
+import           Control.Effect                      (Member)
+import           Control.Effect.Carrier              (Carrier)
 import           Control.Lens
-import qualified Data.List.NonEmpty            as NonEmpty
-import           Data.Row.Records        hiding ( split )
-import           Data.String                    ( fromString )
+import qualified Data.List.NonEmpty                  as NonEmpty
+import           Data.Row.Records                    hiding (split)
+import           Data.String                         (fromString)
 
 import           Komposition.Application.Form
 import           Komposition.Composition
@@ -38,8 +38,7 @@ import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
-import qualified Komposition.Render.Composition
-                                               as Render
+import qualified Komposition.Render.Composition      as Render
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Komposition.VideoSettings
@@ -408,10 +407,11 @@ toVideoClip
   -> VideoAsset
   -> m (VideoPart ())
 toVideoClip model videoAsset =
-  let ts = maybe (TimeSpan 0 (durationOf videoAsset))
+  let ts = maybe (TimeSpan 0 (durationOf OriginalDuration videoAsset))
                  snd
                  (videoAsset ^. videoClassifiedScene)
-  in  VideoClip () videoAsset ts <$> extractFrameToFile
+      speed = videoAsset ^. videoSpeed
+  in  VideoClip () videoAsset ts speed <$> extractFrameToFile
         (currentProject model ^. videoSettings . proxyVideoSettings)
         Render.FirstFrame
         VideoProxy

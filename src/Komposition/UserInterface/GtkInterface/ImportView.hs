@@ -32,6 +32,7 @@ import           Komposition.UserInterface                          hiding
                                                                      (Window,
                                                                      importView)
 import           Komposition.UserInterface.GtkInterface.NumberInput
+import           Komposition.VideoSpeed
 
 importView :: ImportFileModel -> Bin Window Widget (Event ImportMode)
 importView ImportFileModel {..} =

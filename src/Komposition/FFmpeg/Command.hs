@@ -14,6 +14,7 @@ module Komposition.FFmpeg.Command
   , StreamSelector(..)
   , ForceOriginalAspectRatio(..)
   , Filter(..)
+  , SetPTS(..)
   , RoutedFilter(..)
   , FilterChain(..)
   , FilterGraph(..)
@@ -88,10 +89,13 @@ data Filter
          , trimDuration :: Duration }
   | AudioTrim { trimStart    :: Duration
               , trimDuration :: Duration }
-  | SetPTSStart
-  | AudioSetPTSStart
+  | SetPTS SetPTS
+  | AudioSetPTS SetPTS
 
   | AudioEvalSource { audioEvalSourceDuration :: Duration }
+
+
+data SetPTS = PTSStart | PTSMultiple Double
 
 data RoutedFilter = RoutedFilter
   { filterInputs  :: [StreamSelector]
@@ -203,8 +207,14 @@ printFilter =
            -- decimal numbers
            (durationToSeconds trimStart)
            (durationToSeconds trimDuration) :: Prelude.String)
-    SetPTSStart -> "setpts=PTS-STARTPTS"
-    AudioSetPTSStart -> "asetpts=PTS-STARTPTS"
+    SetPTS pts -> "setpts=" <> printSetPTS pts
+    AudioSetPTS pts -> "asetpts=" <> printSetPTS pts
+
+printSetPTS :: SetPTS -> Text
+printSetPTS =
+  \case
+    PTSStart -> "PTS-STARTPTS"
+    PTSMultiple d -> "PTS*" <> show d
 
 printStreamSelector :: StreamSelector -> Text
 printStreamSelector StreamSelector {..} =

@@ -14,6 +14,7 @@ import           Control.Lens
 
 import           Komposition.Duration
 import           Komposition.MediaType
+import           Komposition.VideoSpeed
 
 newtype OriginalPath = OriginalPath
   { _unOriginalPath :: FilePath
@@ -33,13 +34,6 @@ newtype TranscodedPath = TranscodedPath
   } deriving (Show, Eq, Generic)
 
 makeLenses ''TranscodedPath
-
-newtype VideoSpeed = VideoSpeed { _unVideoSpeed :: Double
-                                -- ^ Video speed factor, where 1.0 is normal speed.
-                                }
-  deriving (Show, Eq, Generic)
-
-makeLenses ''VideoSpeed
 
 data VideoAsset =
   VideoAsset { _videoAssetMetadata   :: AssetMetadata
@@ -72,10 +66,10 @@ instance AssetMetadataLens AudioAsset where
   assetMetadata = audioAssetMetadata
 
 instance HasDuration VideoAsset where
-  durationOf va = va ^. videoAssetMetadata . duration
+  durationOf _ va = va ^. videoAssetMetadata . duration
 
 instance HasDuration AudioAsset where
-  durationOf aa = aa ^. audioAssetMetadata . duration
+  durationOf _ aa = aa ^. audioAssetMetadata . duration
 
 data Library = Library
   { _videoAssets :: [VideoAsset]

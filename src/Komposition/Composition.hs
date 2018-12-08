@@ -16,13 +16,14 @@ import           Komposition.Prelude
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
+import           Komposition.VideoSpeed
 
 type family CompositionPart (mt :: MediaType) where
   CompositionPart 'Video = VideoPart
   CompositionPart 'Audio = AudioPart
 
 data VideoPart a
-  = VideoClip a VideoAsset TimeSpan FilePath
+  = VideoClip a VideoAsset TimeSpan VideoSpeed FilePath
   | VideoGap a Duration
   deriving (Eq, Show, Functor, Generic)
 
@@ -32,13 +33,16 @@ data AudioPart a
   deriving (Eq, Show, Functor, Generic)
 
 instance HasDuration (VideoPart a) where
-  durationOf = \case
-    VideoClip _ _ ts _ -> durationOf ts
-    VideoGap _ d -> d
+  durationOf mode part = case (mode, part) of
+    (OriginalDuration, VideoClip _ _ ts _ _) ->
+      durationOf OriginalDuration ts
+    (AdjustedDuration, VideoClip _ _ ts speed _) ->
+      durationInSpeed (durationOf OriginalDuration ts) speed
+    (_, VideoGap _ d) -> d
 
 instance HasDuration (AudioPart a) where
-  durationOf = \case
-    AudioClip _ a -> durationOf a
+  durationOf _ = \case
+    AudioClip _ a -> durationOf OriginalDuration a
     AudioGap _ d -> d
 
 newtype Timeline a =
@@ -57,14 +61,14 @@ data Parallel a =
   deriving (Eq, Show, Functor, Generic)
 
 instance HasDuration (Timeline a) where
-  durationOf (Timeline seqs) = foldMap durationOf seqs
+  durationOf mode (Timeline seqs) = foldMap (durationOf mode) seqs
 
 instance HasDuration (Sequence a) where
-  durationOf (Sequence _ pars) = foldMap durationOf pars
+  durationOf mode (Sequence _ pars) = foldMap (durationOf mode) pars
 
 instance HasDuration (Parallel a) where
-  durationOf (Parallel _ vs as) =
-    max (foldMap durationOf vs) (foldMap durationOf as)
+  durationOf mode (Parallel _ vs as) =
+    max (foldMap (durationOf mode) vs) (foldMap (durationOf mode) as)
 
 emptyTimeline :: Timeline ()
 emptyTimeline = Timeline (Sequence () (Parallel () [] [] :| []) :| [])

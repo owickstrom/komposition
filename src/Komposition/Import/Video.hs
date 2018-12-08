@@ -5,12 +5,12 @@
 {-# LANGUAGE RankNTypes       #-}
 module Komposition.Import.Video where
 
-import           Komposition.Prelude     hiding ( catch )
+import           Komposition.Prelude        hiding (catch)
 
 import           Control.Effect
 import           Control.Effect.Carrier
 import           Data.Coerce
-import           Pipes                          ( Producer )
+import           Pipes                      (Producer)
 import           Pipes.Safe
 
 import           Komposition.Classification
@@ -18,6 +18,7 @@ import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.Progress
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 
 data VideoImport (m :: * -> *) k
   = Transcode VideoSettings OriginalPath Duration FilePath (Producer ProgressUpdate (SafeT IO) TranscodedPath -> k)

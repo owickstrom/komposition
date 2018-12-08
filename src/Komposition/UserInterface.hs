@@ -14,20 +14,19 @@
 
 module Komposition.UserInterface where
 
-import           Komposition.Prelude     hiding ( State )
+import           Komposition.Prelude            hiding (State)
 
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
-import           Motor.FSM               hiding ( Delete )
+import           Motor.FSM                      hiding (Delete)
 import           Pipes
-import           Pipes.Safe                     ( SafeT )
+import           Pipes.Safe                     (SafeT)
 
 import           Komposition.Composition
-import qualified Komposition.Composition.Paste as Paste
+import qualified Komposition.Composition.Paste  as Paste
 
-import qualified Komposition.Composition.Insert
-                                               as Insert
+import qualified Komposition.Composition.Insert as Insert
 import           Komposition.Focus
 import           Komposition.History
 import           Komposition.KeyMap
@@ -36,6 +35,7 @@ import           Komposition.MediaType
 import           Komposition.Progress
 import           Komposition.Project
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 
 data Mode
   = WelcomeScreenMode
@@ -186,9 +186,9 @@ currentProject :: TimelineModel -> Project
 currentProject = current . view (existingProject . projectHistory)
 
 data ImportFileModel = ImportFileModel
-  { classifyValue :: Bool
-  , classifyAvailable :: Bool
-  , setDefaultVideoSpeed :: VideoSpeed
+  { classifyValue         :: Bool
+  , classifyAvailable     :: Bool
+  , setDefaultVideoSpeed  :: VideoSpeed
   , selectedFileMediaType :: Maybe MediaType
   }
 

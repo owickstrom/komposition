@@ -62,8 +62,7 @@ numberInput customData = Widget (CustomWidget {..})
         return (SomeState st)
 
     customSubscribe _ (spin :: Gtk.SpinButton) cb = do
-      h <- Gtk.on spin #valueChanged $ do
-        putStrLn "Value changed."
+      h <- Gtk.on spin #valueChanged $
         cb . NumberInputChanged . fromDouble =<< #getValue spin
       return (fromCancellation (GI.signalHandlerDisconnect spin h))
 

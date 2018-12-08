@@ -13,37 +13,35 @@ module Komposition.UserInterface.GtkInterface.TimelineView
   )
 where
 
-import           Komposition.Prelude     hiding ( on )
+import           Komposition.Prelude                                     hiding
+                                                                          (on)
 
 import           Control.Lens
-import           Data.Int                       ( Int32 )
-import           Data.Text                      ( Text )
-import           GI.Gtk                         ( Align(..)
-                                                , Box(..)
-                                                , Button(..)
-                                                , Label(..)
-                                                , MenuBar(..)
-                                                , MenuItem(..)
-                                                , Orientation(..)
-                                                , PolicyType(..)
-                                                , ScrolledWindow(..)
-                                                , Window(..)
-                                                )
+import           Data.Int                                                (Int32)
+import           Data.Text                                               (Text)
+import           GI.Gtk                                                  (Align (..),
+                                                                          Box (..),
+                                                                          Button (..),
+                                                                          Label (..),
+                                                                          MenuBar (..),
+                                                                          MenuItem (..),
+                                                                          Orientation (..),
+                                                                          PolicyType (..),
+                                                                          ScrolledWindow (..),
+                                                                          Window (..))
 import           GI.Gtk.Declarative
-import           GI.Pango                       ( EllipsizeMode(..) )
+import           GI.Pango                                                (EllipsizeMode (..))
 
 import           Komposition.Composition
-import           Komposition.Composition.Paste  ( PastePosition(..) )
 import           Komposition.Composition.Focused
+import           Komposition.Composition.Paste                           (PastePosition (..))
 import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
-import           Komposition.UserInterface
-                                         hiding ( Window
-                                                , timelineView
-                                                )
+import           Komposition.UserInterface                               hiding (Window,
+                                                                          timelineView)
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
 
@@ -109,8 +107,8 @@ renderVideoPart
   -> VideoPart (Focus SequenceFocusType, Focused)
   -> Widget (Event TimelineMode)
 renderVideoPart zl = \case
-  VideoClip (thisFocus, focused) asset' ts _ ->
-    renderClipAsset zl thisFocus focused asset' (durationOf ts)
+  c@(VideoClip (thisFocus, focused) asset' _ _ _) ->
+    renderClipAsset zl thisFocus focused asset' (durationOf AdjustedDuration c)
   VideoGap ann duration' -> renderGap zl ann duration'
 
 renderAudioPart
@@ -119,7 +117,7 @@ renderAudioPart
   -> Widget (Event TimelineMode)
 renderAudioPart zl = \case
   AudioClip (thisFocus, focused) asset' ->
-    renderClipAsset zl thisFocus focused asset' (durationOf asset')
+    renderClipAsset zl thisFocus focused asset' (durationOf AdjustedDuration asset')
   AudioGap ann duration' -> renderGap zl ann duration'
 
 renderTimeline
@@ -175,7 +173,7 @@ renderPreviewPane
   :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
 renderPreviewPane part = container Box [classes ["preview-pane"]] $ do
   boxChild True True 0 $ case part of
-    Just (FirstVideoPart (VideoClip _ _videoAsset _ thumbnail)) ->
+    Just (FirstVideoPart (VideoClip _ _videoAsset _ _ thumbnail)) ->
       thumbnailPreview thumbnail
     Just (FirstAudioPart AudioClip{}) -> noPreviewAvailable
     Just (FirstVideoPart VideoGap{} ) -> widget Label [#label := "Video gap."]

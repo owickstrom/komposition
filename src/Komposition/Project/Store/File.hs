@@ -14,20 +14,17 @@ module Komposition.Project.Store.File
   )
 where
 
-import           Komposition.Prelude     hiding ( Type
-                                                , list
-                                                )
+import           Komposition.Prelude       hiding (Type, list)
 
 import           Control.Effect
 import           Control.Effect.Carrier
 import           Control.Effect.Sum
 import           Control.Exception.Safe
 import           Control.Lens
-import           Data.Binary                    ( Binary )
-import qualified Data.Binary                   as Binary
-import           Data.Time.Clock                ( diffTimeToPicoseconds
-                                                , picosecondsToDiffTime
-                                                )
+import           Data.Binary               (Binary)
+import qualified Data.Binary               as Binary
+import           Data.Time.Clock           (diffTimeToPicoseconds,
+                                            picosecondsToDiffTime)
 import           Komposition.Composition
 import           Komposition.Duration
 import           Komposition.History
@@ -35,6 +32,7 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 import           System.Directory
 import           System.FilePath
 

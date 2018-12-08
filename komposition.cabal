@@ -84,6 +84,7 @@ library
                       , Komposition.UserInterface.Help
                       , Komposition.Timestamp
                       , Komposition.VideoSettings
+                      , Komposition.VideoSpeed
   build-depends:        base >=4.10 && <4.12
                       , async
                       , binary

@@ -33,45 +33,41 @@ module Komposition.Import.Video.FFmpeg
   )
 where
 
-import           Komposition.Prelude     hiding ( catch )
+import           Komposition.Prelude        hiding (catch)
 
-import           Codec.FFmpeg            hiding ( resolution )
-import qualified Codec.FFmpeg.Probe            as Probe
-import           Codec.Picture                 as CP
+import           Codec.FFmpeg               hiding (resolution)
+import qualified Codec.FFmpeg.Probe         as Probe
+import           Codec.Picture              as CP
 import           Control.Effect
 import           Control.Effect.Carrier
 import           Control.Effect.Sum
 import           Control.Lens
 import           Control.Monad.Catch
-import qualified Data.Massiv.Array             as A
-import           Data.Massiv.Array.IO          as A
-                                         hiding ( Image )
-import           Data.Maybe                     ( fromMaybe )
+import qualified Data.Massiv.Array          as A
+import           Data.Massiv.Array.IO       as A hiding (Image)
+import           Data.Maybe                 (fromMaybe)
 import           Data.Time.Clock
-import qualified Data.Vector                   as V
-import qualified Data.Vector.Generic           as VG
-import           Graphics.ColorSpace           as A
-import           Pipes                          ( Pipe
-                                                , Producer
-                                                , (>->)
-                                                )
+import qualified Data.Vector                as V
+import qualified Data.Vector.Generic        as VG
+import           Graphics.ColorSpace        as A
+import           Pipes                      (Pipe, Producer, (>->))
 import qualified Pipes
-import qualified Pipes.Parse                   as Pipes
-import qualified Pipes.Prelude                 as Pipes
-                                         hiding ( show )
+import qualified Pipes.Parse                as Pipes
+import qualified Pipes.Prelude              as Pipes hiding (show)
 import           Pipes.Safe
 import           System.Directory
 import           System.FilePath
 
 import           Komposition.Classification
 import           Komposition.Duration
-import           Komposition.FFmpeg.Command     ( Command(Command) )
-import qualified Komposition.FFmpeg.Command    as Command
+import           Komposition.FFmpeg.Command (Command (Command))
+import qualified Komposition.FFmpeg.Command as Command
 import           Komposition.FFmpeg.Process
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Progress
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 
 initialize :: IO ()
 initialize = initFFmpeg

@@ -1,8 +1,8 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 -- | The library view of Komposition's GTK interface.
@@ -14,12 +14,12 @@ import           Komposition.Prelude       hiding (State, on)
 import qualified Prelude
 
 import           Control.Lens
-import           Data.Text             (Text)
-import           GI.Gtk                (Box (..), Button (..), Label (..),
-                                        ListBox (..), ListBoxRow (..),
-                                        Orientation (..), PolicyType (..),
-                                        ScrolledWindow (..), SelectionMode (..),
-                                        Window (..))
+import           Data.Text                 (Text)
+import           GI.Gtk                    (Box (..), Button (..), Label (..),
+                                            ListBox (..), ListBoxRow (..),
+                                            Orientation (..), PolicyType (..),
+                                            ScrolledWindow (..),
+                                            SelectionMode (..), Window (..))
 import           GI.Gtk.Declarative
 import           System.FilePath
 import           Text.Printf
@@ -27,7 +27,7 @@ import           Text.Printf
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
-import           Komposition.UserInterface hiding (libraryView, Window)
+import           Komposition.UserInterface hiding (Window, libraryView)
 
 printTimestamp :: Duration -> Text
 printTimestamp d =
@@ -58,7 +58,9 @@ renderVideoAsset asset' =
                 n
         boxChild True False 0 $ widget Label [#label := toS lbl]
         boxChild False False 10 $
-          widget Label [#label := printTimestamp (durationOf timeSpan)]
+          widget Label [#label := printTimestamp (durationOf OriginalDuration timeSpan)]
+        boxChild False False 10 $
+          widget Label [#label := printTimestamp (durationOf AdjustedDuration timeSpan)]
     Nothing ->
       container Box [classes ["video"]] $ do
         boxChild True False 0 $

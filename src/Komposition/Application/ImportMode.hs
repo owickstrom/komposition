@@ -37,6 +37,7 @@ import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
+import           Komposition.VideoSpeed
 
 import           Komposition.Application.KeyMaps
 

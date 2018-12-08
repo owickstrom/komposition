@@ -15,8 +15,8 @@ module Komposition.Focus where
 import           Komposition.Prelude
 
 import           Control.Lens
-import           Control.Monad.Except           ( throwError )
-import qualified Data.List.NonEmpty            as NonEmpty
+import           Control.Monad.Except    (throwError)
+import qualified Data.List.NonEmpty      as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Duration
@@ -79,13 +79,13 @@ data FocusError
 
 indicesWithStartPoints :: HasDuration a => [a] -> [(Int, Duration)]
 indicesWithStartPoints clips =
-  zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
+  zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf AdjustedDuration c + acc) 0 clips)
 
 nearestPartIndexLeftOf
   :: (HasDuration a, HasDuration b) => [a] -> Int -> [b] -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
-  = let cutoffPoint = foldMap durationOf (take i focusedParts)
+  = let cutoffPoint = foldMap (durationOf AdjustedDuration) (take i focusedParts)
         below'      = takeWhile ((<= cutoffPoint) . snd)
                                 (indicesWithStartPoints blurredParts)
     in  (fst <$> lastMay below') <|> Just 0
