@@ -7,6 +7,7 @@ import           Komposition.Prelude
 import           Komposition.Composition
 import           Komposition.Duration
 import           Komposition.Library
+import           Komposition.VideoSpeed
 
 video4s = VideoClip
   ()
@@ -17,6 +18,7 @@ video4s = VideoClip
               Nothing
   )
   (TimeSpan 0 4)
+  (VideoSpeed 1)
   "thumb.png"
 video10s = VideoClip
   ()
@@ -27,6 +29,7 @@ video10s = VideoClip
               Nothing
   )
   (TimeSpan 0 10)
+  (VideoSpeed 1)
   "thumb.png"
 audio1s = AudioClip () $ AudioAsset (AssetMetadata (OriginalPath "1.m4a") 1)
 audio4s = AudioClip () $ AudioAsset (AssetMetadata (OriginalPath "2.m4a") 4)
