@@ -27,7 +27,7 @@ import           System.Directory
 import           System.FilePath
 import qualified System.IO                  as IO
 import           System.IO.Temp
-import           System.Process
+import           System.Process.Typed
 
 import           Komposition.Classification
 import           Komposition.Duration
@@ -56,13 +56,12 @@ runSoxWithProgress
   -> [Prelude.String]
   -> Producer ProgressUpdate m ()
 runSoxWithProgress toProgress args = do
-  (_, _, Just progressOut, ph) <- liftIO
-    (createProcess_ "" (proc "sox" ("-S" : args)) { std_err = CreatePipe })
-  liftIO (IO.hSetBuffering progressOut IO.NoBuffering)
-  fromCarriageReturnOrNewlineSplit progressOut >-> yieldProgress
-  liftIO (waitForProcess ph) >>= \case
-    ExitSuccess   -> return ()
-    ExitFailure e -> throwIO (ProcessFailed "sox" e Nothing)
+  let process = proc "sox" ("-S" : args) & setStderr createPipe
+
+  bracket (startProcess process) stopProcess $ \p -> do
+    liftIO (IO.hSetBuffering (getStderr p) IO.NoBuffering)
+    fromCarriageReturnOrNewlineSplit (getStderr p) >-> yieldProgress
+    waitForExit p
   where
     yieldProgress :: MonadIO m => Pipe Text ProgressUpdate m ()
     yieldProgress = forever $ do
@@ -73,6 +72,9 @@ runSoxWithProgress toProgress args = do
             Just d  -> yield (toProgress (d / 100))
             Nothing -> return ()
         _ -> return ()
+    waitForExit p = waitExitCode p >>= \case
+      ExitSuccess   -> return ()
+      ExitFailure e -> throwIO (ProcessFailed "sox" e Nothing)
 
 normalizeAudio
   :: (MonadIO m, MonadSafe m)
@@ -149,7 +151,7 @@ getAudioFileDuration f =
 
 getAudioFileMaxAmplitude :: MonadIO m => FilePath -> m Double
 getAudioFileMaxAmplitude inPath = do
-  (ex, _, err) <- liftIO (readCreateProcessWithExitCode (proc "sox" [inPath, "-n", "stat"]) "")
+  (ex, _, err) <- readProcess (proc "sox" [inPath, "-n", "stat"])
   case ex of
     ExitSuccess ->
       let parts = map (map Text.strip . Text.splitOn ":") (Text.lines (toS err))

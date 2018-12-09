@@ -1,11 +1,11 @@
-{ compiler ? "ghc843", doCheck ? true, doBenchmark ? false }:
+{ compiler ? "ghc862", doCheck ? true, doBenchmark ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {
-    name = "nixos-unstable-2018-10-31";
+    name = "nixos-unstable-2018-12-09";
     url = https://github.com/nixos/nixpkgs/;
     # `git ls-remote https://github.com/nixos/nixpkgs-channels nixos-unstable`
-    rev = "45a419ab5a23c93421c18f3d9cde015ded22e712";
+    rev = "e85c1f586807b5acd244df4c45a5130aa3f0734d";
   }) {};
 
   giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
@@ -15,7 +15,8 @@ let
 
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
-      haskell-gi-overloading = pkgs.haskell.lib.dontHaddock (self.callHackage "haskell-gi-overloading" "1.0" {});
+      criterion = self.callHackage "criterion" "1.5.3.0" {};
+      ffmpeg-light = pkgs.haskell.lib.doJailbreak super.ffmpeg-light;
       fused-effects =
         let
           src = nixpkgs.fetchFromGitHub {
@@ -24,9 +25,12 @@ let
             inherit (fusedEffectsJson) rev sha256;
           };
         in self.callCabal2nix "fused-effects" src {};
-      massiv = self.callHackage "massiv" "0.1.6.1" {};
-      massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
+      haskell-gi-overloading = pkgs.haskell.lib.dontHaddock (self.callHackage "haskell-gi-overloading" "1.0" {});
       indexed-extras = pkgs.haskell.lib.doJailbreak super.indexed-extras;
+      massiv = self.callHackage "massiv" "0.2.5.0" {};
+      massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
+      pipes-safe = self.callHackage "pipes-safe" "2.3.1" {};
+      protolude = self.callHackage "protolude" "0.2.3" {};
       gi-gtk-declarative =
         let
           src = nixpkgs.fetchFromGitHub {
