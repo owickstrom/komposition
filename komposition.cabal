@@ -83,7 +83,7 @@ library
                       , Komposition.UserInterface.Help
                       , Komposition.Timestamp
                       , Komposition.VideoSettings
-  build-depends:        base >=4.10 && <4.12
+  build-depends:        base >=4.10 && <5
                       , async
                       , binary
                       , deepseq
@@ -107,7 +107,7 @@ library
                       , haskell-gi
                       , haskell-gi-base
                       , lens
-                      , massiv >= 0.1.6.1 && < 0.2
+                      , massiv >= 0.2 && < 0.3
                       , massiv-io >= 0.1.4 && < 0.2
                       , motor >= 0.3 && < 0.4
                       , mtl
@@ -135,7 +135,7 @@ executable komposition
   main-is:              Main.hs
   other-modules:        Paths_komposition
   -- other-extensions:
-  build-depends:        base >=4.10 && <4.12
+  build-depends:        base >=4.10 && <5
                       , komposition
                       , fast-logger
                       , filepath
@@ -159,7 +159,7 @@ executable komposition-split
   main-is:              Split.hs
   other-modules:        Paths_komposition
   -- other-extensions:
-  build-depends:        base >=4.10 && <4.12
+  build-depends:        base >=4.10 && <5
                       , directory
                       , filepath
                       , ffmpeg-light
@@ -228,7 +228,7 @@ benchmark komposition-benchmark
   main-is:         Benchmark.hs
   build-depends:   base                 >= 4        && < 5
                  , bytestring
-                 , criterion
+                 , criterion            >= 1.5.1 && <2
                  , komposition
                  , JuicyPixels
                  , lens
