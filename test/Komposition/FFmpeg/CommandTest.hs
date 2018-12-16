@@ -22,13 +22,13 @@ spec_printCommandLineArgs = do
             ]
             (Concat 2 1 0)
             []
-        filter1b = RoutedFilter [] SetPTSStart [videoStream]
+        filter1b = RoutedFilter [] (SetPTS PTSStart) [videoStream]
         filter2a =
           RoutedFilter
             [StreamSelector (StreamIndex 2) (Just Audio) (Just 0)]
             (Concat 1 0 1)
             []
-        filter2b = RoutedFilter [] AudioSetPTSStart [audioStream1]
+        filter2b = RoutedFilter [] (AudioSetPTS PTSStart) [audioStream1]
         filter3a = RoutedFilter [] (AudioEvalSource 4) [audioStream2]
         chain1 = FilterChain (filter1a :| [filter1b])
         chain2 = FilterChain (filter2a :| [filter2b])

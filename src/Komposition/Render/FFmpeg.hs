@@ -33,7 +33,7 @@ import           Pipes.Safe                     (bracket)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
-import           System.Process
+import           System.Process.Typed
 import           Text.Printf
 
 import           Komposition.Duration
@@ -312,7 +312,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (Render :+: sig) (FFmpegRenderC m
                  (length (inputs videoInput))
                  audio)
           let renderCmd = toRenderCommand videoSettings target videoInput audioInput
-          runFFmpegCommand (ProgressUpdate "Rendering") (durationOf AdjustedDuration c) renderCmd
+          runFFmpegCommand (ProgressUpdate "Rendering") (durationOf OriginalDuration c) renderCmd
     ExtractFrameToFile videoSettings mode videoSource videoAsset ts frameDir k ->
       k =<< liftIO (extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir)
 
@@ -375,10 +375,10 @@ extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
         printEscapedFFmpegInvocation (map toS allArgs)
         runFFmpeg $ proc "ffmpeg" allArgs
     runFFmpeg cmd = do
-      (exit, _, err) <- readCreateProcessWithExitCode cmd ""
+      (exit, _, err) <- readProcess cmd
       when
         (exit /= ExitSuccess)
-        (Prelude.fail ("Couldn't extract frame from video file: " <> err))
+        (Prelude.fail ("Couldn't extract frame from video file: " <> toS err))
 
 runFFmpegRender :: (MonadIO m, Carrier sig m) => Eff (FFmpegRenderC m) a -> m a
 runFFmpegRender = runFFmpegRenderC . interpret

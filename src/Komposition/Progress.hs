@@ -4,13 +4,16 @@ module Komposition.Progress where
 import           Komposition.Prelude
 
 import           Control.Lens
-import           Pipes           (Producer, (>->))
-import qualified Pipes.Prelude   as Pipes hiding (show)
+import           Pipes               (Producer, (>->))
+import qualified Pipes.Prelude       as Pipes hiding (show)
 
 data ProgressUpdate = ProgressUpdate
   { _progressMessage  :: Text
   , _progressFraction :: Double
   } deriving (Show, Eq)
+
+toPercent :: ProgressUpdate -> Double
+toPercent (ProgressUpdate _ f) = f * 100
 
 makeLenses ''ProgressUpdate
 

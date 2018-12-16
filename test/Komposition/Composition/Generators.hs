@@ -12,6 +12,7 @@ import           Hedgehog.Range
 import           Komposition.Composition
 import           Komposition.Focus
 import           Komposition.Duration
+import           Komposition.VideoSpeed
 import           Komposition.Library     hiding ( assetMetadata )
 import           Komposition.MediaType
 import           Komposition.VideoSpeed
@@ -64,7 +65,8 @@ videoPart = Gen.choice [clip, gap]
       spanEnd'   <- duration'
         (linear (ceiling (durationToSeconds spanStart') + 1) maxDuration)
       VideoClip () asset (TimeSpan spanStart' spanEnd')
-        <$> Gen.string (linear 1 50) Gen.unicode
+        <$> genVideoSpeed
+        <*> Gen.string (linear 1 50) Gen.unicode
     gap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
 
 audioPart :: MonadGen m => m (CompositionPart Audio ())

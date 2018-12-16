@@ -8,7 +8,7 @@ import           Data.Time.Clock     (DiffTime, diffTimeToPicoseconds,
                                       picosecondsToDiffTime)
 
 newtype Duration = Duration DiffTime
-  deriving (Show, Eq, Ord, Num, Generic)
+  deriving (Show, Eq, Ord, Num, Fractional, Generic)
 
 instance Semigroup Duration where
   (Duration d1) <> (Duration d2) = Duration (d1 + d2)

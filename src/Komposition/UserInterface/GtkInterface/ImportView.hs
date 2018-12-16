@@ -26,7 +26,6 @@ import           GI.Gtk                                             (Align (..),
                                                                      toggleButtonGetActive)
 import           GI.Gtk.Declarative                                 as Gtk
 
-import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.UserInterface                          hiding
                                                                      (Window,
