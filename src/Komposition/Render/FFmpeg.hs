@@ -219,12 +219,7 @@ toRenderCommand videoSettings output videoInput audioInput =
         VideoClipStream ii ts (VideoSpeed s) ->
           trimmedIndexedInput Video streamName ii ts (Command.PTSMult
                                                       (Command.PTSDouble (1 / s))
-                                                      -- For some wonky reason, this hack is needed
-                                                      -- to make the progress reporting (through -stats)
-                                                      -- work:
-                                                      (Command.PTSAdd
-                                                       Command.PTSStart
-                                                       (Command.PTSDouble 0)))
+                                                       Command.PTSStart)
         StillFrameStream i ->
           Command.FilterChain
             (Command.RoutedFilter

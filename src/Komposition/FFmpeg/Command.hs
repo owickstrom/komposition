@@ -217,7 +217,8 @@ printFilter =
 printPTSExpr :: PTSExpr -> Text
 printPTSExpr =
   \case
-    PTSStart -> "PTS-STARTPTS"
+    -- this must be parenthesized for -stats to work properly!
+    PTSStart -> "(PTS-STARTPTS)"
     PTSDouble d -> show d
     PTSAdd p1 p2 -> parens (printPTSExpr p1 <> "+" <> printPTSExpr p2)
     PTSMult p1 p2 -> parens (printPTSExpr p1 <> "*" <> printPTSExpr p2)
