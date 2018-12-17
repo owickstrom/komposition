@@ -15,7 +15,6 @@ import           Komposition.Duration
 import           Komposition.VideoSpeed
 import           Komposition.Library     hiding ( assetMetadata )
 import           Komposition.MediaType
-import           Komposition.VideoSpeed
 
 timeline :: MonadGen m => Range Int -> m (Parallel ()) -> m (Timeline ())
 timeline range genParallel =

@@ -217,7 +217,14 @@ toRenderCommand videoSettings output videoInput audioInput =
     toVideoInputChain (streamName, partStream) =
       case partStream of
         VideoClipStream ii ts (VideoSpeed s) ->
-          trimmedIndexedInput Video streamName ii ts (Command.PTSMultiple (1 / s))
+          trimmedIndexedInput Video streamName ii ts (Command.PTSMult
+                                                      (Command.PTSDouble (1 / s))
+                                                      -- For some wonky reason, this hack is needed
+                                                      -- to make the progress reporting (through -stats)
+                                                      -- work:
+                                                      (Command.PTSAdd
+                                                       Command.PTSStart
+                                                       (Command.PTSDouble 0)))
         StillFrameStream i ->
           Command.FilterChain
             (Command.RoutedFilter
@@ -247,10 +254,10 @@ toRenderCommand videoSettings output videoInput audioInput =
              [])
     indexedStreamSelector track (InputIndex i) =
       Command.StreamSelector (Command.StreamIndex i) (Just track) (Just 0)
-    trimmedIndexedInput mediaType streamName (InputIndex i) ts setPTS =
+    trimmedIndexedInput mediaType streamName (InputIndex i) ts ptsExpr =
       case mediaType of
-        Video -> Command.FilterChain (trimFilter Command.Video Command.Trim :| [scaleFilter, setPTSFilter (Command.SetPTS setPTS)])
-        Audio -> Command.FilterChain (trimFilter Command.Audio Command.AudioTrim :| [setPTSFilter (Command.AudioSetPTS setPTS)])
+        Video -> Command.FilterChain (trimFilter Command.Video Command.Trim :| [scaleFilter, setPTSFilter (Command.SetPTS ptsExpr)])
+        Audio -> Command.FilterChain (trimFilter Command.Audio Command.AudioTrim :| [setPTSFilter (Command.AudioSetPTS ptsExpr)])
       where
         trimFilter track trim =
           Command.RoutedFilter
@@ -271,10 +278,10 @@ toRenderCommand videoSettings output videoInput audioInput =
                  Command.ForceOriginalAspectRatioDisable
              }
              []
-        setPTSFilter setPTS' =
+        setPTSFilter ptsFilter =
           Command.RoutedFilter
              []
-             setPTS'
+             ptsFilter
              [ Command.StreamSelector
                  (Command.StreamName streamName)
                  Nothing
