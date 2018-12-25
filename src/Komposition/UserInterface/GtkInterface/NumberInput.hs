@@ -13,14 +13,12 @@ module Komposition.UserInterface.GtkInterface.NumberInput
 
 import           Komposition.Prelude
 
-import qualified GI.GObject                                          as GI
-import qualified GI.Gtk                                              as Gtk
+import qualified GI.GObject                              as GI
+import qualified GI.Gtk                                  as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.Attributes.Collected
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.State
-
-import           Komposition.UserInterface.GtkInterface.CustomWidget
 
 data NumberInputProperties n = NumberInputProperties
   { value              :: n

@@ -64,43 +64,40 @@ renderClipAsset
   -> asset
   -> Duration
   -> Widget (Event TimelineMode)
-renderClipAsset zl thisFocus focused asset' duration' =
-  container
-      Box
-      [ classes ["clip", focusedClass focused]
-      , #orientation := OrientationHorizontal
-      , #tooltipText := toS (asset' ^. assetMetadata . path . unOriginalPath)
+renderClipAsset zl thisFocus focused asset' duration' = container
+  Box
+  [ classes ["clip", focusedClass focused]
+  , #orientation := OrientationHorizontal
+  , #tooltipText := toS (asset' ^. assetMetadata . path . unOriginalPath)
+  ]
+  [ boxChild False False 0 $ widget
+      Button
+      [ on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+      , #widthRequest := widthFromDuration zl duration'
+      , #hasFocus := (focused == Focused)
       ]
-    $ boxChild False False 0
-    $ widget
-        Button
-        [ on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-        , #widthRequest := widthFromDuration zl duration'
-        , #hasFocus := (focused == Focused)
-        ]
+  ]
 
 renderGap
   :: ZoomLevel
   -> (Focus SequenceFocusType, Focused)
   -> Duration
   -> Widget (Event TimelineMode)
-renderGap zl (thisFocus, focused) duration' =
-  container
-      Box
-      [ classes ["gap", focusedClass focused]
-      , #orientation := OrientationHorizontal
-      ]
-    $ boxChild
-        False
-        False
-        0
-        (widget
-          Button
-          [ on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
-          , #widthRequest := widthFromDuration zl duration'
-          , #hasFocus := (focused == Focused)
-          ]
-        )
+renderGap zl (thisFocus, focused) duration' = container
+  Box
+  [classes ["gap", focusedClass focused], #orientation := OrientationHorizontal]
+  [ boxChild
+      False
+      False
+      0
+      (widget
+        Button
+        [ on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+        , #widthRequest := widthFromDuration zl duration'
+        , #hasFocus := (focused == Focused)
+        ]
+      )
+  ]
 
 renderVideoPart
   :: ZoomLevel
@@ -127,7 +124,7 @@ renderTimeline
 renderTimeline zl (Timeline sub) = container
   Box
   [classes ["composition", "timeline", emptyClass (null sub)]]
-  (mapM_ (boxChild False False 0 . renderSequence zl) (toList sub))
+  (map (boxChild False False 0 . renderSequence zl) (toList sub))
 
 renderSequence
   :: ZoomLevel
@@ -138,32 +135,31 @@ renderSequence zl (Sequence (_thisFocus, focused) sub) = container
   [ classes
       ["composition", "sequence", focusedClass focused, emptyClass (null sub)]
   ]
-  (mapM_ (boxChild False False 0 . renderParallel zl) (toList sub))
+  (map (boxChild False False 0 . renderParallel zl) (toList sub))
 
 renderParallel
   :: ZoomLevel
   -> Parallel (Focus SequenceFocusType, Focused)
   -> Widget (Event TimelineMode)
-renderParallel zl (Parallel (_thisFocus, focused) vs as) =
-  container
-      Box
-      [ #orientation := OrientationVertical
-      , classes
-        [ "composition"
-        , "parallel"
-        , focusedClass focused
-        , emptyClass (null vs && null as)
-        ]
-      ]
-    $ do
-        boxChild False False 0 $ container
-          Box
-          [classes ["video", focusedClass focused]]
-          (mapM_ (boxChild False False 0 . renderVideoPart zl) vs)
-        boxChild False False 0 $ container
-          Box
-          [classes ["audio", focusedClass focused]]
-          (mapM_ (boxChild False False 0 . renderAudioPart zl) as)
+renderParallel zl (Parallel (_thisFocus, focused) vs as) = container
+  Box
+  [ #orientation := OrientationVertical
+  , classes
+    [ "composition"
+    , "parallel"
+    , focusedClass focused
+    , emptyClass (null vs && null as)
+    ]
+  ]
+  [ boxChild False False 0 $ container
+    Box
+    [classes ["video", focusedClass focused]]
+    (map (boxChild False False 0 . renderVideoPart zl) vs)
+  , boxChild False False 0 $ container
+    Box
+    [classes ["audio", focusedClass focused]]
+    (map (boxChild False False 0 . renderAudioPart zl) as)
+  ]
 
 emptyClass :: Bool -> Text
 emptyClass True  = "empty"
@@ -171,62 +167,78 @@ emptyClass False = "non-empty"
 
 renderPreviewPane
   :: Maybe (FirstCompositionPart a) -> Widget (Event TimelineMode)
-renderPreviewPane part = container Box [classes ["preview-pane"]] $ do
-  boxChild True True 0 $ case part of
-    Just (FirstVideoPart (VideoClip _ _videoAsset _ _ thumbnail)) ->
-      thumbnailPreview thumbnail
-    Just (FirstAudioPart AudioClip{}) -> noPreviewAvailable
-    Just (FirstVideoPart VideoGap{} ) -> widget Label [#label := "Video gap."]
-    Just (FirstAudioPart AudioGap{} ) -> widget Label [#label := "Audio gap."]
-    Nothing                           -> noPreviewAvailable
+renderPreviewPane part = container
+  Box
+  [classes ["preview-pane"]]
+  [ boxChild True True 0 $ case part of
+      Just (FirstVideoPart (VideoClip _ _videoAsset _ _ thumbnail)) ->
+        thumbnailPreview thumbnail
+      Just (FirstAudioPart AudioClip{}) -> noPreviewAvailable
+      Just (FirstVideoPart VideoGap{} ) -> widget Label [#label := "Video gap."]
+      Just (FirstAudioPart AudioGap{} ) -> widget Label [#label := "Audio gap."]
+      Nothing                           -> noPreviewAvailable
+  ]
   where
     -- thumbnailImage thumbnailFile =
     --    widget Image [#file := thumbnailFile]
         noPreviewAvailable = widget Label [#label := "No preview available."]
 
 renderMenu :: Widget (Event TimelineMode)
-renderMenu = container MenuBar [] $ do
-  subMenu "Project" $ do
-    labelledItem SaveProject
-    labelledItem CloseProject
-    labelledItem Import
-    labelledItem Render
-    labelledItem Exit
-  subMenu "Timeline" $ do
-    labelledItem Copy
-    subMenu "Paste" $ do
-      labelledItem (Paste PasteRightOf)
-      labelledItem (Paste PasteLeftOf)
-    insertSubMenu Video
-    insertSubMenu Audio
-    labelledItem Split
-    labelledItem Delete
-  subMenu "Help" $ labelledItem Help
+renderMenu = container
+  MenuBar
+  []
+  [ subMenu
+    "Project"
+    [ labelledItem SaveProject
+    , labelledItem CloseProject
+    , labelledItem Import
+    , labelledItem Render
+    , labelledItem Exit
+    ]
+  , subMenu
+    "Timeline"
+    [ labelledItem Copy
+    , subMenu
+      "Paste"
+      [labelledItem (Paste PasteRightOf), labelledItem (Paste PasteLeftOf)]
+    , insertSubMenu Video
+    , insertSubMenu Audio
+    , labelledItem Split
+    , labelledItem Delete
+    ]
+  , subMenu "Help" [labelledItem Help]
+  ]
   where
     labelledItem cmd =
       menuItem MenuItem [on #activate (CommandKeyMappedEvent cmd)]
         $ widget Label [#label := commandName cmd, #halign := AlignStart]
-    insertSubMenu mediaType' = subMenu ("Insert " <> show mediaType') $ do
-      subMenu "Clip" $ forM_
-        (enumFrom minBound)
-        (labelledItem . InsertCommand (InsertClip (Just mediaType')))
-      subMenu " Gap" $ forM_
-        (enumFrom minBound)
-        (labelledItem . InsertCommand (InsertGap (Just mediaType')))
+    insertSubMenu mediaType' = subMenu
+      ("Insert " <> show mediaType')
+      [ subMenu
+        "Clip"
+        (   enumFrom minBound
+        <&> (labelledItem . InsertCommand (InsertClip (Just mediaType')))
+        )
+      , subMenu " Gap"
+        (   enumFrom minBound
+        <&> (labelledItem . InsertCommand (InsertGap (Just mediaType')))
+        )
+      ]
 
 renderBottomBar :: TimelineModel -> Widget (Event TimelineMode)
-renderBottomBar model =
-  container Box [#orientation := OrientationHorizontal, classes ["bottom-bar"]]
-    $ do
-        boxChild True True 0 $ widget
-          Label
-          [ classes ["status-message"]
-          , #label := fromMaybe "" (model ^. statusMessage)
-          , #ellipsize := EllipsizeModeEnd
-          , #halign := AlignStart
-          ]
-        boxChild False False 0 $ toZoomEvent <$> rangeSlider
-          (RangeSliderProperties (1, 9) ["zoom-level"])
+renderBottomBar model = container
+  Box
+  [#orientation := OrientationHorizontal, classes ["bottom-bar"]]
+  [ boxChild True True 0 $ widget
+    Label
+    [ classes ["status-message"]
+    , #label := fromMaybe "" (model ^. statusMessage)
+    , #ellipsize := EllipsizeModeEnd
+    , #halign := AlignStart
+    ]
+  , boxChild False False 0 $ toZoomEvent <$> rangeSlider
+    (RangeSliderProperties (1, 9) ["zoom-level"])
+  ]
   where toZoomEvent (RangeSliderChanged d) = ZoomLevelChanged (ZoomLevel d)
 
 timelineView :: TimelineModel -> Bin Window Widget (Event TimelineMode)
@@ -236,10 +248,11 @@ timelineView model =
       [ #title := (currentProject model ^. projectName)
       , on #deleteEvent (const (True, WindowClosed))
       ]
-    $ container Box [#orientation := OrientationVertical]
-    $ do
-        boxChild False False 0 renderMenu
-        boxChild
+    $ container
+        Box
+        [#orientation := OrientationVertical]
+        [ boxChild False False 0 renderMenu
+        , boxChild
           True
           True
           0
@@ -248,14 +261,15 @@ timelineView model =
                                   (currentProject model ^. timeline)
             )
           )
-        boxChild False False 0 $ bin
+        , boxChild False False 0 $ bin
           ScrolledWindow
           [ #hscrollbarPolicy := PolicyTypeAutomatic
           , #vscrollbarPolicy := PolicyTypeNever
           , classes ["timeline-container"]
           ]
           (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
-        boxChild False False 0 (renderBottomBar model)
+        , boxChild False False 0 (renderBottomBar model)
+        ]
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
     focusedTimelineWithSetFoci = withAllFoci (currentProject model ^. timeline)

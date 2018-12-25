@@ -44,95 +44,111 @@ printTimestamp d =
     toS (printf "%02d:%02d:%s" hours minutes secondsStr :: Prelude.String)
 
 renderVideoAsset ::
-     VideoAsset -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
+     VideoAsset -> Bin ListBoxRow Widget (Event LibraryMode)
 renderVideoAsset asset' =
-  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $
-  case asset' ^. videoClassifiedScene of
-    Just (n, timeSpan) ->
-      container Box [classes ["video", "classified-scene"]] $ do
-        let lbl :: Prelude.String
-            lbl =
-              printf
-                "%s (%d)"
-                (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
-                n
-        boxChild True False 0 $ widget Label [#label := toS lbl]
-        boxChild False False 10 $
-          widget Label [#label := printTimestamp (durationOf OriginalDuration timeSpan)]
-        boxChild False False 10 $
-          widget Label [#label := printTimestamp (durationOf AdjustedDuration timeSpan)]
-    Nothing ->
-      container Box [classes ["video"]] $ do
-        boxChild True False 0 $
-          widget
+  bin ListBoxRow [on #activate LibrarySelectionConfirmed]
+    $ case asset' ^. videoClassifiedScene of
+        Just (n, timeSpan) -> container
+          Box
+          [classes ["video", "classified-scene"]]
+          [ let lbl :: Prelude.String
+                lbl = printf
+                  "%s (%d)"
+                  (takeFileName
+                    (asset' ^. assetMetadata . path . unOriginalPath)
+                  )
+                  n
+            in  boxChild True False 0 $ widget Label [#label := toS lbl]
+          , boxChild False False 10
+            $ widget
+                Label
+                [ #label := printTimestamp
+                    (durationOf OriginalDuration timeSpan)
+                ]
+          , boxChild False False 10
+            $ widget
+                Label
+                [ #label := printTimestamp
+                    (durationOf AdjustedDuration timeSpan)
+                ]
+          ]
+        Nothing -> container
+          Box
+          [classes ["video"]]
+          [ boxChild True False 0 $ widget
             Label
-            [ #label :=
-              toS
+            [ #label := toS
                 (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
             ]
-        boxChild False False 10 $
-          widget
-            Label
-            [#label := printTimestamp (asset' ^. assetMetadata . duration)]
+          , boxChild False False 10
+            $ widget
+                Label
+                [#label := printTimestamp (asset' ^. assetMetadata . duration)]
+          ]
 
 renderAudioAsset ::
-     AudioAsset -> MarkupOf (Bin ListBoxRow Widget) (Event LibraryMode) ()
+     AudioAsset -> Bin ListBoxRow Widget (Event LibraryMode)
 renderAudioAsset asset' =
-  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $
-  container Box [classes ["audio"]] $ do
-    boxChild True False 0 $
-      widget
-        Label
-        [ #label :=
-          toS (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
-        ]
-    boxChild False False 10 $
-      widget
-        Label
-        [#label := printTimestamp (asset' ^. assetMetadata . duration)]
+  bin ListBoxRow [on #activate LibrarySelectionConfirmed] $ container
+    Box
+    [classes ["audio"]]
+    [ boxChild True False 0 $ widget
+      Label
+      [ #label := toS
+          (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
+      ]
+    , boxChild False False 10
+      $ widget
+          Label
+          [#label := printTimestamp (asset' ^. assetMetadata . duration)]
+    ]
 
 libraryView ::  SelectAssetsModel mt -> Bin Window Widget (Event LibraryMode)
 libraryView SelectAssetsModel {..} =
   bin
-    Window
-    [ #title := "Library"
-    , on #deleteEvent (const (True, WindowClosed))
-    , #defaultWidth := 300
-    , #defaultHeight := 400
-    , classes ["library"]
-    ] $
-  container Box [#orientation := OrientationVertical] $ do
-    boxChild True True 0 $
-      bin
-        ScrolledWindow
-        [ #hscrollbarPolicy := PolicyTypeNever
-        , #vscrollbarPolicy := PolicyTypeAutomatic
-        ]
-        assetSelectList
-    boxChild False False 10 $ container Box [] $ do
-      boxChild True True 10 $
-        widget
-          Button
-          [#label := "Cancel", on #clicked (CommandKeyMappedEvent Cancel)]
-      boxChild True True 10 $
-        widget
-          Button
-          [ #label := "Select"
-          , #sensitive := not (null selectedAssets)
-          , on #clicked LibrarySelectionConfirmed
+      Window
+      [ #title := "Library"
+      , on #deleteEvent (const (True, WindowClosed))
+      , #defaultWidth := 300
+      , #defaultHeight := 400
+      , classes ["library"]
+      ]
+    $ container
+        Box
+        [#orientation := OrientationVertical]
+        [ boxChild True True 0 $ bin
+          ScrolledWindow
+          [ #hscrollbarPolicy := PolicyTypeNever
+          , #vscrollbarPolicy := PolicyTypeAutomatic
           ]
+          assetSelectList
+        , boxChild False False 10 $ container
+          Box
+          []
+          [ boxChild True True 10
+            $ widget
+                Button
+                [#label := "Cancel", on #clicked (CommandKeyMappedEvent Cancel)]
+          , boxChild True True 10 $ widget
+            Button
+            [ #label := "Select"
+            , #sensitive := not (null selectedAssets)
+            , on #clicked LibrarySelectionConfirmed
+            ]
+          ]
+        ]
   where
     assetSelectList =
       container
-        ListBox
-        [ #selectionMode := SelectionModeMultiple
-        , onM #selectedRowsChanged emitAssetsSelected
-        , on #activateCursorRow LibrarySelectionConfirmed
-        , classes ["clips"]
-        ] $
-      case mediaType of
-        SVideo -> for_ allAssets renderVideoAsset
-        SAudio -> for_ allAssets renderAudioAsset
+          ListBox
+          [ #selectionMode := SelectionModeMultiple
+          , onM #selectedRowsChanged emitAssetsSelected
+          , on #activateCursorRow LibrarySelectionConfirmed
+          , classes ["clips"]
+          ]
+        $ case mediaType of
+            SVideo -> toList $ renderVideoAsset <$> allAssets
+            SAudio -> toList $ renderAudioAsset <$> allAssets
     emitAssetsSelected listBox = do
       is <- map fromIntegral <$> (#getSelectedRows listBox >>= mapM #getIndex)
       let selected = (allAssets ^.. traversed . indices (`elem` is))

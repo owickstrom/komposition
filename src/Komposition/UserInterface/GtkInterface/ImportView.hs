@@ -41,25 +41,27 @@ importView ImportFileModel {..} =
     , on #deleteEvent (const (True, WindowClosed))
     , #defaultWidth := 300
     ] $
-  container Box [classes ["import-view"], #orientation := OrientationVertical] $ do
-    boxChild False False 10 $
-      widget
-        FileChooserButton
-        [ onM
-            #selectionChanged
-            (fmap ImportFileSelected . fileChooserGetFilename)
-        ]
-    mediaTypeSpecificSettings
-    boxChild False False 10 $
-      widget Button [#label := "Import", on #clicked ImportClicked]
+  container Box [classes ["import-view"], #orientation := OrientationVertical] $
+    mconcat
+    [
+      [boxChild False False 10 $
+        widget
+          FileChooserButton
+          [ onM
+              #selectionChanged
+              (fmap ImportFileSelected . fileChooserGetFilename)
+          ]]
+    , mediaTypeSpecificSettings
+    , [boxChild False False 10 $
+        widget Button [#label := "Import", on #clicked ImportClicked]]
+    ]
   where
+    mediaTypeSpecificSettings :: [BoxChild (Event ImportMode)]
     mediaTypeSpecificSettings =
       case selectedFileMediaType of
-        Just Video -> do
-          classifyCheckBox
-          videoSpeedControl
-        Just Audio -> classifyCheckBox
-        Nothing    -> pass
+        Just Video -> classifyCheckBox : videoSpeedControl
+        Just Audio -> [classifyCheckBox]
+        Nothing    -> []
     classifyCheckBox =
       boxChild False False 10 $
         widget
@@ -69,10 +71,10 @@ importView ImportFileModel {..} =
           , #sensitive := classifyAvailable
           , onM #toggled (fmap ImportClassifySet . toggleButtonGetActive)
           ]
-    videoSpeedControl = do
-      boxChild False False 5 $
+    videoSpeedControl =
+      [ boxChild False False 5 $
         widget Label [#label := "Video Speed", #halign := AlignStart]
-      boxChild False False 5 $
+      , boxChild False False 5 $
         toDefaultVideoSpeedChanged <$>
         numberInput NumberInputProperties{ value = setDefaultVideoSpeed ^. unVideoSpeed
                                          , range = (0.1, 10.0)
@@ -80,5 +82,6 @@ importView ImportFileModel {..} =
                                          , digits = 1
                                          , numberInputClasses = []
                                          }
+      ]
       where
         toDefaultVideoSpeedChanged (NumberInputChanged v) = ImportDefaultVideoSpeedChanged (VideoSpeed v)

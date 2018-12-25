@@ -23,14 +23,16 @@ instance DialogView GtkWindowMarkup where
       bin Window [ #title := dialogTitle props
                  , on #deleteEvent (const (True, DialogClosed))
                  ] $
-        container Box [ #orientation := OrientationVertical, classes ["dialog"] ] $ do
+        container Box [ #orientation := OrientationVertical, classes ["dialog"] ]
+        [
           boxChild False False 0 $
             widget Label [#label := dialogMessage props]
-          boxChild False False 0 $
+        , boxChild False False 0 $
             container Box [classes ["choices"], #halign := AlignEnd] $
-              forM_ (dialogChoices props) $ \c ->
+              dialogChoices props <&> \c ->
                 boxChild False False 0 $
                   widget Button [ #label := toButtonLabel c
                                 , classes ["choice"]
                                 , on #clicked (DialogChoiceSelected c)
                                 ]
+        ]

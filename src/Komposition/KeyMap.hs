@@ -9,7 +9,7 @@
 
 module Komposition.KeyMap where
 
-import           Komposition.Prelude     hiding (toList)
+import           Komposition.Prelude hiding (toList)
 
 import           Data.HashMap.Strict (HashMap)
 import           Data.HashSet        (HashSet)
