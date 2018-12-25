@@ -15,7 +15,7 @@ extra-deps:
  - row-types-0.2.3.0
  - process-1.6.4.0
  - git: https://github.com/owickstrom/gi-gtk-declarative.git
-   commit: 14111b23540bc33545585b94503ecdf88071c852
+   commit: be597bdf33be64f3ced0836d807845479f156d33
    subdirs:
      - gi-gtk-declarative
  - git: https://github.com/reinerp/indexed-extras.git

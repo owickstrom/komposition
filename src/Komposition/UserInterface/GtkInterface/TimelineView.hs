@@ -179,9 +179,11 @@ renderPreviewPane part = container
       Nothing                           -> noPreviewAvailable
   ]
   where
-    -- thumbnailImage thumbnailFile =
-    --    widget Image [#file := thumbnailFile]
-        noPreviewAvailable = widget Label [#label := "No preview available."]
+    noPreviewAvailable = widget Label [#label := "No preview available."]
+
+renderSidebar
+  :: Maybe (SomeComposition a) -> Widget (Event TimelineMode)
+renderSidebar _ = widget Label [#label := "Sidebar!"]
 
 renderMenu :: Widget (Event TimelineMode)
 renderMenu = container
@@ -256,9 +258,25 @@ timelineView model =
           True
           True
           0
-          (renderPreviewPane
-            (firstCompositionPart (model ^. currentFocus)
-                                  (currentProject model ^. timeline)
+          (paned
+            [#wideHandle := True]
+            (pane
+              (Resize True)
+              (Shrink True)
+              (renderPreviewPane
+                (firstCompositionPart (model ^. currentFocus)
+                                      (currentProject model ^. timeline)
+                )
+              )
+            )
+            (pane
+              (Resize True)
+              (Shrink True)
+              (renderSidebar
+                (atFocus (model ^. currentFocus)
+                         (currentProject model ^. timeline)
+                )
+              )
             )
           )
         , boxChild False False 0 $ bin
