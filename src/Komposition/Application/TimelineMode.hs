@@ -87,7 +87,9 @@ timelineMode gui model = do
               printUnexpectedFocusError err cmd
               continue
             Right newFocus ->
-              timelineMode gui (model & currentFocus .~ newFocus)
+              model
+                & currentFocus .~ newFocus
+                & timelineMode gui
       CommandKeyMappedEvent (JumpFocus newFocus) ->
         case atFocus newFocus (currentProject model ^. timeline) of
           Just _ -> timelineMode gui (model & currentFocus .~ newFocus)

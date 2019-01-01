@@ -94,6 +94,24 @@
   background-color: #ccc;
 }
 
+.sidebar {
+  background-color: #ddd;
+  padding: 1em;
+}
+.sidebar-heading {
+  font-weight: bold;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5pt;
+  margin-bottom: 5pt;
+}
+* + .sidebar-heading {
+  margin-top: 20pt;
+}
+.sidebar-entry *:first-child {
+  padding-right: 5pt;
+}
+
+
 .import-view {
   padding: 1em;
 }

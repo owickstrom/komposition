@@ -45,6 +45,7 @@ import           Komposition.UserInterface                               hiding 
 import           Komposition.UserInterface.GtkInterface.NumberInput      as NumberInput
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
+import           Komposition.VideoSpeed
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
 widthFromDuration (ZoomLevel zl) duration' =
@@ -212,6 +213,66 @@ renderSidebar (Just s) = case s of
     AudioGap{}  -> widget Label [#label := "Audio Gap"]
 renderSidebar Nothing                = widget Label [#label := "Nothing"]
 
+renderSidebar
+  :: Maybe (SomeComposition a) -> Widget (Event TimelineMode)
+renderSidebar mcomp =
+  container Box [ #orientation := OrientationVertical
+                , #widthRequest := 40
+                , classes ["sidebar"]]
+            inner
+  where
+    inner = case mcomp of
+      Just (SomeSequence s) -> do
+        heading "Sequence"
+        entry "Duration" (formatDuration (durationOf AdjustedDuration s))
+      Just (SomeParallel p) -> do
+        heading "Parallel"
+        entry "Duration" (formatDuration (durationOf AdjustedDuration p))
+      Just (SomeVideoPart (VideoClip _ asset ts speed _)) -> do
+        heading "Video Clip"
+        entry "Duration" (formatDuration (durationOf AdjustedDuration ts))
+        entry "Speed" (formatSpeed speed)
+        heading "Video Asset"
+        entry "Original" (toS (asset ^. videoAssetMetadata . path . unOriginalPath))
+        entry "Duration" (formatDuration (asset ^. videoAssetMetadata . duration))
+      Just (SomeVideoPart (VideoGap _ d)) -> do
+        heading "Video Gap"
+        entry "Duration" (formatDuration d)
+      Just (SomeAudioPart (AudioClip _ asset)) -> do
+        heading "Audio Clip"
+        entry "Duration" (formatDuration (asset ^. audioAssetMetadata . duration))
+        heading "Audio Asset"
+        entry "Original" (show (asset ^. audioAssetMetadata . path . unOriginalPath))
+      Just (SomeAudioPart (AudioGap _ d)) -> do
+        heading "Audio Gap"
+        entry "Duration" (formatDuration d)
+      Nothing ->
+        boxChild False False 0 $
+          widget Label [#label := "Nothing focused."]
+    heading :: Text -> MarkupOf BoxChild (Event TimelineMode) ()
+    heading t =
+      boxChild False False 0 $
+        widget Label [#label := t, classes ["sidebar-heading"]]
+    entry :: Text -> Text -> MarkupOf BoxChild (Event TimelineMode) ()
+    entry name value =
+      boxChild False False 0 $
+        container Box [#orientation := OrientationHorizontal, classes ["sidebar-entry"]] $ do
+          boxChild True True 0 $
+            widget Label [#label := name, #halign := AlignStart]
+          boxChild False False 0 $
+            widget Label [#label := value, #ellipsize := EllipsizeModeEnd]
+    formatDuration :: Duration -> Text
+    formatDuration = show . durationToSeconds
+
+renderMainArea
+  :: Focus SequenceFocusType -> Timeline () -> Widget (Event TimelineMode)
+renderMainArea currentFocus' timeline' =
+  container Box [#orientation := OrientationHorizontal] $ do
+    boxChild True True 0 $
+      renderPreviewPane (firstCompositionPart currentFocus' timeline')
+    boxChild False False 0 $
+      renderSidebar (atFocus currentFocus' timeline')
+
 renderMenu :: Widget (Event TimelineMode)
 renderMenu = container
   MenuBar
@@ -277,36 +338,11 @@ timelineView model =
       [ #title := (currentProject model ^. projectName)
       , on #deleteEvent (const (True, WindowClosed))
       ]
-    $ container
-        Box
-        [#orientation := OrientationVertical]
-        [ boxChild False False 0 renderMenu
-        , boxChild
-          True
-          True
-          0
-          (paned
-            [#wideHandle := True]
-            (pane
-              (Resize True)
-              (Shrink True)
-              (renderPreviewPane
-                (firstCompositionPart (model ^. currentFocus)
-                                      (currentProject model ^. timeline)
-                )
-              )
-            )
-            (pane
-              (Resize True)
-              (Shrink True)
-              (renderSidebar
-                (atFocus (model ^. currentFocus)
-                         (currentProject model ^. timeline)
-                )
-              )
-            )
-          )
-        , boxChild False False 0 $ bin
+    $ container Box [#orientation := OrientationVertical]
+    $ do
+        boxChild False False 0 renderMenu
+        boxChild True True 0 (renderMainArea (model ^. currentFocus) (currentProject model ^. timeline))
+        boxChild False False 0 $ bin
           ScrolledWindow
           [ #hscrollbarPolicy := PolicyTypeAutomatic
           , #vscrollbarPolicy := PolicyTypeNever
