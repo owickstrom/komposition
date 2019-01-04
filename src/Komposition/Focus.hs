@@ -1,15 +1,16 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE ExplicitForAll     #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE PolyKinds          #-}
-{-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies       #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 module Komposition.Focus where
 
 import           Komposition.Prelude
@@ -304,3 +305,60 @@ firstCompositionPart f s = atFocus f s >>= \case
       Parallel _ (v : _) _       -> Just (FirstVideoPart v)
       Parallel _ []      (a : _) -> Just (FirstAudioPart a)
       _                          -> Nothing
+
+-- * Lenses
+
+
+someCompositionAt
+  :: Applicative f
+  => Focus SequenceFocusType
+  -> (Sequence a -> f (Sequence a))
+  -> (Parallel a -> f (Parallel a))
+  -> (VideoPart a -> f (VideoPart a))
+  -> (AudioPart a -> f (AudioPart a))
+  -> Timeline a
+  -> f (Timeline a)
+someCompositionAt focus sl pl vl al = mapAtFocus
+  focus
+  FocusedTraversal
+    { mapSequence        = sl
+    , mapParallel        = pl
+    , mapCompositionPart = \case
+                             SVideo -> vl
+                             SAudio -> al
+    }
+
+class CompositionTraversal comp ft where
+  focusing
+    :: forall a
+     . Focus ft
+    -> Traversal (comp a) (comp a) (SomeComposition a) (SomeComposition a)
+
+instance CompositionTraversal Timeline SequenceFocusType where
+  focusing focus f (Timeline tl) = case focus of
+    SequenceFocus idx Nothing -> tl & ix idx %%~ wrappedIn _Sequence f & fmap Timeline
+    SequenceFocus idx (Just subFocus) ->
+      tl & ix idx . focusing subFocus %%~ f & fmap Timeline
+
+instance CompositionTraversal Sequence ParallelFocusType where
+  focusing focus f (Sequence ann ps) = case focus of
+    ParallelFocus idx Nothing -> ps & ix idx %%~ go & fmap (Sequence ann)
+      where
+        go s = fromMaybe s . preview _Parallel <$> f (SomeParallel s)
+    ParallelFocus idx (Just subFocus) ->
+      ps & ix idx . focusing subFocus %%~ f & fmap (Sequence ann)
+
+instance CompositionTraversal Parallel ClipFocusType where
+  focusing (ClipFocus clipType idx) f (Parallel ann videoParts audioParts) =
+    case clipType of
+      Video ->
+        videoParts
+        & ix idx %%~ wrappedIn _VideoPart f
+        & fmap (\vs -> Parallel ann vs audioParts)
+      Audio ->
+        audioParts
+        & ix idx %%~ wrappedIn _AudioPart f
+        & fmap (Parallel ann videoParts)
+
+wrappedIn :: Prism' s a -> Lens' a s
+wrappedIn p f x = fromMaybe x . preview p <$> f (x ^. re p)

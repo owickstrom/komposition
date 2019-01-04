@@ -13,6 +13,8 @@ module Komposition.Composition where
 
 import           Komposition.Prelude
 
+import           Control.Lens
+
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
@@ -79,3 +81,25 @@ data SomeComposition a
   | SomeVideoPart (CompositionPart Video a)
   | SomeAudioPart (CompositionPart Audio a)
   deriving (Show, Eq)
+
+-- * Lenses and prisms
+
+_Sequence :: Prism (SomeComposition a) (SomeComposition a) (Sequence a) (Sequence a)
+_Sequence = prism' SomeSequence $ \case
+  SomeSequence s -> Just s
+  _ -> Nothing
+
+_Parallel :: Prism (SomeComposition a) (SomeComposition a) (Parallel a) (Parallel a)
+_Parallel = prism' SomeParallel $ \case
+  SomeParallel s -> Just s
+  _ -> Nothing
+
+_VideoPart :: Prism (SomeComposition a) (SomeComposition a) (VideoPart a) (VideoPart a)
+_VideoPart = prism' SomeVideoPart $ \case
+  SomeVideoPart s -> Just s
+  _ -> Nothing
+
+_AudioPart :: Prism (SomeComposition a) (SomeComposition a) (AudioPart a) (AudioPart a)
+_AudioPart = prism' SomeAudioPart $ \case
+  SomeAudioPart s -> Just s
+  _ -> Nothing

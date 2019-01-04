@@ -176,6 +176,16 @@ timelineMode gui model = do
           Nothing         -> continue
       CommandKeyMappedEvent Exit -> ireturn (TimelineExit model)
       ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
+      FocusedClipStartSet start ->
+        model
+        & existingProject . projectHistory
+        %~ edit (timeline . focusing (model ^. currentFocus) . _VideoPart
+                 %~ setVideoStart)
+        &  timelineMode gui
+        where
+          setVideoStart = \case
+            VideoClip ann asset ts speed path' -> VideoClip ann asset ts { spanStart = start } speed path'
+            vg@VideoGap{} -> vg
       WindowClosed               -> ireturn (TimelineExit model)
 
     printUnexpectedFocusError err cmd = case err of

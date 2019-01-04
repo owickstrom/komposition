@@ -27,6 +27,7 @@ import           Komposition.Composition
 import qualified Komposition.Composition.Paste  as Paste
 
 import qualified Komposition.Composition.Insert as Insert
+import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.History
 import           Komposition.KeyMap
@@ -134,17 +135,24 @@ commandName = \case
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
+  -- Welcome Screen
   CreateNewProjectClicked :: Event WelcomeScreenMode
   OpenExistingProjectClicked :: Event WelcomeScreenMode
+  -- New Project
   ProjectNameChanged :: Text -> Event NewProjectMode
   FrameRateChanged :: FrameRate -> Event NewProjectMode
   ResolutionChanged :: Resolution -> Event NewProjectMode
   CreateClicked :: Event NewProjectMode
+  -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
+  FocusedClipStartSet :: Duration -> Event TimelineMode
+  FocusedClipEndSet :: Duration -> Event TimelineMode
+  -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportClassifySet :: Bool -> Event ImportMode
   ImportDefaultVideoSpeedChanged :: VideoSpeed -> Event ImportMode
   ImportClicked :: Event ImportMode
+  -- Library
   LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
   LibrarySelectionConfirmed :: Event LibraryMode
   WindowClosed :: Event mode

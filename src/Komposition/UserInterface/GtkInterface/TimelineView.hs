@@ -42,6 +42,7 @@ import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.UserInterface                               hiding (Window,
                                                                           timelineView)
+import           Komposition.UserInterface.GtkInterface.NumberInput      as NumberInput
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
 
@@ -181,9 +182,35 @@ renderPreviewPane part = container
   where
     noPreviewAvailable = widget Label [#label := "No preview available."]
 
+durationEntry :: Duration -> Widget Duration
+durationEntry d = toDuration <$> numberInput NumberInputProperties
+  { value              = durationToSeconds d
+  , NumberInput.range              = (0, 1000000)
+  , step               = 0.1
+  , digits             = 2
+  , numberInputClasses = []
+  }
+  where
+    toDuration (NumberInputChanged n) = durationFromSeconds n
+
 renderSidebar
   :: Maybe (SomeComposition a) -> Widget (Event TimelineMode)
-renderSidebar _ = widget Label [#label := "Sidebar!"]
+renderSidebar (Just s) = case s of
+  SomeSequence{}   -> widget Label [#label := "Sequence"]
+  SomeParallel{}   -> widget Label [#label := "Parallel"]
+  SomeVideoPart vp -> case vp of
+    VideoClip _ _asset ts _speed _ ->
+      container Box [#orientation := OrientationVertical]
+      [ boxChild False False 5 $ widget Label [#label := "Start"]
+      , boxChild False False 5 $ FocusedClipStartSet <$> durationEntry (spanStart ts)
+      , boxChild False False 5 $ widget Label [#label := "End"]
+      , boxChild False False 5 $ FocusedClipEndSet <$> durationEntry (spanEnd ts)
+      ]
+    VideoGap{}  -> widget Label [#label := "Video Gap"]
+  SomeAudioPart ap' -> case ap' of
+    AudioClip{} -> widget Label [#label := "Audio Clip"]
+    AudioGap{}  -> widget Label [#label := "Audio Gap"]
+renderSidebar Nothing                = widget Label [#label := "Nothing"]
 
 renderMenu :: Widget (Event TimelineMode)
 renderMenu = container

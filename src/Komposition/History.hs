@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Komposition.History (History, initialise, current, edit, undo, redo) where
+module Komposition.History (History, initialise, current, edit, edit', undo, redo) where
 
 import           Komposition.Prelude
 
@@ -17,7 +17,11 @@ initialise x = History [] x []
 
 -- | Edit the 'a', recording the previous version in the 'History'.
 edit :: (a -> a) -> History a -> History a
-edit f (History ps c _) = History (c:ps) (f c) []
+edit f = runIdentity . edit' (pure . f)
+
+-- | Edit the 'a', recording the previous version in the 'History', in `f`.
+edit' :: Functor f => (a -> f a) -> History a -> f (History a)
+edit' f (History ps c _) = f c <&> \c' -> History (c:ps) c' []
 
 -- | Undo the previous 'edit', recording the current version as a possible
 -- future in the 'History'. Returns @Nothing@ if there is nothing to undo.

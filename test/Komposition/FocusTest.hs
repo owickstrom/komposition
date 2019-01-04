@@ -6,6 +6,7 @@ module Komposition.FocusTest where
 import           Komposition.Prelude
 import qualified Prelude
 
+import           Control.Lens
 import           Test.Tasty.Hspec
 
 import           Komposition.Composition
@@ -14,24 +15,23 @@ import           Komposition.MediaType
 
 import           Komposition.TestLibrary
 
-spec_atFocus = do
-  it "returns focused sequence"
-    $          atFocus (SequenceFocus 0 Nothing) timelineTwoParallels
-    `shouldBe` Just (SomeSequence seqWithTwoParallels)
-  it "returns focused parallel"
-    $          atFocus (SequenceFocus 0 (Just (ParallelFocus 1 Nothing)))
-                       timelineTwoParallels
-    `shouldBe` Just (SomeParallel parallel2)
-  it "returns focused video clip"
-    $          atFocus
-                 (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Video 0)))))
-                 timelineTwoParallels
-    `shouldBe` Just (SomeVideoPart videoGap3s)
-  it "returns focused audio clip"
-    $          atFocus
-                 (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Audio 1)))))
-                 timelineTwoParallels
-    `shouldBe` Just (SomeAudioPart audio10s)
+spec_focus_traversal = do
+  it "returns focused sequence" $
+    timelineTwoParallels
+    ^? focusing (SequenceFocus 0 Nothing) . _Sequence
+    `shouldBe` Just seqWithTwoParallels
+  it "returns focused parallel" $
+    timelineTwoParallels
+    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 Nothing))) . _Parallel
+    `shouldBe` Just parallel2
+  it "returns focused video clip" $
+    timelineTwoParallels
+    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Video 0))))) . _VideoPart
+    `shouldBe` Just videoGap3s
+  it "returns focused audio clip" $
+    timelineTwoParallels
+    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Audio 1))))) . _AudioPart
+    `shouldBe` Just audio10s
 
 spec_modifyFocus = do
   it "moves the focus left within a sequence" $ do
