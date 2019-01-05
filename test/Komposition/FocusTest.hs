@@ -18,22 +18,22 @@ import           Komposition.TestLibrary
 spec_focus_traversal = do
   it "returns focused sequence" $
     timelineTwoParallels
-    ^? focusing (SequenceFocus 0 Nothing) . _Sequence
+    ^? focusing (SequenceFocus 0 Nothing)
     `shouldBe` Just seqWithTwoParallels
   it "returns focused parallel" $
     timelineTwoParallels
-    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 Nothing))) . _Parallel
+    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 Nothing)))
     `shouldBe` Just parallel2
   it "returns focused video clip" $
     timelineTwoParallels
-    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Video 0))))) . _VideoPart
+    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Video 0)))))
     `shouldBe` Just videoGap3s
   it "returns focused audio clip" $
     timelineTwoParallels
-    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Audio 1))))) . _AudioPart
+    ^? focusing (SequenceFocus 0 (Just (ParallelFocus 1 (Just (ClipFocus Audio 1)))))
     `shouldBe` Just audio10s
 
-spec_modifyFocus = do
+spec_modify_focus = do
   it "moves the focus left within a sequence" $ do
     let before' = ParallelFocus 1 Nothing
         after'  = ParallelFocus 0 Nothing
