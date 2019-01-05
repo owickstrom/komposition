@@ -14,6 +14,8 @@ import           Control.Lens
 import           Komposition.Prelude                                hiding
                                                                      (State, on)
 
+import           Data.Vector                                        (Vector)
+import qualified Data.Vector                                        as Vector
 import           GI.Gtk                                             (Align (..),
                                                                      Box (..),
                                                                      Button (..),
@@ -33,7 +35,7 @@ import           Komposition.UserInterface                          hiding
 import           Komposition.UserInterface.GtkInterface.NumberInput
 import           Komposition.VideoSpeed
 
-importView :: ImportFileModel -> Bin Window Widget (Event ImportMode)
+importView :: ImportFileModel -> Bin Window (Event ImportMode)
 importView ImportFileModel {..} =
   bin
     Window
@@ -44,7 +46,7 @@ importView ImportFileModel {..} =
   container Box [classes ["import-view"], #orientation := OrientationVertical] $
     mconcat
     [
-      [boxChild False False 10 $
+      [BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
         widget
           FileChooserButton
           [ onM
@@ -52,18 +54,18 @@ importView ImportFileModel {..} =
               (fmap ImportFileSelected . fileChooserGetFilename)
           ]]
     , mediaTypeSpecificSettings
-    , [boxChild False False 10 $
+    , [BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
         widget Button [#label := "Import", on #clicked ImportClicked]]
     ]
   where
-    mediaTypeSpecificSettings :: [BoxChild (Event ImportMode)]
+    mediaTypeSpecificSettings :: Vector (BoxChild (Event ImportMode))
     mediaTypeSpecificSettings =
       case selectedFileMediaType of
-        Just Video -> classifyCheckBox : videoSpeedControl
+        Just Video -> Vector.cons classifyCheckBox videoSpeedControl
         Just Audio -> [classifyCheckBox]
         Nothing    -> []
     classifyCheckBox =
-      boxChild False False 10 $
+      BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
         widget
           CheckButton
           [ #label := "Classify parts automatically"
@@ -72,9 +74,9 @@ importView ImportFileModel {..} =
           , onM #toggled (fmap ImportClassifySet . toggleButtonGetActive)
           ]
     videoSpeedControl =
-      [ boxChild False False 5 $
+      [ BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 5 } $
         widget Label [#label := "Video Speed", #halign := AlignStart]
-      , boxChild False False 5 $
+      , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 5 } $
         toDefaultVideoSpeedChanged <$>
         numberInput NumberInputProperties{ value = setDefaultVideoSpeed ^. unVideoSpeed
                                          , range = (0.1, 10.0)

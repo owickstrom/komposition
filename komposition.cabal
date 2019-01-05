@@ -98,7 +98,7 @@ library
                       , gi-glib
                       , gi-gst
                       , gi-gtk
-                      , gi-gtk-declarative
+                      , gi-gtk-declarative >= 0.4.1 && < 0.5
                       , gi-gdk
                       , gi-gdkpixbuf
                       , gi-pango

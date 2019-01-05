@@ -8,7 +8,6 @@ let
     rev = "e85c1f586807b5acd244df4c45a5130aa3f0734d";
   }) {};
 
-  giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
   fusedEffectsJson = builtins.fromJSON (builtins.readFile ./fused-effects.json);
 
   inherit (nixpkgs) pkgs;
@@ -31,14 +30,7 @@ let
       massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
       pipes-safe = self.callHackage "pipes-safe" "2.3.1" {};
       protolude = self.callHackage "protolude" "0.2.3" {};
-      gi-gtk-declarative =
-        let
-          src = nixpkgs.fetchFromGitHub {
-            owner = "owickstrom";
-            repo = "gi-gtk-declarative";
-            inherit (giGtkDeclarativeJson) rev sha256;
-          };
-        in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
+      gi-gtk-declarative = self.callHackage "gi-gtk-declarative" "0.4.1" {};
     };
   };
   toggleCheck = if doCheck then pkgs.haskell.lib.doCheck else pkgs.haskell.lib.dontCheck;

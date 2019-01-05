@@ -15,6 +15,7 @@ import qualified Prelude
 
 import           Control.Lens
 import           Data.Text                 (Text)
+import qualified Data.Vector               as Vector
 import           GI.Gtk                    (Box (..), Button (..), Label (..),
                                             ListBox (..), ListBoxRow (..),
                                             Orientation (..), PolicyType (..),
@@ -44,7 +45,7 @@ printTimestamp d =
     toS (printf "%02d:%02d:%s" hours minutes secondsStr :: Prelude.String)
 
 renderVideoAsset ::
-     VideoAsset -> Bin ListBoxRow Widget (Event LibraryMode)
+     VideoAsset -> Bin ListBoxRow (Event LibraryMode)
 renderVideoAsset asset' =
   bin ListBoxRow [on #activate LibrarySelectionConfirmed]
     $ case asset' ^. videoClassifiedScene of
@@ -58,14 +59,14 @@ renderVideoAsset asset' =
                     (asset' ^. assetMetadata . path . unOriginalPath)
                   )
                   n
-            in  boxChild True False 0 $ widget Label [#label := toS lbl]
-          , boxChild False False 10
+            in  BoxChild defaultBoxChildProperties { expand = True, fill = False, padding = 0 } $ widget Label [#label := toS lbl]
+          , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 }
             $ widget
                 Label
                 [ #label := printTimestamp
                     (durationOf OriginalDuration timeSpan)
                 ]
-          , boxChild False False 10
+          , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 }
             $ widget
                 Label
                 [ #label := printTimestamp
@@ -75,35 +76,42 @@ renderVideoAsset asset' =
         Nothing -> container
           Box
           [classes ["video"]]
-          [ boxChild True False 0 $ widget
+          [ BoxChild defaultBoxChildProperties { expand = True, fill = False, padding = 0 } $ widget
             Label
             [ #label := toS
                 (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
             ]
-          , boxChild False False 10
+          , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 }
             $ widget
                 Label
                 [#label := printTimestamp (asset' ^. assetMetadata . duration)]
           ]
 
 renderAudioAsset ::
-     AudioAsset -> Bin ListBoxRow Widget (Event LibraryMode)
+     AudioAsset -> Bin ListBoxRow (Event LibraryMode)
 renderAudioAsset asset' =
   bin ListBoxRow [on #activate LibrarySelectionConfirmed] $ container
     Box
     [classes ["audio"]]
-    [ boxChild True False 0 $ widget
-      Label
-      [ #label := toS
-          (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
-      ]
-    , boxChild False False 10
+    [ BoxChild defaultBoxChildProperties { expand  = True
+                                         , fill    = False
+                                         , padding = 0
+                                         }
+      $ widget
+          Label
+          [ #label := toS
+              (takeFileName (asset' ^. assetMetadata . path . unOriginalPath))
+          ]
+    , BoxChild defaultBoxChildProperties { expand  = False
+                                         , fill    = False
+                                         , padding = 10
+                                         }
       $ widget
           Label
           [#label := printTimestamp (asset' ^. assetMetadata . duration)]
     ]
 
-libraryView ::  SelectAssetsModel mt -> Bin Window Widget (Event LibraryMode)
+libraryView ::  SelectAssetsModel mt -> Bin Window (Event LibraryMode)
 libraryView SelectAssetsModel {..} =
   bin
       Window
@@ -116,26 +124,43 @@ libraryView SelectAssetsModel {..} =
     $ container
         Box
         [#orientation := OrientationVertical]
-        [ boxChild True True 0 $ bin
-          ScrolledWindow
-          [ #hscrollbarPolicy := PolicyTypeNever
-          , #vscrollbarPolicy := PolicyTypeAutomatic
-          ]
-          assetSelectList
-        , boxChild False False 10 $ container
-          Box
-          []
-          [ boxChild True True 10
-            $ widget
-                Button
-                [#label := "Cancel", on #clicked (CommandKeyMappedEvent Cancel)]
-          , boxChild True True 10 $ widget
-            Button
-            [ #label := "Select"
-            , #sensitive := not (null selectedAssets)
-            , on #clicked LibrarySelectionConfirmed
-            ]
-          ]
+        [ BoxChild defaultBoxChildProperties { expand  = True
+                                             , fill    = True
+                                             , padding = 0
+                                             }
+          $ bin
+              ScrolledWindow
+              [ #hscrollbarPolicy := PolicyTypeNever
+              , #vscrollbarPolicy := PolicyTypeAutomatic
+              ]
+              assetSelectList
+        , BoxChild defaultBoxChildProperties { expand  = False
+                                             , fill    = False
+                                             , padding = 10
+                                             }
+          $ container
+              Box
+              []
+              [ BoxChild defaultBoxChildProperties { expand  = True
+                                                   , fill    = True
+                                                   , padding = 10
+                                                   }
+                $ widget
+                    Button
+                    [ #label := "Cancel"
+                    , on #clicked (CommandKeyMappedEvent Cancel)
+                    ]
+              , BoxChild defaultBoxChildProperties { expand  = True
+                                                   , fill    = True
+                                                   , padding = 10
+                                                   }
+                $ widget
+                    Button
+                    [ #label := "Select"
+                    , #sensitive := not (null selectedAssets)
+                    , on #clicked LibrarySelectionConfirmed
+                    ]
+              ]
         ]
   where
     assetSelectList =
@@ -147,9 +172,9 @@ libraryView SelectAssetsModel {..} =
           , classes ["clips"]
           ]
         $ case mediaType of
-            SVideo -> toList $ renderVideoAsset <$> allAssets
-            SAudio -> toList $ renderAudioAsset <$> allAssets
+            SVideo -> Vector.fromList . toList $ renderVideoAsset <$> allAssets
+            SAudio -> Vector.fromList . toList $ renderAudioAsset <$> allAssets
     emitAssetsSelected listBox = do
       is <- map fromIntegral <$> (#getSelectedRows listBox >>= mapM #getIndex)
-      let selected = (allAssets ^.. traversed . indices (`elem` is))
+      let selected = allAssets ^.. traversed . indices (`elem` is)
       return (LibraryAssetsSelected mediaType selected)

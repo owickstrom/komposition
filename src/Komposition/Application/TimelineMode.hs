@@ -181,8 +181,7 @@ timelineMode gui model = do
       FocusedClipStartSet start ->
         model
         & existingProject . projectHistory
-        %~ edit (timeline . focusing (model ^. currentFocus) . _VideoPart
-                 %~ setVideoStart)
+        %~ edit (timeline . focusing (model ^. currentFocus) %~ setVideoStart)
         &  timelineMode gui
         where
           setVideoStart = \case

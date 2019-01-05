@@ -4,9 +4,3 @@ source-repository-package
     type:       git
     location:   https://github.com/reinerp/indexed-extras.git
     tag:        8b38e7503c030644154e844cd932003d9438cfa2
-
-source-repository-package
-    type:       git
-    location:   https://github.com/owickstrom/gi-gtk-declarative.git
-    tag:        be597bdf33be64f3ced0836d807845479f156d33
-    subdir:     gi-gtk-declarative

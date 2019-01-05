@@ -2,7 +2,6 @@
 {-# LANGUAGE ExplicitForAll    #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -20,7 +19,7 @@ import           GI.Gtk.Declarative
 
 import           Komposition.UserInterface (Event (..), Mode (..))
 
-welcomeScreenView :: Bin Window Widget (Event WelcomeScreenMode)
+welcomeScreenView :: Bin Window (Event WelcomeScreenMode)
 welcomeScreenView =
   bin Window
       [#title := "Komposition", on #deleteEvent (const (True, WindowClosed))]
@@ -31,22 +30,21 @@ welcomeScreenView =
         , #widthRequest := 400
         , #heightRequest := 300
         ]
-        [ boxChild False False 0
-          $ widget Label [classes ["title"], #label := "Komposition"]
-        , boxChild False False 0 $ widget
+        [widget Label [classes ["title"], #label := "Komposition"]
+        , widget
           Label
           [ classes ["subtitle"]
           , #label := "The video editor built for screencasters"
           ]
-        , boxChild False False 0 $ container
+        , container
           Box
           [#orientation := OrientationVertical, classes ["actions"]]
-          [ boxChild False False 0 $ widget
+          [ widget
             Button
             [ #label := "Create New Project"
             , on #clicked CreateNewProjectClicked
             ]
-          , boxChild False False 0 $ widget
+          , widget
             Button
             [ #label := "Open Existing Project"
             , on #clicked OpenExistingProjectClicked
