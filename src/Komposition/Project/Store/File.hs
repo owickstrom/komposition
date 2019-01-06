@@ -118,6 +118,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
       existingHistory <- ExceptT (liftIO (readProjectDataFile dataFilePath))
       return (ExistingProject projectPath' existingHistory))
     GetDefaultProjectsDirectory k -> k =<< liftIO getUserDocumentsDirectory
+    GetCacheDirectory k -> k =<< liftIO (getXdgDirectory XdgCache "komposition")
 
 runFileProjectStoreIO
   :: (MonadIO m, Carrier sig m) => Eff (FileProjectStoreIOC m) a -> m a

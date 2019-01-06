@@ -110,7 +110,7 @@ openTimelineWindowWithProject
   => ExistingProject
   -> t m Empty Empty ()
 openTimelineWindowWithProject project = do
-  let model = TimelineModel project initialFocus Nothing (ZoomLevel 1) Nothing
+  let model = TimelineModel project initialFocus Nothing (ZoomLevel 1) Nothing Nothing
   newWindow
     #timeline
     (timelineView model)

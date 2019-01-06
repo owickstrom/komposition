@@ -16,6 +16,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 module Komposition.Render.FFmpeg
   ( runFFmpegRender
+  , extractFrameToFile'
   )
 where
 
@@ -334,7 +335,6 @@ extractFrameToFile' ::
   -> IO FilePath
 extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
   let sourcePath = videoAssetSourcePath videoSource videoAsset
-      -- Not the best hash...
       frameHash =
         hash
           ( mode
@@ -356,6 +356,7 @@ extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
     extractFrame :: FilePath -> Duration -> FilePath -> IO ()
     extractFrame sourcePath startAfter frameFileName =
       unlessM (doesFileExist frameFileName) $ do
+        createDirectoryIfMissing True frameDir
         putStrLn
           ("Extracting frame at " <> printTimestamp startAfter <> " from " <>
            toS sourcePath <>

@@ -182,6 +182,11 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
         Left () -> return Nothing
         Right e -> return (Just e)
 
+  runInBackground name action =
+    FSM.get name >>>= \w ->
+      iliftIO . void . async $
+        action >>= traverse_ (writeChan (events (windowEvents w)))
+
   setTransientFor childName parentName =
     FSM.get childName >>>= \child' ->
       FSM.get parentName >>>= \parent -> irunUI $ do

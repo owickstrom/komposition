@@ -41,11 +41,13 @@ import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
+import           Komposition.Timestamp
 import           Komposition.UserInterface                               hiding (Window,
                                                                           timelineView)
 import           Komposition.UserInterface.GtkInterface.NumberInput      as NumberInput
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
+import           Komposition.VideoSettings
 import           Komposition.VideoSpeed
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
@@ -181,34 +183,47 @@ emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
 renderPreviewPane
-  :: Maybe (FirstCompositionPart a) -> Pane (Event TimelineMode)
-renderPreviewPane part = pane defaultPaneProperties $ container
+  :: Maybe FilePath -> Pane (Event TimelineMode)
+renderPreviewPane path' = pane defaultPaneProperties $ container
   Box
   [classes ["preview-pane"]]
-  [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 } $ case part of
-      Just (FirstVideoPart (VideoClip _ _videoAsset _ _ thumbnail)) ->
-        thumbnailPreview thumbnail
-      Just (FirstAudioPart AudioClip{}) -> noPreviewAvailable
-      Just (FirstVideoPart VideoGap{} ) -> widget Label [#label := "Video gap."]
-      Just (FirstAudioPart AudioGap{} ) -> widget Label [#label := "Audio gap."]
-      Nothing                           -> noPreviewAvailable
+  [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 } $ case path' of
+      Just p  -> thumbnailPreview p
+      Nothing -> noPreviewAvailable
   ]
   where noPreviewAvailable = widget Label [#label := "No preview available."]
 
-durationEntry :: Duration -> Widget Duration
-durationEntry d = toDuration <$> numberInput NumberInputProperties
-  { value              = durationToSeconds d
-  , NumberInput.range              = (0, 1000000)
-  , step               = 0.1
+durationEntry :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
+durationEntry vs range' current = toDuration <$> numberInput NumberInputProperties
+  { value              = durationToSeconds current
+  , NumberInput.range  = range' & both %~ durationToSeconds
+  , step               = 1 / fromIntegral (vs ^. frameRate)
   , digits             = 2
   , numberInputClasses = []
   }
-  where
-    toDuration (NumberInputChanged n) = durationFromSeconds n
+  where toDuration (NumberInputChanged n) = durationFromSeconds n
+
+clipSpanControl :: VideoSettings -> VideoAsset -> TimeSpan -> BoxChild (Event TimelineMode)
+clipSpanControl vs asset ts = container
+  Box
+  [#orientation := OrientationHorizontal]
+  [ BoxChild defaultBoxChildProperties { expand  = True
+                                       , fill    = True
+                                       , padding = 5
+                                       }
+  $   FocusedClipStartSet
+  <$> durationEntry vs (0, spanEnd ts) (spanStart ts)
+  , BoxChild defaultBoxChildProperties { expand  = True
+                                       , fill    = True
+                                       , padding = 5
+                                       }
+  $   FocusedClipEndSet
+  <$> durationEntry vs (spanStart ts, asset ^. assetMetadata . duration) (spanEnd ts)
+  ]
 
 renderSidebar
-  :: Maybe (SomeComposition a) -> Pane (Event TimelineMode)
-renderSidebar mcomp = pane defaultPaneProperties $ container
+  :: VideoSettings -> Maybe (SomeComposition a) -> Pane (Event TimelineMode)
+renderSidebar vs mcomp = pane defaultPaneProperties $ container
   Box
   [ #orientation := OrientationVertical
   , #widthRequest := 40
@@ -230,14 +245,7 @@ renderSidebar mcomp = pane defaultPaneProperties $ container
            , entry "Duration" (formatDuration (durationOf AdjustedDuration ts))
            , entry "Speed"    (formatSpeed speed)
            , heading "Start/End"
-           , container
-             Box
-             [#orientation := OrientationHorizontal]
-             [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 5 } $ FocusedClipStartSet <$> durationEntry
-               (spanStart ts)
-             , BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 5 } $ FocusedClipEndSet <$> durationEntry
-               (spanEnd ts)
-             ]
+           , clipSpanControl vs asset ts
            , heading "Video Asset"
            , entry "Original"
                    (toS (asset ^. videoAssetMetadata . path . unOriginalPath))
@@ -258,28 +266,51 @@ renderSidebar mcomp = pane defaultPaneProperties $ container
       Just (SomeAudioPart (AudioGap _ d)) ->
         [heading "Audio Gap", entry "Duration" (formatDuration d)]
       Nothing ->
-        [BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ widget Label [#label := "Nothing focused."]]
+        [ BoxChild defaultBoxChildProperties { expand  = False
+                                             , fill    = False
+                                             , padding = 0
+                                             }
+            $ widget Label [#label := "Nothing focused."]
+        ]
     heading :: Text -> BoxChild (Event TimelineMode)
-    heading t = BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 }
-      $ widget Label [#label := t, classes ["sidebar-heading"]]
+    heading t =
+      BoxChild defaultBoxChildProperties { expand  = False
+                                         , fill    = False
+                                         , padding = 0
+                                         }
+        $ widget Label [#label := t, classes ["sidebar-heading"]]
     entry :: Text -> Text -> BoxChild (Event TimelineMode)
-    entry name val = BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ container
-      Box
-      [#orientation := OrientationHorizontal, classes ["sidebar-entry"]]
-      [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 }
-        $ widget Label [#label := name, #halign := AlignStart]
-      , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 }
-        $ widget Label [#label := val, #ellipsize := EllipsizeModeEnd]
-      ]
-    formatDuration :: Duration -> Text
-    formatDuration = show . durationToSeconds
+    entry name val
+      = BoxChild defaultBoxChildProperties { expand  = False
+                                           , fill    = False
+                                           , padding = 0
+                                           }
+        $ container
+            Box
+            [#orientation := OrientationHorizontal, classes ["sidebar-entry"]]
+            [ BoxChild defaultBoxChildProperties { expand  = True
+                                                 , fill    = True
+                                                 , padding = 0
+                                                 }
+              $ widget Label [#label := name, #halign := AlignStart]
+            , BoxChild defaultBoxChildProperties { expand  = False
+                                                 , fill    = False
+                                                 , padding = 0
+                                                 }
+              $ widget Label [#label := val, #ellipsize := EllipsizeModeEnd]
+            ]
+    formatDuration = printTimestampWithPrecision (Just 2)
 
 renderMainArea
-  :: Focus SequenceFocusType -> Timeline () -> Widget (Event TimelineMode)
-renderMainArea currentFocus' timeline' =
+  :: TimelineModel -> Widget (Event TimelineMode)
+renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True]
-  (renderPreviewPane (firstCompositionPart currentFocus' timeline'))
-  (renderSidebar (atFocus currentFocus' timeline'))
+  (renderPreviewPane (model ^. previewImagePath))
+  (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline)))
+  where
+    project' = currentProject model
+    currentFocus' = model ^. currentFocus
+
 
 renderMenu :: Widget (Event TimelineMode)
 renderMenu = container
@@ -351,8 +382,7 @@ timelineView model =
         [#orientation := OrientationVertical]
         [ BoxChild defaultBoxChildProperties renderMenu
         , BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 }
-          (renderMainArea (model ^. currentFocus)
-                          (currentProject model ^. timeline)
+          (renderMainArea model
           )
         , bin
           ScrolledWindow

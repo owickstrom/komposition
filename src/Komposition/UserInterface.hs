@@ -19,6 +19,7 @@ import           Komposition.Prelude            hiding (State)
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
+import           Data.Vector                    (Vector)
 import           Motor.FSM                      hiding (Delete)
 import           Pipes
 import           Pipes.Safe                     (SafeT)
@@ -145,6 +146,7 @@ data Event mode where
   CreateClicked :: Event NewProjectMode
   -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
+  PreviewImageRefreshed :: Maybe FilePath -> Event TimelineMode
   FocusedClipStartSet :: Duration -> Event TimelineMode
   FocusedClipEndSet :: Duration -> Event TimelineMode
   -- Import
@@ -173,11 +175,12 @@ data FileChooserMode
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
-  { _existingProject :: ExistingProject
-  , _currentFocus    :: Focus SequenceFocusType
-  , _statusMessage   :: Maybe Text
-  , _zoomLevel       :: ZoomLevel
-  , _clipboard       :: Maybe (SomeComposition ())
+  { _existingProject  :: ExistingProject
+  , _currentFocus     :: Focus SequenceFocusType
+  , _statusMessage    :: Maybe Text
+  , _zoomLevel        :: ZoomLevel
+  , _clipboard        :: Maybe (SomeComposition ())
+  , _previewImagePath :: Maybe FilePath
   }
 
 makeLenses ''TimelineModel
@@ -275,6 +278,12 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     => Name n
     -> DiffTime
     -> m r r (Maybe e)
+
+  runInBackground
+    :: HasType n (Window m e) r
+    => Name n
+    -> IO (Vector e)
+    -> m r r ()
 
   beep :: Name n -> m r r ()
 
