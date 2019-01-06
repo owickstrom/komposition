@@ -52,8 +52,9 @@ let
 
   komposition = nixpkgs.stdenv.mkDerivation {
     name = "komposition";
-    nativeBuildInputs = with nixpkgs; [ wrapGAppsHook makeWrapper ];
+    nativeBuildInputs = with nixpkgs; [ makeWrapper ];
     buildInputs = with nixpkgs; [
+      wrapGAppsHook
       gnome3.gtk
       gnome3.dconf
       gnome3.defaultIconTheme
@@ -72,6 +73,7 @@ let
       mkdir -p $out/bin
       ln -s ${drv}/bin/komposition $out/bin
       wrapProgram $out/bin/komposition \
+        --suffix 'XDG_DATA_DIRS' ':' "${pkgs.gnome3.defaultIconTheme}/share" \
         --prefix 'PATH' ':' "${pkgs.ffmpeg}/bin" \
         --prefix 'PATH' ':' "${pkgs.sox}/bin"
     '';
