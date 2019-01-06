@@ -57,7 +57,7 @@ spec_printCommandLineArgs = do
        , "-i"
        , "bar.png"
        , "-filter_complex"
-       , "[0:v:0][1:v:0]concat=n=2:v=1:a=0,setpts=PTS-STARTPTS[video];[2:a:0]concat=n=1:v=0:a=1,asetpts=PTS-STARTPTS[audio1];aevalsrc=0:duration=4.0[audio2]"
+       , "[0:v:0][1:v:0]concat=n=2:v=1:a=0,setpts=(PTS-STARTPTS)[video];[2:a:0]concat=n=1:v=0:a=1,asetpts=(PTS-STARTPTS)[audio1];aevalsrc=0:duration=4.0[audio2]"
        , "-map"
        , "[video]"
        , "-map"

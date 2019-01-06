@@ -19,7 +19,6 @@ video4s = VideoClip
   )
   (TimeSpan 0 4)
   (VideoSpeed 1)
-  "thumb.png"
 video10s = VideoClip
   ()
   (VideoAsset (AssetMetadata (OriginalPath "2.mp4") 10)
@@ -30,7 +29,6 @@ video10s = VideoClip
   )
   (TimeSpan 0 10)
   (VideoSpeed 1)
-  "thumb.png"
 audio1s = AudioClip () $ AudioAsset (AssetMetadata (OriginalPath "1.m4a") 1)
 audio4s = AudioClip () $ AudioAsset (AssetMetadata (OriginalPath "2.m4a") 4)
 audio10s = AudioClip () $ AudioAsset (AssetMetadata (OriginalPath "3.m4a") 10)
