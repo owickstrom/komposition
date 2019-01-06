@@ -81,7 +81,6 @@ let
       mkdir -p $out/bin
       ln -s ${drv}/bin/komposition $out/bin
       wrapProgram $out/bin/komposition \
-        --suffix 'XDG_DATA_DIRS' ':' "${pkgs.gnome3.defaultIconTheme}/share" \
         --prefix 'PATH' ':' "${pkgs.ffmpeg}/bin" \
         --prefix 'PATH' ':' "${pkgs.sox}/bin"
     '';
