@@ -310,7 +310,7 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
 renderMainArea
   :: TimelineModel -> Widget (Event TimelineMode)
 renderMainArea model =
-  paned [#orientation := OrientationHorizontal, #wideHandle := True]
+  paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
   (renderPreviewPane (model ^. previewImagePath))
   (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline)))
   where
@@ -382,6 +382,7 @@ timelineView model =
       Window
       [ #title := (currentProject model ^. projectName)
       , on #deleteEvent (const (True, WindowClosed))
+      , #widthRequest := 600
       ]
     $ container
         Box
