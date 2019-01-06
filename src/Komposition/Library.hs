@@ -14,6 +14,7 @@ import           Control.Lens
 
 import           Komposition.Duration
 import           Komposition.MediaType
+import           Komposition.VideoSpeed
 
 newtype OriginalPath = OriginalPath
   { _unOriginalPath :: FilePath
@@ -38,13 +39,14 @@ data VideoAsset =
   VideoAsset { _videoAssetMetadata   :: AssetMetadata
              , _videoAssetTranscoded :: TranscodedPath
              , _videoAssetProxy      :: TranscodedPath
+             , _videoSpeed           :: VideoSpeed
              , _videoClassifiedScene :: Maybe (Integer, TimeSpan)
              }
   deriving (Show, Eq, Generic)
 
 makeLenses ''VideoAsset
 
-data AudioAsset =
+newtype AudioAsset =
   AudioAsset { _audioAssetMetadata :: AssetMetadata }
   deriving (Show, Eq, Generic)
 
@@ -64,10 +66,10 @@ instance AssetMetadataLens AudioAsset where
   assetMetadata = audioAssetMetadata
 
 instance HasDuration VideoAsset where
-  durationOf va = va ^. videoAssetMetadata . duration
+  durationOf _ va = va ^. videoAssetMetadata . duration
 
 instance HasDuration AudioAsset where
-  durationOf aa = aa ^. audioAssetMetadata . duration
+  durationOf _ aa = aa ^. audioAssetMetadata . duration
 
 data Library = Library
   { _videoAssets :: [VideoAsset]

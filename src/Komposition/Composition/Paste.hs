@@ -7,7 +7,6 @@ import           Komposition.Prelude
 import           Komposition.Composition
 import           Komposition.Composition.Insert
 import           Komposition.Focus
-import           Komposition.MediaType
 
 data PastePosition
   = PasteLeftOf

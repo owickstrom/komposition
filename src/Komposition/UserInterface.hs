@@ -14,20 +14,21 @@
 
 module Komposition.UserInterface where
 
-import           Komposition.Prelude     hiding ( State )
+import           Komposition.Prelude            hiding (State)
 
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
-import           Motor.FSM               hiding ( Delete )
+import           Data.Vector                    (Vector)
+import           Motor.FSM                      hiding (Delete)
 import           Pipes
-import           Pipes.Safe                     ( SafeT )
+import           Pipes.Safe                     (SafeT)
 
 import           Komposition.Composition
-import qualified Komposition.Composition.Paste as Paste
+import qualified Komposition.Composition.Paste  as Paste
 
-import qualified Komposition.Composition.Insert
-                                               as Insert
+import qualified Komposition.Composition.Insert as Insert
+import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.History
 import           Komposition.KeyMap
@@ -36,6 +37,7 @@ import           Komposition.MediaType
 import           Komposition.Progress
 import           Komposition.Project
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 
 data Mode
   = WelcomeScreenMode
@@ -134,16 +136,26 @@ commandName = \case
 
 data Event mode where
   CommandKeyMappedEvent :: Command mode -> Event mode
+  -- Welcome Screen
   CreateNewProjectClicked :: Event WelcomeScreenMode
   OpenExistingProjectClicked :: Event WelcomeScreenMode
+  -- New Project
   ProjectNameChanged :: Text -> Event NewProjectMode
   FrameRateChanged :: FrameRate -> Event NewProjectMode
   ResolutionChanged :: Resolution -> Event NewProjectMode
   CreateClicked :: Event NewProjectMode
+  -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
+  PreviewImageRefreshed :: Maybe FilePath -> Event TimelineMode
+  FocusedClipSpeedSet :: VideoSpeed -> Event TimelineMode
+  FocusedClipStartSet :: Duration -> Event TimelineMode
+  FocusedClipEndSet :: Duration -> Event TimelineMode
+  -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
-  ImportAutoSplitSet :: Bool -> Event ImportMode
+  ImportClassifySet :: Bool -> Event ImportMode
+  ImportDefaultVideoSpeedChanged :: VideoSpeed -> Event ImportMode
   ImportClicked :: Event ImportMode
+  -- Library
   LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
   LibrarySelectionConfirmed :: Event LibraryMode
   WindowClosed :: Event mode
@@ -164,11 +176,12 @@ data FileChooserMode
 newtype ZoomLevel = ZoomLevel Double
 
 data TimelineModel = TimelineModel
-  { _existingProject :: ExistingProject
-  , _currentFocus    :: Focus SequenceFocusType
-  , _statusMessage   :: Maybe Text
-  , _zoomLevel       :: ZoomLevel
-  , _clipboard       :: Maybe (SomeComposition ())
+  { _existingProject  :: ExistingProject
+  , _currentFocus     :: Focus SequenceFocusType
+  , _statusMessage    :: Maybe Text
+  , _zoomLevel        :: ZoomLevel
+  , _clipboard        :: Maybe (SomeComposition ())
+  , _previewImagePath :: Maybe FilePath
   }
 
 makeLenses ''TimelineModel
@@ -185,8 +198,10 @@ currentProject :: TimelineModel -> Project
 currentProject = current . view (existingProject . projectHistory)
 
 data ImportFileModel = ImportFileModel
-  { autoSplitValue     :: Bool
-  , autoSplitAvailable :: Bool
+  { classifyValue         :: Bool
+  , classifyAvailable     :: Bool
+  , setDefaultVideoSpeed  :: VideoSpeed
+  , selectedFileMediaType :: Maybe MediaType
   }
 
 data SelectAssetsModel mt = SelectAssetsModel
@@ -264,6 +279,12 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     => Name n
     -> DiffTime
     -> m r r (Maybe e)
+
+  runInBackground
+    :: HasType n (Window m e) r
+    => Name n
+    -> IO (Vector e)
+    -> m r r ()
 
   beep :: Name n -> m r r ()
 

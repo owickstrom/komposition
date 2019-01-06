@@ -7,14 +7,12 @@ module Komposition.UserInterface.GtkInterface.RangeSlider where
 
 import           Komposition.Prelude
 
-import qualified GI.GObject                                          as GI
-import qualified GI.Gtk                                              as Gtk
+import qualified GI.GObject                              as GI
+import qualified GI.Gtk                                  as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.Attributes.Collected
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.State
-
-import           Komposition.UserInterface.GtkInterface.CustomWidget
 
 type CustomState = ()
 
@@ -36,6 +34,7 @@ rangeSlider customData = Widget (CustomWidget {..})
       Gtk.scaleSetDrawValue scale False
       sc <- Gtk.widgetGetStyleContext scale
       updateClasses sc mempty rangeSliderClasses
+      Gtk.widgetShow scale
       return (SomeState (StateTreeWidget (StateTreeNode scale sc mempty ())))
 
     customPatch (SomeState st) old new

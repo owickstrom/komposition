@@ -16,6 +16,7 @@ build-type:           Simple
 cabal-version:        >=1.10
 
 extra-source-files:   CHANGELOG.md
+                    , test/data/*.mp4
 data-dir:             src/data
 data-files:           style.css
                     , stripes.png
@@ -28,6 +29,7 @@ library
   exposed-modules:      Control.Monad.Indexed.IO
                       , Komposition.Application
                       , Komposition.Application.Base
+                      , Komposition.Application.Form
                       , Komposition.Application.ImportMode
                       , Komposition.Application.KeyMaps
                       , Komposition.Application.LibraryMode
@@ -66,7 +68,6 @@ library
                       , Komposition.UserInterface
                       , Komposition.UserInterface.Dialog
                       , Komposition.UserInterface.GtkInterface
-                      , Komposition.UserInterface.GtkInterface.CustomWidget
                       , Komposition.UserInterface.GtkInterface.DialogView
                       , Komposition.UserInterface.GtkInterface.EventListener
                       , Komposition.UserInterface.GtkInterface.GtkWindowMarkup
@@ -79,10 +80,12 @@ library
                       , Komposition.UserInterface.GtkInterface.SelectBox
                       , Komposition.UserInterface.GtkInterface.TimelineView
                       , Komposition.UserInterface.GtkInterface.ThumbnailPreview
+                      , Komposition.UserInterface.GtkInterface.VideoSpeedControl
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView
                       , Komposition.UserInterface.Help
                       , Komposition.Timestamp
                       , Komposition.VideoSettings
+                      , Komposition.VideoSpeed
   build-depends:        base >=4.10 && <5
                       , async
                       , binary
@@ -97,7 +100,7 @@ library
                       , gi-glib
                       , gi-gst
                       , gi-gtk
-                      , gi-gtk-declarative
+                      , gi-gtk-declarative >= 0.4.1 && < 0.5
                       , gi-gdk
                       , gi-gdkpixbuf
                       , gi-pango
@@ -116,7 +119,6 @@ library
                       , pipes-safe
                       , primitive
                       , protolude
-                      , process
                       , typed-process >= 0.2 && < 0.3
                       , row-types
                       , safe-exceptions
@@ -198,18 +200,20 @@ test-suite komposition-tests
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
                  , Komposition.Render.CompositionTest
+                 , Komposition.Render.FFmpegTest
                  , Komposition.TestLibrary
                  , Komposition.TimestampTest
   build-depends:   base                 >= 4        && < 5
-                 , unordered-containers >= 0.2      && < 0.3
                  , extra
                  , komposition
+                 , filepath
                  , hedgehog
                  , JuicyPixels
                  , fused-effects
                  , lens
                  , pipes
                  , pipes-parse
+                 , pipes-safe
                  , massiv
                  , massiv-io
                  , tasty
@@ -218,6 +222,7 @@ test-suite komposition-tests
                  , tasty-hedgehog
                  , tasty-discover
                  , temporary
+                 , unordered-containers >= 0.2      && < 0.3
   default-language:     Haskell2010
   default-extensions:   NoImplicitPrelude
   ghc-options:     -Wall -fno-warn-unticked-promoted-constructors

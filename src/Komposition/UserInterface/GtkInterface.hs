@@ -131,7 +131,9 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
         case Declarative.patch (widgetState w) (unGtkWindowMarkup (markup w)) decl of
           Declarative.Modify f -> irunUI $ do
             s' <- f
-            return w { markup = GtkWindowMarkup decl, widgetState = s' }
+            unsubscribe (viewEvents w)
+            viewEvents' <- subscribeToDeclarativeWidget decl s'
+            return w { markup = GtkWindowMarkup decl, widgetState = s', viewEvents = viewEvents' }
           Declarative.Replace create' -> irunUI $ do
             Gtk.widgetDestroy =<< asGtkWindow w
             s' <- create'
@@ -179,6 +181,11 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
       (raceEvent (windowEvents w) (viewEvents w)) >>= \case
         Left () -> return Nothing
         Right e -> return (Just e)
+
+  runInBackground name action =
+    FSM.get name >>>= \w ->
+      iliftIO . void . async $
+        action >>= traverse_ (writeChan (events (windowEvents w)))
 
   setTransientFor childName parentName =
     FSM.get childName >>>= \child' ->
@@ -367,7 +374,7 @@ runGtkUserInterface cssPath runEffects ui = do
   screen  <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
   appLoop <- async $ do
-    runEffects (runReader Env {..} (runGtkUserInterface' ui))
+    runEffects (runReader Env { .. } (runGtkUserInterface' ui))
     Gtk.mainQuit
   Gtk.main
   cancel appLoop

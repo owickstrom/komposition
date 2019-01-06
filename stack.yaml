@@ -14,10 +14,7 @@ extra-deps:
  - motor-0.3.0
  - row-types-0.2.3.0
  - process-1.6.4.0
- - git: https://github.com/owickstrom/gi-gtk-declarative.git
-   commit: 14111b23540bc33545585b94503ecdf88071c852
-   subdirs:
-     - gi-gtk-declarative
+ - gi-gtk-declarative-0.4.1
  - git: https://github.com/reinerp/indexed-extras.git
    commit: 8b38e7503c030644154e844cd932003d9438cfa2
  - git: https://github.com/robrix/fused-effects.git

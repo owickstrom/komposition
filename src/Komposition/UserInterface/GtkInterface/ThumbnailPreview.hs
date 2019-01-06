@@ -1,12 +1,12 @@
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE GADTs   #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 module Komposition.UserInterface.GtkInterface.ThumbnailPreview where
 
 import           Komposition.Prelude
 
-import Data.IORef
+import           Data.IORef
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GdkPixbuf                   as Pixbuf
 import qualified GI.GLib                        as GLib
@@ -14,8 +14,6 @@ import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.State
-
-import Komposition.UserInterface.GtkInterface.CustomWidget
 
 type CustomState = IORef FilePath
 

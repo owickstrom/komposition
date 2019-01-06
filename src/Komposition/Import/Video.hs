@@ -18,11 +18,12 @@ import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.Progress
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 
 data VideoImport (m :: * -> *) k
   = Transcode VideoSettings OriginalPath Duration FilePath (Producer ProgressUpdate (SafeT IO) TranscodedPath -> k)
   | GenerateVideoThumbnail OriginalPath FilePath (Maybe FilePath -> k)
-  | ImportVideoFile Classification AllVideoSettings FilePath FilePath (Producer ProgressUpdate (SafeT IO) [VideoAsset] -> k)
+  | ImportVideoFile Classification AllVideoSettings VideoSpeed FilePath FilePath (Producer ProgressUpdate (SafeT IO) [VideoAsset] -> k)
   | IsSupportedVideoFile FilePath (Bool -> k)
   deriving (Functor)
 
@@ -52,13 +53,13 @@ importVideoFile
   :: (Member VideoImport sig, Carrier sig m)
   => Classification
   -> AllVideoSettings
+  -> VideoSpeed
   -> FilePath
   -> FilePath
   -> m (Producer ProgressUpdate (SafeT IO) [VideoAsset])
-importVideoFile classification settings srcFile outDir =
-  send (ImportVideoFile classification settings srcFile outDir ret)
+importVideoFile classification settings videoSettings srcFile outDir = send
+  (ImportVideoFile classification settings videoSettings srcFile outDir ret)
 
 isSupportedVideoFile
   :: (Member VideoImport sig, Carrier sig m) => FilePath -> m Bool
-isSupportedVideoFile srcFile =
-  send (IsSupportedVideoFile srcFile ret)
+isSupportedVideoFile srcFile = send (IsSupportedVideoFile srcFile ret)

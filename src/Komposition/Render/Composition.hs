@@ -21,6 +21,7 @@ import qualified Komposition.Composition as Core
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
+import           Komposition.VideoSpeed
 
 data Composition =
   Composition (NonEmpty (CompositionPart Video))
@@ -31,16 +32,19 @@ data StillFrameMode = FirstFrame | LastFrame
   deriving (Show, Eq, Generic, Hashable)
 
 data CompositionPart mt where
-  VideoClip :: VideoAsset -> TimeSpan -> CompositionPart Video
+  VideoClip :: VideoAsset -> TimeSpan -> VideoSpeed -> CompositionPart Video
   StillFrame
     :: StillFrameMode -> VideoAsset -> TimeSpan -> Duration -> CompositionPart Video
   AudioClip :: AudioAsset -> CompositionPart Audio
   Silence :: Duration -> CompositionPart Audio
 
 instance HasDuration (CompositionPart mt) where
-  durationOf = \case
-    VideoClip _ ts -> durationOf ts
-    AudioClip a -> durationOf a
+  durationOf mode = \case
+    VideoClip _ ts speed ->
+      case mode of
+        AdjustedDuration -> durationInSpeed (durationOf OriginalDuration ts) speed
+        OriginalDuration -> durationOf OriginalDuration ts
+    AudioClip a -> durationOf OriginalDuration a
     StillFrame _ _ _ d  -> d
     Silence d -> d
 
@@ -48,7 +52,8 @@ deriving instance Eq (CompositionPart t)
 deriving instance Show (CompositionPart t)
 
 instance HasDuration Composition where
-  durationOf (Composition vs as) = max (foldMap durationOf vs) (foldMap durationOf as)
+  durationOf mode (Composition vs as) =
+    max (foldMap (durationOf mode) vs) (foldMap (durationOf mode) as)
 
 data Tracks = Tracks [CompositionPart Video] [CompositionPart Audio]
   deriving (Eq, Show)
@@ -60,8 +65,8 @@ instance Monoid Tracks where
   mempty = Tracks mempty mempty
 
 instance HasDuration Tracks where
-  durationOf (Tracks video audio) =
-    max (foldMap durationOf video) (foldMap durationOf audio)
+  durationOf mode (Tracks video audio) =
+    max (foldMap (durationOf mode) video) (foldMap (durationOf mode) audio)
 
 flattenTimeline :: Core.Timeline a -> Maybe Composition
 flattenTimeline (Core.Timeline seqs) = do
@@ -92,11 +97,11 @@ flattenParallelTracks (Core.Parallel _ vs as) =
   where
     foldVideo (tracks, lastAsset, precedingGaps) =
       \case
-        Core.VideoClip _ asset ts _ ->
+        Core.VideoClip _ asset ts speed ->
           ( tracks <>
             Tracks
               (map (StillFrame FirstFrame asset ts) precedingGaps <>
-               [VideoClip asset ts])
+               [VideoClip asset ts speed])
               []
           , Just (asset, ts)
           , [])
@@ -106,7 +111,7 @@ flattenParallelTracks (Core.Parallel _ vs as) =
         Core.AudioClip _ asset -> Tracks [] [AudioClip asset]
         Core.AudioGap _ d -> Tracks [] [Silence d]
     matchTrackDurations video audio (lastAsset, ts) =
-      case (durationOf video, durationOf audio) of
+      case (durationOf AdjustedDuration video, durationOf AdjustedDuration audio) of
         (vd, ad)
           | vd < ad ->
             video <> Tracks [StillFrame LastFrame lastAsset ts (ad - vd)] [] <>

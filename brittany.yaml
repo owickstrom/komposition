@@ -1,9 +1,12 @@
 conf_forward:
   options_ghc:
   - -XLambdaCase
+  - -XNamedFieldPuns
+  - -XRecordWildCards
   - -XGADTs
   - -XViewPatterns
   - -XTupleSections
+  - -XTypeFamilies
   - -XOverloadedLabels
   - -XExplicitForAll
 conf_layout:

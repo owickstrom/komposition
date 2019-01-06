@@ -14,6 +14,7 @@ module Komposition.FFmpeg.Command
   , StreamSelector(..)
   , ForceOriginalAspectRatio(..)
   , Filter(..)
+  , PTSExpr(..)
   , RoutedFilter(..)
   , FilterChain(..)
   , FilterGraph(..)
@@ -88,10 +89,17 @@ data Filter
          , trimDuration :: Duration }
   | AudioTrim { trimStart    :: Duration
               , trimDuration :: Duration }
-  | SetPTSStart
-  | AudioSetPTSStart
+  | SetPTS PTSExpr
+  | AudioSetPTS PTSExpr
 
   | AudioEvalSource { audioEvalSourceDuration :: Duration }
+
+
+data PTSExpr
+  = PTSMult PTSExpr PTSExpr
+  | PTSAdd PTSExpr PTSExpr
+  | PTSStart
+  | PTSDouble Double
 
 data RoutedFilter = RoutedFilter
   { filterInputs  :: [StreamSelector]
@@ -203,8 +211,19 @@ printFilter =
            -- decimal numbers
            (durationToSeconds trimStart)
            (durationToSeconds trimDuration) :: Prelude.String)
-    SetPTSStart -> "setpts=PTS-STARTPTS"
-    AudioSetPTSStart -> "asetpts=PTS-STARTPTS"
+    SetPTS pts -> "setpts=" <> printPTSExpr pts
+    AudioSetPTS pts -> "asetpts=" <> printPTSExpr pts
+
+printPTSExpr :: PTSExpr -> Text
+printPTSExpr =
+  \case
+    -- this must be parenthesized for -stats to work properly!
+    PTSStart -> "(PTS-STARTPTS)"
+    PTSDouble d -> show d
+    PTSAdd p1 p2 -> parens (printPTSExpr p1 <> "+" <> printPTSExpr p2)
+    PTSMult p1 p2 -> parens (printPTSExpr p1 <> "*" <> printPTSExpr p2)
+  where
+    parens t = "(" <> t <> ")"
 
 printStreamSelector :: StreamSelector -> Text
 printStreamSelector StreamSelector {..} =

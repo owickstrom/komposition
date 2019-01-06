@@ -10,18 +10,29 @@ module Komposition.UserInterface.GtkInterface.ImportView
   ( importView
   ) where
 
-import           Komposition.Prelude       hiding (State, on)
+import           Control.Lens
+import           Komposition.Prelude                                      hiding (State,
+                                                                           on)
 
-import           GI.Gtk                (Box (..), Button (..), CheckButton (..),
-                                        FileChooserButton (..),
-                                        Orientation (..), Window (..),
-                                        fileChooserGetFilename,
-                                        toggleButtonGetActive)
-import           GI.Gtk.Declarative    as Gtk
+import           Data.Vector                                              (Vector)
+import           GI.Gtk                                                   (Align (..),
+                                                                           Box (..),
+                                                                           Button (..),
+                                                                           CheckButton (..),
+                                                                           FileChooserButton (..),
+                                                                           Label (..),
+                                                                           Orientation (..),
+                                                                           Window (..),
+                                                                           fileChooserGetFilename,
+                                                                           toggleButtonGetActive)
+import           GI.Gtk.Declarative                                       as Gtk
 
-import           Komposition.UserInterface hiding (importView, Window)
+import           Komposition.MediaType
+import           Komposition.UserInterface                                hiding (Window,
+                                                                           importView)
+import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
 
-importView :: ImportFileModel -> Bin Window Widget (Event ImportMode)
+importView :: ImportFileModel -> Bin Window (Event ImportMode)
 importView ImportFileModel {..} =
   bin
     Window
@@ -29,21 +40,46 @@ importView ImportFileModel {..} =
     , on #deleteEvent (const (True, WindowClosed))
     , #defaultWidth := 300
     ] $
-  container Box [classes ["import-view"], #orientation := OrientationVertical] $ do
-    boxChild False False 10 $
-      widget
-        FileChooserButton
-        [ onM
-            #selectionChanged
-            (fmap ImportFileSelected . fileChooserGetFilename)
+  container Box [classes ["import-view"], #orientation := OrientationVertical] $
+    mconcat
+    [
+      [BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
+        widget
+          FileChooserButton
+          [ onM
+              #selectionChanged
+              (fmap ImportFileSelected . fileChooserGetFilename)
+          ]]
+    , mediaTypeSpecificSettings
+    , [BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
+        widget Button [#label := "Import", on #clicked ImportClicked]]
+    ]
+  where
+    mediaTypeSpecificSettings :: Vector (BoxChild (Event ImportMode))
+    mediaTypeSpecificSettings =
+      case selectedFileMediaType of
+        Just Video -> [classifyCheckBox, defaultVideoSpeedControl]
+        Just Audio -> [classifyCheckBox]
+        Nothing    -> []
+    defaultVideoSpeedControl =
+      container Box []
+        [ BoxChild defaultBoxChildProperties { expand  = False
+                                            , fill    = False
+                                            , padding = 5
+                                            }
+            (widget Label [#label := "Video Speed", #halign := AlignStart])
+        , BoxChild defaultBoxChildProperties { expand  = False
+                                            , fill    = False
+                                            , padding = 5
+                                            }
+          (videoSpeedControl setDefaultVideoSpeed <&> ImportDefaultVideoSpeedChanged)
         ]
-    boxChild False False 10 $
-      widget
-        CheckButton
-        [ #label := "Classify parts automatically"
-        , #active := autoSplitValue
-        , #sensitive := autoSplitAvailable
-        , onM #toggled (fmap ImportAutoSplitSet . toggleButtonGetActive)
-        ]
-    boxChild False False 10 $
-      widget Button [#label := "Import", on #clicked ImportClicked]
+    classifyCheckBox =
+      BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
+        widget
+          CheckButton
+          [ #label := "Classify parts automatically"
+          , #active := classifyValue
+          , #sensitive := classifyAvailable
+          , onM #toggled (fmap ImportClassifySet . toggleButtonGetActive)
+          ]

@@ -99,8 +99,18 @@ toTimelineWithProject
   => ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project = do
-  let model = TimelineModel project initialFocus Nothing (ZoomLevel 1) Nothing
   destroyWindow #welcome
+  openTimelineWindowWithProject project
+
+openTimelineWindowWithProject
+  :: ( Application t m sig
+    , WelcomeScreenModeEffects sig
+    , Carrier sig m
+    )
+  => ExistingProject
+  -> t m Empty Empty ()
+openTimelineWindowWithProject project = do
+  let model = TimelineModel project initialFocus Nothing (ZoomLevel 1) Nothing Nothing
   newWindow
     #timeline
     (timelineView model)

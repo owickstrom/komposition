@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Komposition.UserInterface.GtkInterface.DialogView where
 
+import qualified Data.Vector                                            as Vector
 import           Komposition.Prelude                                    hiding
                                                                          (on)
 
@@ -23,14 +24,16 @@ instance DialogView GtkWindowMarkup where
       bin Window [ #title := dialogTitle props
                  , on #deleteEvent (const (True, DialogClosed))
                  ] $
-        container Box [ #orientation := OrientationVertical, classes ["dialog"] ] $ do
-          boxChild False False 0 $
+        container Box [ #orientation := OrientationVertical, classes ["dialog"] ]
+        [
+          BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $
             widget Label [#label := dialogMessage props]
-          boxChild False False 0 $
+        , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $
             container Box [classes ["choices"], #halign := AlignEnd] $
-              forM_ (dialogChoices props) $ \c ->
-                boxChild False False 0 $
+              Vector.fromList (dialogChoices props) <&> \c ->
+                BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $
                   widget Button [ #label := toButtonLabel c
                                 , classes ["choice"]
                                 , on #clicked (DialogChoiceSelected c)
                                 ]
+        ]

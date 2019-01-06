@@ -18,6 +18,6 @@ hprop_flattenTimeline =
   property $ do
     s <- forAll $ Gen.timeline (linear 1 10) Gen.parallelWithClips
     let Just flat = Render.flattenTimeline s
-    durationOf s === durationOf flat
+    durationOf AdjustedDuration s === durationOf AdjustedDuration flat
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}

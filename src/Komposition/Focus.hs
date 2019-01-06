@@ -1,22 +1,24 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE ExplicitForAll     #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE LambdaCase         #-}
-{-# LANGUAGE PolyKinds          #-}
-{-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies       #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE ExplicitForAll        #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
 module Komposition.Focus where
 
 import           Komposition.Prelude
 
 import           Control.Lens
-import           Control.Monad.Except           ( throwError )
-import qualified Data.List.NonEmpty            as NonEmpty
+import           Control.Monad.Except    (throwError)
+import qualified Data.List.NonEmpty      as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Duration
@@ -79,13 +81,13 @@ data FocusError
 
 indicesWithStartPoints :: HasDuration a => [a] -> [(Int, Duration)]
 indicesWithStartPoints clips =
-  zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf c + acc) 0 clips)
+  zip [0 .. (length clips - 1)] (scanl (\acc c -> durationOf AdjustedDuration c + acc) 0 clips)
 
 nearestPartIndexLeftOf
   :: (HasDuration a, HasDuration b) => [a] -> Int -> [b] -> Maybe Int
 nearestPartIndexLeftOf focusedParts i blurredParts
   | i >= 0 && i < length focusedParts && not (null blurredParts)
-  = let cutoffPoint = foldMap durationOf (take i focusedParts)
+  = let cutoffPoint = foldMap (durationOf AdjustedDuration) (take i focusedParts)
         below'      = takeWhile ((<= cutoffPoint) . snd)
                                 (indicesWithStartPoints blurredParts)
     in  (fst <$> lastMay below') <|> Just 0
@@ -304,3 +306,89 @@ firstCompositionPart f s = atFocus f s >>= \case
       Parallel _ (v : _) _       -> Just (FirstVideoPart v)
       Parallel _ []      (a : _) -> Just (FirstAudioPart a)
       _                          -> Nothing
+
+-- * Lenses
+
+
+someCompositionAt
+  :: Applicative f
+  => Focus SequenceFocusType
+  -> (Sequence a -> f (Sequence a))
+  -> (Parallel a -> f (Parallel a))
+  -> (VideoPart a -> f (VideoPart a))
+  -> (AudioPart a -> f (AudioPart a))
+  -> Timeline a
+  -> f (Timeline a)
+someCompositionAt focus sl pl vl al = mapAtFocus
+  focus
+  FocusedTraversal
+    { mapSequence        = sl
+    , mapParallel        = pl
+    , mapCompositionPart = \case
+                             SVideo -> vl
+                             SAudio -> al
+    }
+
+class CompositionTraversal parent child where
+  focusing
+    :: forall a
+     . Focus (ToFocusType parent)
+    -> Traversal' (parent a) (child a)
+
+instance CompositionTraversal Timeline Sequence where
+  focusing focus f (Timeline tl) = case focus of
+    SequenceFocus idx Nothing     -> tl & ix idx %%~ f & fmap Timeline
+    SequenceFocus _ (Just _Focus) -> pure (Timeline tl)
+
+instance CompositionTraversal Timeline Parallel where
+  focusing focus f (Timeline tl) = case focus of
+    SequenceFocus _ Nothing -> pure (Timeline tl)
+    SequenceFocus idx (Just subFocus) ->
+      tl & ix idx . focusing subFocus %%~ f & fmap Timeline
+
+instance CompositionTraversal Timeline VideoPart where
+  focusing focus f (Timeline tl) = case focus of
+    SequenceFocus _ Nothing -> pure (Timeline tl)
+    SequenceFocus idx (Just subFocus) ->
+      tl & ix idx . focusing subFocus %%~ f & fmap Timeline
+
+instance CompositionTraversal Timeline AudioPart where
+  focusing focus f (Timeline tl) = case focus of
+    SequenceFocus _ Nothing -> pure (Timeline tl)
+    SequenceFocus idx (Just subFocus) ->
+      tl & ix idx . focusing subFocus %%~ f & fmap Timeline
+
+instance CompositionTraversal Sequence Parallel where
+  focusing focus f (Sequence ann ps) = case focus of
+    ParallelFocus idx Nothing     -> ps & ix idx %%~ f & fmap (Sequence ann)
+    ParallelFocus _ (Just _Focus) -> pure (Sequence ann ps)
+
+instance CompositionTraversal Sequence VideoPart where
+  focusing focus f (Sequence ann ps) = case focus of
+    ParallelFocus _ Nothing -> pure (Sequence ann ps)
+    ParallelFocus idx (Just subFocus) ->
+      ps & ix idx . focusing subFocus %%~ f & fmap (Sequence ann)
+
+instance CompositionTraversal Sequence AudioPart where
+  focusing focus f (Sequence ann ps) = case focus of
+    ParallelFocus _ Nothing -> pure (Sequence ann ps)
+    ParallelFocus idx (Just subFocus) ->
+      ps & ix idx . focusing subFocus %%~ f & fmap (Sequence ann)
+
+instance CompositionTraversal Parallel VideoPart where
+  focusing (ClipFocus clipType idx) f (Parallel ann videoParts audioParts) =
+    case clipType of
+      Video ->
+        videoParts
+        & ix idx %%~ f
+        & fmap (\vs -> Parallel ann vs audioParts)
+      Audio -> pure (Parallel ann videoParts audioParts)
+
+instance CompositionTraversal Parallel AudioPart where
+  focusing (ClipFocus clipType idx) f (Parallel ann videoParts audioParts) =
+    case clipType of
+      Video -> pure (Parallel ann videoParts audioParts)
+      Audio ->
+        audioParts
+        & ix idx %%~ f
+        & fmap (Parallel ann videoParts)

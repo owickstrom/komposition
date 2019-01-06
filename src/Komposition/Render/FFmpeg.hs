@@ -16,6 +16,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 module Komposition.Render.FFmpeg
   ( runFFmpegRender
+  , extractFrameToFile'
   )
 where
 
@@ -33,7 +34,7 @@ import           Pipes.Safe                     (bracket)
 import           System.Directory
 import           System.FilePath
 import           System.IO.Temp
-import           System.Process
+import           System.Process.Typed
 import           Text.Printf
 
 import           Komposition.Duration
@@ -48,6 +49,7 @@ import           Komposition.Render.Composition (Composition (..))
 import qualified Komposition.Render.Composition as Composition
 import           Komposition.Timestamp
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 
 data Input mt where
   VideoAssetInput :: FilePath -> Input Video
@@ -64,7 +66,7 @@ newtype InputIndex = InputIndex Integer
 type PartStreamName = Text
 
 data PartStream mt where
-  VideoClipStream :: InputIndex -> TimeSpan -> PartStream Video
+  VideoClipStream :: InputIndex -> TimeSpan -> VideoSpeed -> PartStream Video
   AudioClipStream :: InputIndex -> TimeSpan -> PartStream Audio
   StillFrameStream :: InputIndex -> PartStream Video
   SilenceStream :: Duration -> PartStream Audio
@@ -114,9 +116,9 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
           return (toInputIndex (Vector.length is))
     toPartStream mediaType' source' (i, p) =
       case (mediaType', i, p) of
-        (SVideo, vi, Composition.VideoClip asset ts) -> do
+        (SVideo, vi, Composition.VideoClip asset ts speed) -> do
           ii <- addUniqueInput (VideoAssetInput (videoAssetSourcePath source' asset))
-          return ("v" <> show vi, VideoClipStream ii ts)
+          return ("v" <> show vi, VideoClipStream ii ts speed)
         (SVideo, vi, Composition.StillFrame mode asset ts duration') -> do
           frameFile <-
             lift (extractFrameToFile' videoSettings mode source' asset ts tmpDir)
@@ -125,7 +127,7 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
         (SAudio, ai, Composition.AudioClip asset) -> do
           ii <- addUniqueInput (AudioAssetInput (asset ^. assetMetadata . path . unOriginalPath))
           return
-            ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf asset)))
+            ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf AdjustedDuration asset)))
         (SAudio, ai, Composition.Silence d) ->
           return ("a" <> show ai, SilenceStream d)
     toCommandInputOrPanic :: SMediaType mt -> (NonEmpty (PartStreamName, PartStream mt), Vector (Input mt)) -> IO (CommandInput mt)
@@ -189,9 +191,9 @@ toRenderCommand videoSettings output videoInput audioInput =
            (map (toStreamNameOnlySelector . fst) (inputStreams audioInput)))
         (Command.Concat (fromIntegral (length (inputStreams audioInput))) 0 1)
         []
-    videoSetStart = Command.RoutedFilter [] Command.SetPTSStart [videoStream]
+    videoSetStart = Command.RoutedFilter [] (Command.SetPTS Command.PTSStart) [videoStream]
     audioSetStart =
-      Command.RoutedFilter [] Command.AudioSetPTSStart [audioStream]
+      Command.RoutedFilter [] (Command.AudioSetPTS Command.PTSStart) [audioStream]
     --
     -- Conversion helpers:
     --
@@ -215,13 +217,15 @@ toRenderCommand videoSettings output videoInput audioInput =
          (PartStreamName, PartStream Video) -> Command.FilterChain
     toVideoInputChain (streamName, partStream) =
       case partStream of
-        VideoClipStream ii ts ->
-          trimmedIndexedInput Video streamName ii ts
+        VideoClipStream ii ts (VideoSpeed s) ->
+          trimmedIndexedInput Video streamName ii ts (Command.PTSMult
+                                                      (Command.PTSDouble (1 / s))
+                                                       Command.PTSStart)
         StillFrameStream i ->
           Command.FilterChain
             (Command.RoutedFilter
                [indexedStreamSelector Command.Video i]
-               Command.SetPTSStart
+               (Command.SetPTS Command.PTSStart)
                [ Command.StreamSelector
                    (Command.StreamName streamName)
                    Nothing
@@ -232,7 +236,7 @@ toRenderCommand videoSettings output videoInput audioInput =
          (PartStreamName, PartStream Audio) -> Command.FilterChain
     toAudioInputChain (streamName, ps) =
       case ps of
-        AudioClipStream ii ts -> trimmedIndexedInput Audio streamName ii ts
+        AudioClipStream ii ts -> trimmedIndexedInput Audio streamName ii ts Command.PTSStart
         SilenceStream d       ->
           Command.FilterChain
             (Command.RoutedFilter
@@ -246,10 +250,10 @@ toRenderCommand videoSettings output videoInput audioInput =
              [])
     indexedStreamSelector track (InputIndex i) =
       Command.StreamSelector (Command.StreamIndex i) (Just track) (Just 0)
-    trimmedIndexedInput mediaType streamName (InputIndex i) ts =
+    trimmedIndexedInput mediaType streamName (InputIndex i) ts ptsExpr =
       case mediaType of
-        Video -> Command.FilterChain (trimFilter Command.Video Command.Trim :| [scaleFilter, setPTSFilter Command.SetPTSStart])
-        Audio -> Command.FilterChain (trimFilter Command.Audio Command.AudioTrim :| [setPTSFilter Command.AudioSetPTSStart])
+        Video -> Command.FilterChain (trimFilter Command.Video Command.Trim :| [scaleFilter, setPTSFilter (Command.SetPTS ptsExpr)])
+        Audio -> Command.FilterChain (trimFilter Command.Audio Command.AudioTrim :| [setPTSFilter (Command.AudioSetPTS ptsExpr)])
       where
         trimFilter track trim =
           Command.RoutedFilter
@@ -258,7 +262,7 @@ toRenderCommand videoSettings output videoInput audioInput =
                (Just track)
                (Just 0)
            ]
-           (trim (spanStart ts) (durationOf ts))
+           (trim (spanStart ts) (durationOf OriginalDuration ts))
            []
         scaleFilter =
           Command.RoutedFilter
@@ -270,10 +274,10 @@ toRenderCommand videoSettings output videoInput audioInput =
                  Command.ForceOriginalAspectRatioDisable
              }
              []
-        setPTSFilter setPTS =
+        setPTSFilter ptsFilter =
           Command.RoutedFilter
              []
-             setPTS
+             ptsFilter
              [ Command.StreamSelector
                  (Command.StreamName streamName)
                  Nothing
@@ -311,7 +315,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (Render :+: sig) (FFmpegRenderC m
                  (length (inputs videoInput))
                  audio)
           let renderCmd = toRenderCommand videoSettings target videoInput audioInput
-          runFFmpegCommand (ProgressUpdate "Rendering") (durationOf c) renderCmd
+          runFFmpegCommand (ProgressUpdate "Rendering") (durationOf OriginalDuration c) renderCmd
     ExtractFrameToFile videoSettings mode videoSource videoAsset ts frameDir k ->
       k =<< liftIO (extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir)
 
@@ -331,7 +335,6 @@ extractFrameToFile' ::
   -> IO FilePath
 extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
   let sourcePath = videoAssetSourcePath videoSource videoAsset
-      -- Not the best hash...
       frameHash =
         hash
           ( mode
@@ -353,6 +356,7 @@ extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
     extractFrame :: FilePath -> Duration -> FilePath -> IO ()
     extractFrame sourcePath startAfter frameFileName =
       unlessM (doesFileExist frameFileName) $ do
+        createDirectoryIfMissing True frameDir
         putStrLn
           ("Extracting frame at " <> printTimestamp startAfter <> " from " <>
            toS sourcePath <>
@@ -374,10 +378,10 @@ extractFrameToFile' videoSettings mode videoSource videoAsset ts frameDir = do
         printEscapedFFmpegInvocation (map toS allArgs)
         runFFmpeg $ proc "ffmpeg" allArgs
     runFFmpeg cmd = do
-      (exit, _, err) <- readCreateProcessWithExitCode cmd ""
+      (exit, _, err) <- readProcess cmd
       when
         (exit /= ExitSuccess)
-        (Prelude.fail ("Couldn't extract frame from video file: " <> err))
+        (Prelude.fail ("Couldn't extract frame from video file: " <> toS err))
 
 runFFmpegRender :: (MonadIO m, Carrier sig m) => Eff (FFmpegRenderC m) a -> m a
 runFFmpegRender = runFFmpegRenderC . interpret

@@ -10,6 +10,7 @@ module Komposition.Project.Store
   , saveExistingProject
   , openExistingProject
   , getDefaultProjectsDirectory
+  , getCacheDirectory
   , SaveProjectError(..)
   , OpenProjectError(..)
   ) where
@@ -27,9 +28,10 @@ data ProjectStore (m :: * -> *) k
   = CreateNewProject FilePath Project (Either SaveProjectError ExistingProject -> k)
   | SaveExistingProject ExistingProject (Either SaveProjectError () -> k)
   | OpenExistingProject FilePath (Either OpenProjectError ExistingProject -> k)
-  -- TODO: It's a bit hacky to have this in the ProjectStore
+  -- TODO: It's a bit hacky to have these in the ProjectStore
   -- effect. Extract to some kind of user environment effect?
   | GetDefaultProjectsDirectory (FilePath -> k)
+  | GetCacheDirectory (FilePath -> k)
   deriving (Functor)
 
 createNewProject ::
@@ -56,6 +58,11 @@ getDefaultProjectsDirectory ::
   => m FilePath
 getDefaultProjectsDirectory = send (GetDefaultProjectsDirectory ret)
 
+getCacheDirectory ::
+     (Member ProjectStore sig, Carrier sig m)
+  => m FilePath
+getCacheDirectory = send (GetCacheDirectory ret)
+
 instance HFunctor ProjectStore where
   hmap _ = coerce
   {-# INLINE hmap #-}
@@ -66,6 +73,7 @@ instance Effect ProjectStore where
     SaveExistingProject project k -> SaveExistingProject project (handler . (<$ st) . k)
     OpenExistingProject path' k -> OpenExistingProject path' (handler . (<$ st) . k)
     GetDefaultProjectsDirectory k -> GetDefaultProjectsDirectory (handler . (<$ st) . k)
+    GetCacheDirectory k -> GetCacheDirectory (handler . (<$ st) . k)
 
 data SaveProjectError
   = ProjectDirectoryNotEmpty FilePath

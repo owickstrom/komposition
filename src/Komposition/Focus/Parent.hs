@@ -1,6 +1,6 @@
-{-# LANGUAGE KindSignatures  #-}
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE GADTs           #-}
+{-# LANGUAGE KindSignatures  #-}
 {-# LANGUAGE RecordWildCards #-}
 -- | Traverse a timeline to the parent of the focused composition,
 -- clip or gap.
@@ -9,7 +9,7 @@ module Komposition.Focus.Parent where
 
 import           Komposition.Prelude
 
-import           Control.Lens        hiding (below)
+import           Control.Lens            hiding (below)
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -36,7 +36,7 @@ instance HasParentAtFocus Sequence where
     parentAtFocus subFocus =<< toList sub `atMay` idx
 
 instance HasParentAtFocus Parallel where
-  parentAtFocus (ClipFocus {}) (Parallel ann videoParts audioParts) =
+  parentAtFocus ClipFocus {} (Parallel ann videoParts audioParts) =
     pure (ParallelParent (Parallel ann videoParts audioParts))
 
 

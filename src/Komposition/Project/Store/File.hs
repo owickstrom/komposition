@@ -9,7 +9,10 @@
 {-# LANGUAGE UndecidableInstances       #-}
 
 -- | A 'ProjectStore' interpreter that saves projects as directories.
-module Komposition.Project.Store.File (runFileProjectStoreIO) where
+module Komposition.Project.Store.File
+  ( runFileProjectStoreIO
+  )
+where
 
 import           Komposition.Prelude       hiding (Type, list)
 
@@ -29,6 +32,7 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.VideoSettings
+import           Komposition.VideoSpeed
 import           System.Directory
 import           System.FilePath
 
@@ -53,6 +57,7 @@ instance Binary Library
 instance Binary Resolution
 instance Binary VideoSettings
 instance Binary AllVideoSettings
+instance Binary VideoSpeed
 instance Binary Project
 
 instance Binary a => Binary (History a)
@@ -60,22 +65,28 @@ instance Binary a => Binary (History a)
 -- * File-Based Project Store
 
 projectDataFilePath :: ProjectPath -> FilePath
-projectDataFilePath p =
-  p ^. unProjectPath </> "project-history.bin"
+projectDataFilePath p = p ^. unProjectPath </> "project-history.bin"
 
-writeProject ::  ExistingProject -> IO (Either SaveProjectError ())
-writeProject existingProject = runExceptT $
-  liftIO
-  (writeProjectDataFile
-     (projectDataFilePath (existingProject ^. projectPath))
-     (existingProject ^. projectHistory))
-  `catchAny`
-  (\(e :: SomeException) -> throwError (UnexpectedSaveError (show e)))
+writeProject :: ExistingProject -> IO (Either SaveProjectError ())
+writeProject existingProject =
+  runExceptT
+    $          liftIO
+                 (writeProjectDataFile
+                   (projectDataFilePath (existingProject ^. projectPath))
+                   (existingProject ^. projectHistory)
+                 )
+    `catchAny` (\(e :: SomeException) ->
+                 throwError (UnexpectedSaveError (show e))
+               )
 
-readProjectDataFile :: FilePath -> IO (Either OpenProjectError (History Project))
-readProjectDataFile p = runExceptT $
-  liftIO (Binary.decodeFile p)
-  `catchAny` (\(e :: SomeException) -> throwError (InvalidProjectDataFile p (show e)))
+readProjectDataFile
+  :: FilePath -> IO (Either OpenProjectError (History Project))
+readProjectDataFile p =
+  runExceptT
+    $          liftIO (Binary.decodeFile p)
+    `catchAny` (\(e :: SomeException) ->
+                 throwError (InvalidProjectDataFile p (show e))
+               )
 
 writeProjectDataFile :: FilePath -> History Project -> IO ()
 writeProjectDataFile = Binary.encodeFile
@@ -107,6 +118,8 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
       existingHistory <- ExceptT (liftIO (readProjectDataFile dataFilePath))
       return (ExistingProject projectPath' existingHistory))
     GetDefaultProjectsDirectory k -> k =<< liftIO getUserDocumentsDirectory
+    GetCacheDirectory k -> k =<< liftIO (getXdgDirectory XdgCache "komposition")
 
-runFileProjectStoreIO :: (MonadIO m, Carrier sig m) => Eff (FileProjectStoreIOC m) a -> m a
+runFileProjectStoreIO
+  :: (MonadIO m, Carrier sig m) => Eff (FileProjectStoreIOC m) a -> m a
 runFileProjectStoreIO = runFileProjectStoreIOC . interpret
