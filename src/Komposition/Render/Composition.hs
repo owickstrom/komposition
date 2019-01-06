@@ -97,7 +97,7 @@ flattenParallelTracks (Core.Parallel _ vs as) =
   where
     foldVideo (tracks, lastAsset, precedingGaps) =
       \case
-        Core.VideoClip _ asset ts speed _ ->
+        Core.VideoClip _ asset ts speed ->
           ( tracks <>
             Tracks
               (map (StillFrame FirstFrame asset ts) precedingGaps <>

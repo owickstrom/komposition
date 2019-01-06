@@ -13,42 +13,42 @@ module Komposition.UserInterface.GtkInterface.TimelineView
   )
 where
 
-import           Komposition.Prelude                                     hiding
-                                                                          (on)
+import           Komposition.Prelude                                      hiding
+                                                                           (on)
 
 import           Control.Lens
-import           Data.Int                                                (Int32)
-import           Data.Text                                               (Text)
-import qualified Data.Vector                                             as Vector
-import           GI.Gtk                                                  (Align (..),
-                                                                          Box (..),
-                                                                          Button (..),
-                                                                          Label (..),
-                                                                          MenuBar (..),
-                                                                          MenuItem (..),
-                                                                          Orientation (..),
-                                                                          PolicyType (..),
-                                                                          ScrolledWindow (..),
-                                                                          Window (..))
+import           Data.Int                                                 (Int32)
+import           Data.Text                                                (Text)
+import qualified Data.Vector                                              as Vector
+import           GI.Gtk                                                   (Align (..),
+                                                                           Box (..),
+                                                                           Button (..),
+                                                                           Label (..),
+                                                                           MenuBar (..),
+                                                                           MenuItem (..),
+                                                                           Orientation (..),
+                                                                           PolicyType (..),
+                                                                           ScrolledWindow (..),
+                                                                           Window (..))
 import           GI.Gtk.Declarative
-import           GI.Pango                                                (EllipsizeMode (..))
+import           GI.Pango                                                 (EllipsizeMode (..))
 
 import           Komposition.Composition
 import           Komposition.Composition.Focused
-import           Komposition.Composition.Paste                           (PastePosition (..))
+import           Komposition.Composition.Paste                            (PastePosition (..))
 import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.Timestamp
-import           Komposition.UserInterface                               hiding (Window,
-                                                                          timelineView)
-import           Komposition.UserInterface.GtkInterface.NumberInput      as NumberInput
+import           Komposition.UserInterface                                hiding (Window,
+                                                                           timelineView)
+import           Komposition.UserInterface.GtkInterface.NumberInput       as NumberInput
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
+import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
 import           Komposition.VideoSettings
-import           Komposition.VideoSpeed
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
 widthFromDuration (ZoomLevel zl) duration' =
@@ -105,7 +105,7 @@ renderVideoPart
   -> VideoPart (Focus SequenceFocusType, Focused)
   -> Widget (Event TimelineMode)
 renderVideoPart zl = \case
-  c@(VideoClip (thisFocus, focused) asset' _ _ _) ->
+  c@(VideoClip (thisFocus, focused) asset' _ _) ->
     renderClipAsset zl thisFocus focused asset' (durationOf AdjustedDuration c)
   VideoGap ann duration' -> renderGap zl ann duration'
 
@@ -193,8 +193,8 @@ renderPreviewPane path' = pane defaultPaneProperties $ container
   ]
   where noPreviewAvailable = widget Label [#label := "No preview available."]
 
-durationEntry :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
-durationEntry vs range' current = toDuration <$> numberInput NumberInputProperties
+durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
+durationControl vs range' current = toDuration <$> numberInput NumberInputProperties
   { value              = durationToSeconds current
   , NumberInput.range  = range' & both %~ durationToSeconds
   , step               = 1 / fromIntegral (vs ^. frameRate)
@@ -212,13 +212,13 @@ clipSpanControl vs asset ts = container
                                        , padding = 5
                                        }
   $   FocusedClipStartSet
-  <$> durationEntry vs (0, spanEnd ts) (spanStart ts)
+  <$> durationControl vs (0, spanEnd ts) (spanStart ts)
   , BoxChild defaultBoxChildProperties { expand  = True
                                        , fill    = True
                                        , padding = 5
                                        }
   $   FocusedClipEndSet
-  <$> durationEntry vs (spanStart ts, asset ^. assetMetadata . duration) (spanEnd ts)
+  <$> durationControl vs (spanStart ts, asset ^. assetMetadata . duration) (spanEnd ts)
   ]
 
 renderSidebar
@@ -234,37 +234,40 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
     inner = case mcomp of
       Just (SomeSequence s) ->
         [ heading "Sequence"
-        , entry "Duration" (formatDuration (durationOf AdjustedDuration s))
+        , textEntry "Duration" (formatDuration (durationOf AdjustedDuration s))
         ]
       Just (SomeParallel p) ->
         [ heading "Parallel"
-        , entry "Duration" (formatDuration (durationOf AdjustedDuration p))
+        , textEntry "Duration" (formatDuration (durationOf AdjustedDuration p))
         ]
-      Just (SomeVideoPart (VideoClip _ asset ts speed _))
+      Just (SomeVideoPart (VideoClip _ asset ts speed))
         -> [ heading "Video Clip"
-           , entry "Duration" (formatDuration (durationOf AdjustedDuration ts))
-           , entry "Speed"    (formatSpeed speed)
+           , textEntry "Duration"
+                       (formatDuration (durationOf AdjustedDuration ts))
+           , entry "Speed" (FocusedClipSpeedSet <$> videoSpeedControl speed)
            , heading "Start/End"
            , clipSpanControl vs asset ts
            , heading "Video Asset"
-           , entry "Original"
-                   (toS (asset ^. videoAssetMetadata . path . unOriginalPath))
-           , entry "Duration"
-                   (formatDuration (asset ^. videoAssetMetadata . duration))
+           , textEntry
+             "Original"
+             (toS (asset ^. videoAssetMetadata . path . unOriginalPath))
+           , textEntry
+             "Duration"
+             (formatDuration (asset ^. videoAssetMetadata . duration))
            ]
       Just (SomeVideoPart (VideoGap _ d)) ->
-        [heading "Video Gap", entry "Duration" (formatDuration d)]
-      Just (SomeAudioPart (AudioClip _ asset))
-        -> [ heading "Audio Clip"
-           , entry "Duration"
-                   (formatDuration (asset ^. audioAssetMetadata . duration))
-           , heading "Audio Asset"
-           , entry
-             "Original"
-             (show (asset ^. audioAssetMetadata . path . unOriginalPath))
-           ]
+        [heading "Video Gap", textEntry "Duration" (formatDuration d)]
+      Just (SomeAudioPart (AudioClip _ asset)) ->
+        [ heading "Audio Clip"
+        , textEntry "Duration"
+                    (formatDuration (asset ^. audioAssetMetadata . duration))
+        , heading "Audio Asset"
+        , textEntry
+          "Original"
+          (show (asset ^. audioAssetMetadata . path . unOriginalPath))
+        ]
       Just (SomeAudioPart (AudioGap _ d)) ->
-        [heading "Audio Gap", entry "Duration" (formatDuration d)]
+        [heading "Audio Gap", textEntry "Duration" (formatDuration d)]
       Nothing ->
         [ BoxChild defaultBoxChildProperties { expand  = False
                                              , fill    = False
@@ -272,18 +275,18 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
                                              }
             $ widget Label [#label := "Nothing focused."]
         ]
-    heading :: Text -> BoxChild (Event TimelineMode)
+    heading :: Typeable e => Text -> BoxChild e
     heading t =
       BoxChild defaultBoxChildProperties { expand  = False
                                          , fill    = False
                                          , padding = 0
                                          }
         $ widget Label [#label := t, classes ["sidebar-heading"]]
-    entry :: Text -> Text -> BoxChild (Event TimelineMode)
-    entry name val
+    entry :: Typeable e => Text -> Widget e -> BoxChild e
+    entry name child'
       = BoxChild defaultBoxChildProperties { expand  = False
                                            , fill    = False
-                                           , padding = 0
+                                           , padding = 5
                                            }
         $ container
             Box
@@ -293,12 +296,15 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
                                                  , padding = 0
                                                  }
               $ widget Label [#label := name, #halign := AlignStart]
-            , BoxChild defaultBoxChildProperties { expand  = False
-                                                 , fill    = False
-                                                 , padding = 0
-                                                 }
-              $ widget Label [#label := val, #ellipsize := EllipsizeModeEnd]
+            , BoxChild
+              defaultBoxChildProperties { expand  = False
+                                        , fill    = False
+                                        , padding = 0
+                                        }
+              child'
             ]
+    textEntry name val =
+      entry name (widget Label [#label := val, #ellipsize := EllipsizeModeEnd])
     formatDuration = printTimestampWithPrecision (Just 2)
 
 renderMainArea

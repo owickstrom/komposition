@@ -181,18 +181,24 @@ timelineMode gui model = do
       CommandKeyMappedEvent Exit -> ireturn (TimelineExit model)
       ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
       PreviewImageRefreshed p -> model & previewImagePath .~ p & timelineMode gui
+      FocusedClipSpeedSet speed ->
+        model
+        & modifyFocusedVideoPart (\case
+          VideoClip ann asset ts _ -> VideoClip ann asset ts speed
+          vg@VideoGap{} -> vg)
+        & refreshPreviewAndContinue gui
       FocusedClipStartSet start ->
         model
         & modifyFocusedVideoPart (\case
-          VideoClip ann asset ts speed path' ->
-                VideoClip ann asset ts { spanStart = start } speed path'
+          VideoClip ann asset ts speed ->
+                VideoClip ann asset ts { spanStart = start } speed
           vg@VideoGap{} -> vg)
         & refreshPreviewAndContinue gui
       FocusedClipEndSet end ->
         model
         & modifyFocusedVideoPart (\case
-          VideoClip ann asset ts speed path' ->
-                VideoClip ann asset ts { spanEnd = end } speed path'
+          VideoClip ann asset ts speed ->
+                VideoClip ann asset ts { spanEnd = end } speed
           vg@VideoGap{} -> vg)
         & refreshPreviewAndContinue gui
       WindowClosed               -> ireturn (TimelineExit model)
@@ -397,13 +403,12 @@ insertSelectedAssets
   -> t m r r TimelineModeResult
 insertSelectedAssets gui model mediaType' position result = do
   model' <- case result of
-    Just assets -> do
-      i <- insertionOf model mediaType' assets
+    Just assets ->
       model
         &  existingProject
         .  projectHistory
         %~ edit
-             (\p -> p & timeline %~ insert_ (model ^. currentFocus) i position)
+             (\p -> p & timeline %~ insert_ (model ^. currentFocus) (insertionOf mediaType' assets) position)
         &  ireturn
     Nothing -> do
       beep gui
@@ -411,32 +416,18 @@ insertSelectedAssets gui model mediaType' position result = do
   refreshPreviewAndContinue gui model'
 
 insertionOf
-  :: (IxMonadTrans t, IxMonad (t m), Monad m, Carrier sig m, Member Render sig)
-  => TimelineModel
-  -> SMediaType mt
+  :: SMediaType mt
   -> [Asset mt]
-  -> t m r r (Insertion ())
-insertionOf model SVideo a =
-  ilift (InsertVideoParts <$> mapM (toVideoClip model) a)
-insertionOf _ SAudio a = ireturn (InsertAudioParts (AudioClip () <$> a))
-
-toVideoClip
-  :: (Monad m, Carrier sig m, Member Render sig)
-  => TimelineModel
-  -> VideoAsset
-  -> m (VideoPart ())
-toVideoClip model videoAsset =
-  let ts = maybe (TimeSpan 0 (durationOf OriginalDuration videoAsset))
-                 snd
-                 (videoAsset ^. videoClassifiedScene)
-      speed = videoAsset ^. videoSpeed
-  in  VideoClip () videoAsset ts speed <$> extractFrameToFile
-        (currentProject model ^. videoSettings . proxyVideoSettings)
-        Render.FirstFrame
-        VideoProxy
-        videoAsset
-        ts
-        (model ^. existingProject . projectPath . unProjectPath)
+  -> Insertion ()
+insertionOf SVideo a = InsertVideoParts (toVideoClip <$> a)
+  where
+    toVideoClip videoAsset =
+      let ts = maybe (TimeSpan 0 (durationOf OriginalDuration videoAsset))
+                     snd
+                     (videoAsset ^. videoClassifiedScene)
+          speed = videoAsset ^. videoSpeed
+      in  VideoClip () videoAsset ts speed
+insertionOf SAudio a     = InsertAudioParts (AudioClip () <$> a)
 
 addImportedAssetsToLibrary
   :: ( Application t m sig
@@ -533,7 +524,7 @@ refreshPreview
 refreshPreview gui model = do
   cacheDir <- ilift getCacheDirectory
   case atFocus (model ^. currentFocus) (currentProject model ^. timeline) of
-    Just (SomeVideoPart (VideoClip _ videoAsset ts _ _)) ->
+    Just (SomeVideoPart (VideoClip _ videoAsset ts _)) ->
       runInBackground gui $
         pure . PreviewImageRefreshed . Just <$>
         FFmpeg.extractFrameToFile'

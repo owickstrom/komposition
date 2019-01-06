@@ -11,29 +11,26 @@ module Komposition.UserInterface.GtkInterface.ImportView
   ) where
 
 import           Control.Lens
-import           Komposition.Prelude                                hiding
-                                                                     (State, on)
+import           Komposition.Prelude                                      hiding (State,
+                                                                           on)
 
-import           Data.Vector                                        (Vector)
-import qualified Data.Vector                                        as Vector
-import           GI.Gtk                                             (Align (..),
-                                                                     Box (..),
-                                                                     Button (..),
-                                                                     CheckButton (..),
-                                                                     FileChooserButton (..),
-                                                                     Label (..),
-                                                                     Orientation (..),
-                                                                     Window (..),
-                                                                     fileChooserGetFilename,
-                                                                     toggleButtonGetActive)
-import           GI.Gtk.Declarative                                 as Gtk
+import           Data.Vector                                              (Vector)
+import           GI.Gtk                                                   (Align (..),
+                                                                           Box (..),
+                                                                           Button (..),
+                                                                           CheckButton (..),
+                                                                           FileChooserButton (..),
+                                                                           Label (..),
+                                                                           Orientation (..),
+                                                                           Window (..),
+                                                                           fileChooserGetFilename,
+                                                                           toggleButtonGetActive)
+import           GI.Gtk.Declarative                                       as Gtk
 
 import           Komposition.MediaType
-import           Komposition.UserInterface                          hiding
-                                                                     (Window,
-                                                                     importView)
-import           Komposition.UserInterface.GtkInterface.NumberInput
-import           Komposition.VideoSpeed
+import           Komposition.UserInterface                                hiding (Window,
+                                                                           importView)
+import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
 
 importView :: ImportFileModel -> Bin Window (Event ImportMode)
 importView ImportFileModel {..} =
@@ -61,9 +58,22 @@ importView ImportFileModel {..} =
     mediaTypeSpecificSettings :: Vector (BoxChild (Event ImportMode))
     mediaTypeSpecificSettings =
       case selectedFileMediaType of
-        Just Video -> Vector.cons classifyCheckBox videoSpeedControl
+        Just Video -> [classifyCheckBox, defaultVideoSpeedControl]
         Just Audio -> [classifyCheckBox]
         Nothing    -> []
+    defaultVideoSpeedControl =
+      container Box []
+        [ BoxChild defaultBoxChildProperties { expand  = False
+                                            , fill    = False
+                                            , padding = 5
+                                            }
+            (widget Label [#label := "Video Speed", #halign := AlignStart])
+        , BoxChild defaultBoxChildProperties { expand  = False
+                                            , fill    = False
+                                            , padding = 5
+                                            }
+          (videoSpeedControl setDefaultVideoSpeed <&> ImportDefaultVideoSpeedChanged)
+        ]
     classifyCheckBox =
       BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 10 } $
         widget
@@ -73,17 +83,3 @@ importView ImportFileModel {..} =
           , #sensitive := classifyAvailable
           , onM #toggled (fmap ImportClassifySet . toggleButtonGetActive)
           ]
-    videoSpeedControl =
-      [ BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 5 } $
-        widget Label [#label := "Video Speed", #halign := AlignStart]
-      , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 5 } $
-        toDefaultVideoSpeedChanged <$>
-        numberInput NumberInputProperties{ value = setDefaultVideoSpeed ^. unVideoSpeed
-                                         , range = (0.1, 10.0)
-                                         , step = 0.1
-                                         , digits = 1
-                                         , numberInputClasses = []
-                                         }
-      ]
-      where
-        toDefaultVideoSpeedChanged (NumberInputChanged v) = ImportDefaultVideoSpeedChanged (VideoSpeed v)

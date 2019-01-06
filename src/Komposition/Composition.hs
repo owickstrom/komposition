@@ -25,7 +25,7 @@ type family CompositionPart (mt :: MediaType) where
   CompositionPart 'Audio = AudioPart
 
 data VideoPart a
-  = VideoClip a VideoAsset TimeSpan VideoSpeed FilePath
+  = VideoClip a VideoAsset TimeSpan VideoSpeed
   | VideoGap a Duration
   deriving (Eq, Show, Functor, Generic)
 
@@ -36,9 +36,9 @@ data AudioPart a
 
 instance HasDuration (VideoPart a) where
   durationOf mode part = case (mode, part) of
-    (OriginalDuration, VideoClip _ _ ts _ _) ->
+    (OriginalDuration, VideoClip _ _ ts _) ->
       durationOf OriginalDuration ts
-    (AdjustedDuration, VideoClip _ _ ts speed _) ->
+    (AdjustedDuration, VideoClip _ _ ts speed) ->
       durationInSpeed (durationOf OriginalDuration ts) speed
     (_, VideoGap _ d) -> d
 

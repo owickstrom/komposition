@@ -79,6 +79,7 @@ library
                       , Komposition.UserInterface.GtkInterface.SelectBox
                       , Komposition.UserInterface.GtkInterface.TimelineView
                       , Komposition.UserInterface.GtkInterface.ThumbnailPreview
+                      , Komposition.UserInterface.GtkInterface.VideoSpeedControl
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView
                       , Komposition.UserInterface.Help
                       , Komposition.Timestamp

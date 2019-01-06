@@ -147,6 +147,7 @@ data Event mode where
   -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
   PreviewImageRefreshed :: Maybe FilePath -> Event TimelineMode
+  FocusedClipSpeedSet :: VideoSpeed -> Event TimelineMode
   FocusedClipStartSet :: Duration -> Event TimelineMode
   FocusedClipEndSet :: Duration -> Event TimelineMode
   -- Import
