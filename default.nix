@@ -1,13 +1,14 @@
-{ compiler ? "ghc862", doCheck ? true, doBenchmark ? false }:
+{ compiler ? "ghc863", doCheck ? true, doBenchmark ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {
-    name = "nixos-unstable-2018-12-09";
+    name = "nixos-unstable-2019-01-05";
     url = https://github.com/nixos/nixpkgs/;
     # `git ls-remote https://github.com/nixos/nixpkgs-channels nixos-unstable`
-    rev = "e85c1f586807b5acd244df4c45a5130aa3f0734d";
+    rev = "eebd1a9263716a04689a37b6537e50801d376b5e";
   }) {};
 
+  giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
   fusedEffectsJson = builtins.fromJSON (builtins.readFile ./fused-effects.json);
 
   inherit (nixpkgs) pkgs;
@@ -30,8 +31,14 @@ let
       massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
       pipes-safe = self.callHackage "pipes-safe" "2.3.1" {};
       protolude = self.callHackage "protolude" "0.2.3" {};
-      gi-gtk-declarative = self.callHackage "gi-gtk-declarative" "0.4.1" {};
-    };
+      gi-gtk-declarative =
+        let
+          src = nixpkgs.fetchFromGitHub {
+            owner = "owickstrom";
+            repo = "gi-gtk-declarative";
+            inherit (giGtkDeclarativeJson) rev sha256;
+          };
+        in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};    };
   };
   toggleCheck = if doCheck then pkgs.haskell.lib.doCheck else pkgs.haskell.lib.dontCheck;
   toggleBenchmark = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
