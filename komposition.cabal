@@ -16,7 +16,7 @@ build-type:           Simple
 cabal-version:        >=1.10
 
 extra-source-files:   CHANGELOG.md
-                    , test/data/*
+                    , test/data/*.mp4
 data-dir:             src/data
 data-files:           style.css
                     , stripes.png
