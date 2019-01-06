@@ -9,6 +9,11 @@ jobs:
       - checkout
 
       - run:
+          name: Install native dependencies
+          command: |
+            apt install ffmpeg
+
+      - run:
           name: Query resolver & ghc version
           command: |
             ./ci/resolver > resolver.version
