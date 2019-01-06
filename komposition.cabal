@@ -200,6 +200,7 @@ test-suite komposition-tests
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
                  , Komposition.Render.CompositionTest
+                 , Komposition.Render.FFmpegTest
                  , Komposition.TestLibrary
                  , Komposition.TimestampTest
   build-depends:   base                 >= 4        && < 5

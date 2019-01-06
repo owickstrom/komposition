@@ -42,11 +42,17 @@ let
   };
   toggleCheck = if doCheck then pkgs.haskell.lib.doCheck else pkgs.haskell.lib.dontCheck;
   toggleBenchmark = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
+  withBuildInputs = extraInputs: d:
+    pkgs.lib.overrideDerivation d (old: {
+      buildInputs = old.buildInputs ++ extraInputs;
+    });
 
-  drv = toggleBenchmark
-        (toggleCheck
-         (pkgs.haskell.lib.justStaticExecutables
-          (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {}))));
+  drv = withBuildInputs
+        [pkgs.ffmpeg]
+        (toggleBenchmark
+         (toggleCheck
+          (pkgs.haskell.lib.justStaticExecutables
+          (pkgs.haskell.lib.dontHaddock (haskellPackages.callCabal2nix "komposition" ./. {})))));
 
   python = import ./docs/requirements.nix { pkgs = nixpkgs; };
 
@@ -65,6 +71,8 @@ let
       (gst_all_1.gst-plugins-good.override { gtkSupport = true; })
       gst_all_1.gst-libav
     ];
+    nativeCheckInputs = [];
+    checkInputs = [nixpkgs.ffmpeg];
     src = ./.;
     buildPhase = ''
         mkdir -p $out
