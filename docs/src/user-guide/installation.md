@@ -32,7 +32,7 @@ cd komposition-master
 You now have the source code. Jump on to the instructions below specific to
 your operating system.
 
-## Linux
+## Debian/Ubuntu
 
 First, install the required dependencies:
 
@@ -79,6 +79,19 @@ If you have added `~/.local/bin` to your `PATH`, run:
 ```shell
 komposition
 ```
+
+!!! warning "Older GTK+ Versions"
+
+    If you see an error like the following when installing, it means your
+    version of GTK+ is too old:
+
+    ```
+    Not in scope: data constructor ‘Gtk.FileChooserNative’
+    ```
+
+    This has been detected on Ubuntu 16.04. You may fix the issue by
+    upgrading to Ubuntu 18.04, or by compiling and installing a newer version of
+    GTK+ from source.
 
 ## macOS
 
@@ -127,13 +140,3 @@ Run it from the command line:
 ```shell
 komposition
 ```
-
-## Possible incompatibility with older GTK+ version
-
-If, in the proces of the installation, you found an error like:
-
-```
-Not in scope: data constructor ‘Gtk.FileChooserNative’
-```
-
-it means that exists an incompatibiliy with your GTK+ version. This have been detected on Ubuntu 16.04 and, if that is the case four you, can be fixed on 18.04. Also you can try to compile a newer version of GTK+ from source.
