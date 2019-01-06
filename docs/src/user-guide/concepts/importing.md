@@ -24,6 +24,17 @@ the voiceover audio is silent, and disregard those segments. When imported
 into the library, each segment with non-silence ends up as a separate asset
 representing that _sentence_, or passage.
 
+## Default Video Speed
+
+If you're importing a video file, you may adjust the _default video
+speed_.  The video speed is used as a default for clips that are added
+to the timeline based on the imported video asset. If you also use
+automatic scene classification, as described above, all classified scenes
+will have the selected default video speed.
+
+Video speed can be subsequently changed for individual clips in the
+timeline.
+
 ## Recording and Workflow
 
 Scene and sentence classification is closely tied to the workflow and

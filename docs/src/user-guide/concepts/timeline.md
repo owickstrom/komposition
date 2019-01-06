@@ -49,3 +49,10 @@ silence.
   *a1* after two seconds, put *v1*, a two second audio gap, and *a1* in a
   parallel.
 
+## Adjusting Timeline Parts
+
+The sidebar shows properties of the focused timeline part, and for
+things like video and audio clips, it allows you to adjust certain
+properties of those timeline parts. You may change the start and end
+position within the original media of a video clip, or adjust the
+playback speed.
