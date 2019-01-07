@@ -83,7 +83,7 @@ komposition
 ## macOS
 
 ```shell
-brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer  gst-plugins-base gst-libav
+brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer libffi gst-plugins-base gst-libav
 brew install gst-plugins-good --with-gtk+3
 
 export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig"
