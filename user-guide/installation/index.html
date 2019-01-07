@@ -253,8 +253,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#debianubuntu" title="Debian/Ubuntu" class="md-nav__link">
-    Debian/Ubuntu
+  <a href="#linux" title="Linux" class="md-nav__link">
+    Linux
   </a>
   
 </li>
@@ -276,6 +276,13 @@
         <li class="md-nav__item">
   <a href="#nixnixos" title="Nix/NixOS" class="md-nav__link">
     Nix/NixOS
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#possible-incompatibility-with-older-gtk-version" title="Possible incompatibility with older GTK+ version" class="md-nav__link">
+    Possible incompatibility with older GTK+ version
   </a>
   
 </li>
@@ -504,8 +511,8 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#debianubuntu" title="Debian/Ubuntu" class="md-nav__link">
-    Debian/Ubuntu
+  <a href="#linux" title="Linux" class="md-nav__link">
+    Linux
   </a>
   
 </li>
@@ -527,6 +534,13 @@
         <li class="md-nav__item">
   <a href="#nixnixos" title="Nix/NixOS" class="md-nav__link">
     Nix/NixOS
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#possible-incompatibility-with-older-gtk-version" title="Possible incompatibility with older GTK+ version" class="md-nav__link">
+    Possible incompatibility with older GTK+ version
   </a>
   
 </li>
@@ -575,7 +589,7 @@ cd komposition-master
 
 <p>You now have the source code. Jump on to the instructions below specific to
 your operating system.</p>
-<h2 id="debianubuntu">Debian/Ubuntu</h2>
+<h2 id="linux">Linux</h2>
 <p>First, install the required dependencies:</p>
 <pre><code class="shell">sudo apt-get install \
     ffmpeg \
@@ -615,17 +629,8 @@ an issue on GitHub</a>.</p>
 <pre><code class="shell">komposition
 </code></pre>
 
-<div class="admonition warning">
-<p class="admonition-title">Older GTK+ Versions</p>
-<p>If you see an error like the following when installing, it means your
-version of GTK+ is too old:</p>
-<p><code>Not in scope: data constructor ‘Gtk.FileChooserNative’</code></p>
-<p>This has been detected on Ubuntu 16.04. You may fix the issue by
-upgrading to Ubuntu 18.04, or by compiling and installing a newer version of
-GTK+ from source.</p>
-</div>
 <h2 id="macos">macOS</h2>
-<pre><code class="shell">brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer  gst-plugins-base gst-libav
+<pre><code class="shell">brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer libffi gst-plugins-base gst-libav
 brew install gst-plugins-good --with-gtk+3
 
 export PKG_CONFIG_PATH=&quot;/usr/local/opt/libffi/lib/pkgconfig&quot;
@@ -658,6 +663,13 @@ waiting on compilation.</p>
 <p>Run it from the command line:</p>
 <pre><code class="shell">komposition
 </code></pre>
+
+<h2 id="possible-incompatibility-with-older-gtk-version">Possible incompatibility with older GTK+ version</h2>
+<p>If, in the proces of the installation, you found an error like:</p>
+<pre><code>Not in scope: data constructor ‘Gtk.FileChooserNative’
+</code></pre>
+
+<p>it means that exists an incompatibiliy with your GTK+ version. This have been detected on Ubuntu 16.04 and, if that is the case four you, can be fixed on 18.04. Also you can try to compile a newer version of GTK+ from source.</p>
                 
                   
                 
