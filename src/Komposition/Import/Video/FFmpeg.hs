@@ -51,8 +51,8 @@ import           Data.Time.Clock
 import qualified Data.Vector                as V
 import qualified Data.Vector.Generic        as VG
 import           Graphics.ColorSpace        as A
-import           Pipes                      (Pipe, Producer, (>->))
 import qualified Pipes
+import           Pipes                      (Pipe, Producer, (>->))
 import qualified Pipes.Parse                as Pipes
 import qualified Pipes.Prelude              as Pipes hiding (show)
 import           Pipes.Safe
@@ -64,6 +64,7 @@ import           Komposition.Duration
 import           Komposition.FFmpeg.Command (Command (Command))
 import qualified Komposition.FFmpeg.Command as Command
 import           Komposition.FFmpeg.Process
+import           Komposition.Import.Hash    (createSHA1BaseName)
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.Progress
@@ -315,8 +316,9 @@ transcode'
 transcode' videoSettings (view unOriginalPath -> sourceFile) fullLength outDir progressMsg
   = do
     liftIO (createDirectoryIfMissing True outDir)
+    shaBasename <- liftIO $ createSHA1BaseName sourceFile
     let
-      proxyPath = outDir </> takeBaseName sourceFile <> ".transcoded.mp4"
+      proxyPath = outDir </> shaBasename <> ".transcoded.mp4"
       cmd       = Command
         { output      = Command.FileOutput proxyPath
         , inputs      = pure (Command.FileSource sourceFile)
