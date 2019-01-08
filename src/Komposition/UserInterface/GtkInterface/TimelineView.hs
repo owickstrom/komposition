@@ -212,7 +212,7 @@ gapDurationControl vs d = container
                                        , padding = 5
                                        }
   $   FocusedClipStartSet
-  <$> durationControl vs (0, d) d
+  <$> durationControl vs (0, 1000) d
   ]
 
 clipSpanControl :: VideoSettings -> VideoAsset -> TimeSpan -> BoxChild (Event TimelineMode)
