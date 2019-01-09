@@ -192,7 +192,7 @@ timelineMode gui model = do
         & modifyFocusedVideoPart (\case
           VideoClip ann asset ts speed ->
                 VideoClip ann asset ts { spanStart = start } speed
-          vg@VideoGap{} -> vg)
+          VideoGap ann _ -> VideoGap ann start)
         & refreshPreviewAndContinue gui
       FocusedClipEndSet end ->
         model

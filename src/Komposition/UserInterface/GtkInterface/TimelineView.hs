@@ -282,7 +282,10 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
           (show (asset ^. audioAssetMetadata . path . unOriginalPath))
         ]
       Just (SomeAudioPart (AudioGap _ d)) ->
-        [heading "Audio Gap", textEntry "Duration" (formatDuration d)]
+        [ heading "Audio Gap"
+        , textEntry "Duration" (formatDuration d)
+        , gapDurationControl vs d
+        ]
       Nothing ->
         [ BoxChild defaultBoxChildProperties { expand  = False
                                              , fill    = False
