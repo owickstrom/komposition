@@ -199,6 +199,7 @@ test-suite komposition-tests
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
+                 , Komposition.Import.HashTest
                  , Komposition.Import.Video.FFmpegTest
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
