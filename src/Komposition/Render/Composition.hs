@@ -13,6 +13,7 @@ module Komposition.Render.Composition
   , flattenTimeline
   , flattenSequence
   , flattenParallel
+  , singleVideoPart
   ) where
 
 import           Komposition.Prelude
@@ -82,6 +83,13 @@ flattenParallel :: Core.Parallel a -> Maybe Composition
 flattenParallel s = do
   Tracks vs as <- flattenParallelTracks s
   Composition <$> nonEmpty vs <*> nonEmpty as
+
+singleVideoPart :: Core.VideoPart a -> Maybe Composition
+singleVideoPart (Core.VideoClip _ asset ts speed) = Just
+  (Composition (pure (VideoClip asset ts speed))
+               (pure (Silence (durationOf AdjustedDuration ts)))
+  )
+singleVideoPart _ = Nothing
 
 flattenSequenceTracks :: Core.Sequence a -> Maybe Tracks
 flattenSequenceTracks (Core.Sequence _ pars) = foldMap flattenParallelTracks pars

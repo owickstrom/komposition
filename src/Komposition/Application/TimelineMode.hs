@@ -13,7 +13,6 @@
 module Komposition.Application.TimelineMode where
 
 import           Komposition.Application.Base
-import qualified Prelude
 
 import           Control.Effect                      (Member)
 import           Control.Effect.Carrier              (Carrier)
@@ -21,6 +20,7 @@ import           Control.Lens
 import qualified Data.List.NonEmpty                  as NonEmpty
 import           Data.Row.Records                    hiding (split)
 import           Data.String                         (fromString)
+import qualified Pipes
 import           System.FilePath                     ((</>))
 
 import           Komposition.Application.Form
@@ -36,6 +36,7 @@ import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.MediaType
+import           Komposition.Progress
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
@@ -312,33 +313,40 @@ previewFocusedComposition
   => Name n
   -> TimelineModel
   -> t m r r TimelineModel
-previewFocusedComposition gui model = case flatComposition of
-  Just flat -> do
-    streamingProcess <- ilift $ renderComposition
-      (currentProject model ^. videoSettings . proxyVideoSettings)
-      VideoProxy
-      (HttpStreamingOutput "localhost" 12345)
-      flat
-    _ <- previewStream
-      gui
-      "http://localhost:12345"
-      streamingProcess
-      (currentProject model ^. videoSettings . proxyVideoSettings)
-    ireturn model
-  Nothing -> do
-    beep gui
-    model
-      &  statusMessage
-      ?~ "Cannot preview a composition without video clips."
-      &  ireturn
+previewFocusedComposition gui model =
+  case atFocus (model ^. currentFocus) (currentProject model ^. timeline) of
+    Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
+    Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
+    Just (SomeVideoPart p) -> renderFlatComposition (Render.singleVideoPart p)
+    Just (SomeAudioPart (AudioClip _ asset)) ->
+      previewFile (asset ^. assetMetadata . path . unOriginalPath)
+    Just (SomeAudioPart AudioGap{}) -> beepWith "Can't preview audio gap."
+    Nothing -> beepWith "Can't preview when no timeline part is focused."
   where
-    flatComposition :: Maybe Render.Composition
-    flatComposition =
-      atFocus (model ^. currentFocus) (currentProject model ^. timeline)
-        Prelude.>>= \case
-                      SomeSequence s -> Render.flattenSequence s
-                      SomeParallel p -> Render.flattenParallel p
-                      _              -> Nothing
+    renderFlatComposition = \case
+      Just flat -> do
+        streamingProcess <- ilift $ renderComposition
+          (currentProject model ^. videoSettings . proxyVideoSettings)
+          VideoProxy
+          (HttpStreamingOutput "localhost" 12345)
+          flat
+        _ <- previewStream
+          gui
+          "http://localhost:12345"
+          streamingProcess
+          (currentProject model ^. videoSettings . proxyVideoSettings)
+        ireturn model
+      Nothing -> beepWith "Cannot preview a composition without video clips."
+    previewFile fp = do
+      _ <- previewStream
+        gui
+        ("file://" <> toS fp)
+        (Pipes.yield (ProgressUpdate "Loading clip" 1))
+        (currentProject model ^. videoSettings . proxyVideoSettings)
+      ireturn model
+    beepWith msg = do
+      beep gui
+      model & statusMessage ?~ msg & ireturn
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =
