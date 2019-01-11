@@ -336,9 +336,10 @@ previewFocusedComposition gui model = case flatComposition of
     flatComposition =
       atFocus (model ^. currentFocus) (currentProject model ^. timeline)
         Prelude.>>= \case
-                      SomeSequence s -> Render.flattenSequence s
-                      SomeParallel p -> Render.flattenParallel p
-                      _              -> Nothing
+                      SomeSequence s  -> Render.flattenSequence s
+                      SomeParallel p  -> Render.flattenParallel p
+                      SomeVideoPart v -> Render.flattenVideo v
+                      _               -> Nothing
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =
