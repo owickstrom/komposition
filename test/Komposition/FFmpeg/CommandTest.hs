@@ -36,12 +36,12 @@ spec_printCommandLineArgs = do
         filterGraph = Just (FilterGraph (chain1 :| [chain2, chain3]))
         inputs =
           (FileSource "foo.mp4" :|
-           [ StillFrameSource "bar.png" 25 10
+           [ StillFrameSource "bar.png" 20 10
            ])
         mappings = [videoStream, audioStream1, audioStream2]
         format = Just "mp4"
         output = FileOutput "bar.mp4"
-        frameRate = Nothing
+        frameRate = Just 20
         vcodec = Nothing
         acodec = Nothing
         command = Command {..}
@@ -51,7 +51,7 @@ spec_printCommandLineArgs = do
        , "-loop"
        , "1"
        , "-framerate"
-       , "25"
+       , "20"
        , "-t"
        , "00:00:10.0"
        , "-i"
@@ -66,5 +66,7 @@ spec_printCommandLineArgs = do
        , "[audio2]"
        , "-f"
        , "mp4"
+       , "-framerate"
+       , "20"
        , "bar.mp4"
        ]
