@@ -1,2 +1,2 @@
-{ compiler ? "ghc843" }:
-(import ./. { inherit compiler; }).fastcut-shell
+{ compiler ? "ghc863" }:
+(import ./. { inherit compiler; doBenchmark = true; }).komposition-shell

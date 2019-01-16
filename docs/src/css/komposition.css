@@ -1,0 +1,38 @@
+.md-content {
+    padding-bottom: 4em;
+}
+
+#introduction-video {
+    display: block;
+    margin: 0 auto 4em;
+}
+h1#komposition {
+    font-size: 400%;
+    font-weight: 600;
+    text-align: center;
+    color: inherit;
+    margin: 0 0 0;
+    text-transform: uppercase;
+}
+#subtitle {
+    margin-top: .5em;
+    font-size: 125%;
+    text-align: center;
+}
+#subtitle + p {
+    margin-top: 5em;
+    text-align: center;
+}
+#subtitle + p a:after {
+    display: inline-block;
+    content: '|';
+    color: #aaaaaa;
+    margin: 0 .5em;
+}
+#subtitle + p a:last-child:after {
+    content: '';
+}
+#main-screenshot {
+    display: block;
+    margin: 0 auto 1em auto;
+}

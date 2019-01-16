@@ -1,45 +1,34 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import           FastCut.Prelude
+import           Komposition.Prelude
 
-import           System.IO.Temp
-
-import           FastCut.Application
-import           FastCut.Composition
-import           FastCut.Import.Video
-import           FastCut.Library
-import           FastCut.Project                    (Project (..))
-import           FastCut.UserInterface.GtkInterface
-import           Paths_fastcut
-
-initialProject :: FilePath -> IO Project
-initialProject workDir = do
-  let
-    gap1s = Gap () 1
-
-  return Project
-    { _projectName = "Test"
-    , _timeline =
-        Timeline
-          ()
-          ( Sequence
-              ()
-              ( Parallel
-                  ()
-                  [gap1s]
-                  [gap1s]
-              :| []
-              )
-          :| []
-          )
-    , _library = Library [] []
-    , _workingDirectory = workDir
-    }
+import           Control.Effect
+import           Komposition.Application
+import           Komposition.Import.Audio.Sox
+import           Komposition.Import.Video.FFmpeg
+import           Komposition.Logging.FastLogger
+import           Komposition.Project.Store.File
+import           Komposition.Render.FFmpeg
+import           Komposition.UserInterface.GtkInterface
+import           Komposition.UserInterface.GtkInterface.DialogView ()
+import           Komposition.UserInterface.GtkInterface.HelpView   ()
+import           Paths_komposition
+import           System.Log.FastLogger
 
 main :: IO ()
 main = do
   initialize
-  cssPath <- getDataFileName "style.css"
-  withSystemTempDirectory "project.fastcut" $ \workDir -> do
-    p <- initialProject workDir
-    runGtkUserInterface cssPath (fastcut p)
+  cssPath   <- getDataFileName "style.css"
+  loggerSet <- newStderrLoggerSet 1024
+  let runEffects =
+        runM
+        . runFastLoggerLog loggerSet
+        . runFileProjectStoreIO
+        . runFFmpegRender
+        . runFFmpegVideoImport
+        . runSoxAudioImport
+  getArgs >>= \case
+      [] -> runGtkUserInterface cssPath runEffects komposition
+      [projectPath] -> runGtkUserInterface cssPath runEffects (kompositionWithProject projectPath)
+      _ -> putStrLn ("Can only open a single project." :: Text)

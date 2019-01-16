@@ -1,1 +1,6 @@
-packages:       fastcut.cabal
+packages:        komposition.cabal
+
+source-repository-package
+    type:       git
+    location:   https://github.com/reinerp/indexed-extras.git
+    tag:        8b38e7503c030644154e844cd932003d9438cfa2

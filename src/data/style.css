@@ -1,7 +1,3 @@
-.fastcut > * {
-  min-width: 25em;
-  min-height: 20em;
-}
 .heading {
   font-size: 150%;
   font-weight: bold;
@@ -11,17 +7,33 @@
   font-weight: bold;
   margin: .25em 0;
 }
+.preview-pane {
+  background-color: #000;
+  color: #eee;
+  min-width: 25em;
+  min-height: 20em;
+}
 .timeline-container {
-  background-color: #aaa;
-  border-top: 1pt solid #888;
-  padding: 0 2px 2pt 2px;
+  background-color: #ccc;
+  border-top: 1pt solid #aaa;
+  border-bottom: 1pt solid #aaa;
+  padding: 2pt;
 }
 .timeline .sequence {
-  border-top: 2pt solid #bbb;
-  background-color: #bbb;
+  border: 2pt solid #aaa;
+  margin-left: 5pt;
+  background-color: #aaa;
+}
+.timeline .sequence:first-child {
+  margin-left: 0;
 }
 .timeline .parallel {
-  padding-top: 2pt;
+  border: 2pt solid #888;
+  background-color: #bbb;
+  margin-left: 2pt;
+}
+.timeline .parallel:first-child {
+  margin-left: 0;
 }
 .timeline .empty {
   min-width: 5em;
@@ -30,85 +42,94 @@
 .timeline .empty .audio,
 .timeline .empty .video {
   background-color: #d99;
-  box-shadow: inset 0pt 0pt 2pt rgba(0, 0, 0, 0.5);
 }
 
 .timeline .sequence .video,
 .timeline .sequence .audio {
-  min-height: 2.5em;
+  min-height: 25pt;
 }
 .timeline .sequence .video {
-  border-bottom: 2pt solid #aaa;
+  border-bottom: 2pt solid #888;
 }
-.timeline .sequence .video .clip {
+.timeline .sequence .video .clip button {
+  background-image: none;
   background-color: #00cd9a;
 }
-.timeline .sequence .audio .clip {
+.timeline .sequence .audio .clip button {
+  background-image: none;
   background-color: #cdad00;
 }
 .timeline .composition.transitively-focused {
   background: #bbb;
 }
 
-.timeline .composition.focused {
-  padding-top: 0;
-  border-top: 2pt solid #fff;
+.timeline .sequence.focused {
+  border-color: #fff;
+}
+.timeline .parallel.focused {
+  border-color: #fff;
 }
 
-.timeline .clip,
-.timeline .gap {
-  padding: 2px;
-  border: 1pt solid rgba(0, 0, 0, .2);
-  margin: 0 2pt;
+.timeline .clip button,
+.timeline .gap button {
+  padding: 0;
+  min-width: 0;
+  box-shadow: inset 0pt 0pt 2pt #000;
+  border-radius: 0;
 }
-.timeline .clip {
-  box-shadow: inset 1pt 0pt 1pt rgba(255, 255, 255, 0.2);
-}
-.timeline .gap {
+.timeline .gap button {
   background-color: #777;
   background-image: url('stripes.png');
   background-size: 1.5em;
   background-repeat: repeat;
-  box-shadow: inset 1pt 0pt 1pt rgba(255, 255, 255, 0.2);
 }
-.timeline .clip.focused,
-.timeline .gap.focused {
-  padding: 1px;
-  border-width: 2pt;
-  border-color: #eee;
-  border-style: solid;
+.timeline .clip.focused button,
+.timeline .gap.focused button {
+  border: 2pt solid #eee;
 }
-.timeline .clip.focused {
+.timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);
 }
-.timeline .gap.focused {
+.timeline .gap.focused button {
   background-color: #ccc;
 }
 
-.library .clip {
-  padding: 10px;
+.sidebar {
+  background-color: #ddd;
+  padding: 1em;
 }
-.library .clip.focused {
-  padding: 8px;
-  border-width: 2pt;
-  border-color: #ccc;
-  border-style: solid;
+.sidebar-heading {
+  font-weight: bold;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5pt;
+  margin-bottom: 5pt;
 }
+* + .sidebar-heading {
+  margin-top: 20pt;
+}
+.sidebar-entry *:first-child {
+  padding-right: 5pt;
+}
+
 
 .import-view {
   padding: 1em;
 }
 
-.dialog,
+.library,
 .prompt,
 .progress-bar,
 .help-container {
   padding: 1em;
 }
 
+.preview.dialog {
+  padding: 0;
+}
+
 .help {
-  min-width: 25em;
-  min-height: 50em;
+  min-width: 250pt;
+  min-height: 300pt;
 }
 
 .key-map-entry {
@@ -123,4 +144,41 @@
   background: #ddd;
   border-radius: .3em;
   box-shadow: inset 1pt 1pt 1pt #fff;
+}
+
+.bottom-bar {
+  padding: 0 5pt;
+  font-size: 90%;
+}
+.zoom-level {
+  min-width: 5em;
+}
+
+.welcome-screen .title {
+  margin: 2em 0 .5em;
+  font-weight: bold;
+  font-size: 175%;
+}
+.welcome-screen .subtitle {
+  margin-bottom: 1em;
+  font-size: 125%;
+}
+.welcome-screen .actions {
+  padding: 2em;
+}
+.welcome-screen .actions button {
+  margin: .5em 0;
+}
+
+.dialog {
+  padding: 10pt;
+}
+.dialog .choices {
+  margin-top: 10pt;
+}
+.dialog .choice {
+  margin-left: 2pt;
+}
+.dialog .choice:first-child {
+  margin-left: 0;
 }

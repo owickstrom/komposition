@@ -1,0 +1,4 @@
+:set -XNoImplicitPrelude
+:set -Wall
+:set -fno-warn-unticked-promoted-constructors
+:set -isrc -itest -idist/build/autogen
