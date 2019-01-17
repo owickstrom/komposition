@@ -11,6 +11,7 @@ import           Komposition.Prelude                                    hiding
 import           GI.Gtk                                                 (Align (..),
                                                                          Box (..),
                                                                          Button (..),
+                                                                         Dialog (..),
                                                                          Label (..),
                                                                          Orientation (..),
                                                                          Window (..))
@@ -20,7 +21,7 @@ import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 
 instance DialogView GtkWindowMarkup where
   dialogView props =
-    GtkWindowMarkup $
+    GtkModalMarkup $
       bin Window [ #title := dialogTitle props
                  , on #deleteEvent (const (True, DialogClosed))
                  ] $

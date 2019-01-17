@@ -16,6 +16,7 @@ import           Komposition.Prelude                                hiding
 import           GI.Gtk                                             (Align (..),
                                                                      Box (..),
                                                                      Button (..),
+                                                                     Dialog (..),
                                                                      Entry (..),
                                                                      Label (..),
                                                                      Orientation (..),

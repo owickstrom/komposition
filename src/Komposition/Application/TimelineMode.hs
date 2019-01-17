@@ -65,7 +65,7 @@ timelineMode
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -216,7 +216,7 @@ insertIntoTimeline
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -268,7 +268,7 @@ insertIntoTimeline gui model type' position =
   where continue = timelineMode gui model
 
 insertGap
-  :: (Application t m sig, HasType parent (Window (t m) parentEvent) r)
+  :: (Application t m sig, HasType parent (Window (t m) TopWindow parentEvent) r)
   => Name parent
   -> TimelineModel
   -> SMediaType mt
@@ -306,7 +306,7 @@ prettyFocusedAt = \case
 
 previewFocusedComposition
   :: ( Application t m sig
-     , HasType n (Window (t m) e) r
+     , HasType n (Window (t m) TopWindow e) r
      , Carrier sig m
      , TimelineEffects sig
      )
@@ -362,7 +362,7 @@ selectAssetAndInsert
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -387,7 +387,7 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       :: ( Application t m sig
          , TimelineEffects sig
          , Carrier sig m
-         , r ~ (n .== Window (t m) (Event 'TimelineMode))
+         , r ~ (n .== Window (t m) TopWindow (Event 'TimelineMode))
          , IxPointed (t m)
          )
       => Name n
@@ -401,7 +401,7 @@ insertSelectedAssets
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -441,7 +441,7 @@ addImportedAssetsToLibrary
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -480,7 +480,7 @@ deleteFocused
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -524,7 +524,7 @@ refreshPreview
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel
@@ -548,7 +548,7 @@ refreshPreviewAndContinue
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
      )
   => Name n
   -> TimelineModel

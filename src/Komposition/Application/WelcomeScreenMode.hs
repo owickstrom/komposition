@@ -97,7 +97,7 @@ toTimelineWithProject
     , Carrier sig m
     )
   => ExistingProject
-  -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
+  -> t m ("welcome" .== Window (t m) TopWindow (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project = do
   destroyWindow #welcome
   openTimelineWindowWithProject project
@@ -151,7 +151,7 @@ initialNewProjectModel =
 
 editNewProject
   :: ( Application t m sig
-    , HasType "welcome" (Window (t m) (Event WelcomeScreenMode)) r
+    , HasType "welcome" (Window (t m) TopWindow (Event WelcomeScreenMode)) r
     )
   => NewProjectModel -> t m r r (Maybe NewProjectModel)
 editNewProject initialModel =
@@ -164,7 +164,7 @@ editNewProject initialModel =
   where
     go
       :: ( Application t m sig
-        , r ~ ("newProject" .== Window (t m) (Event NewProjectMode))
+        , r ~ ("newProject" .== Window (t m) Modal (Event NewProjectMode))
         )
       => NewProjectModel
       -> t m r r (Maybe NewProjectModel)

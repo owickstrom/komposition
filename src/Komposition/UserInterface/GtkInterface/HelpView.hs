@@ -13,6 +13,7 @@ import           Komposition.Prelude                                    hiding
 
 import           GI.Gtk                                                 (Align (..),
                                                                          Box (..),
+                                                                         Dialog (..),
                                                                          Label (..),
                                                                          Orientation (..),
                                                                          ScrolledWindow (..),
@@ -27,7 +28,7 @@ import           Komposition.UserInterface.Help
 
 instance HelpView GtkWindowMarkup where
   helpView keymaps =
-    GtkWindowMarkup $
+    GtkModalMarkup $
       bin Window [on #deleteEvent (const (True, HelpClosed))]
         $ bin ScrolledWindow [classes ["help"]]
         $ container
