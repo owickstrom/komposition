@@ -36,10 +36,10 @@ import           Komposition.UserInterface.StubUserInterface
 
 
 genTimelineModel = do
-  (timeline', focus') <- Gen.timelineWithFocus (Range.linear 0 20) Gen.parallel
+  (timeline', focus') <- Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel
   existingProject'    <-
     ExistingProject
-    <$> (ProjectPath <$> Gen.string (Range.linear 1 20) Gen.unicode)
+    <$> (ProjectPath <$> Gen.string (Range.linear 1 10) Gen.unicode)
     <*> (History.initialise <$> Gen.projectWithTimeline (pure timeline'))
   pure TimelineModel
     { _existingProject  = existingProject'
@@ -65,28 +65,51 @@ runTimelineMode model =
     >>>= \r -> destroyWindow #gui >>> ireturn r
   where keymap = CommandKeyMappedEvent <$> keymaps STimelineMode
 
--- One really doesn't want to see the type signature of this beast.
-runTimelineEffectsStubbed =
-  run
-    . runStubRender
-    . runStubVideoImport
-    . runStubAudioImport
-    . runStubLogger
-    . runInMemoryProjectStore
+runTimelineStubbedWithExit
+  :: MonadTest m
+  => [Command TimelineMode]
+  -> TimelineModel
+  -> m TimelineModel
+runTimelineStubbedWithExit cmds model = case runPure model of
+  Left  err                     -> annotateShow err >> failure
+  Right TimelineClose           -> failure
+  Right (TimelineExit endModel) -> pure endModel
+  where
+    runPure =
+      run
+        . runStubRender
+        . runStubVideoImport
+        . runStubAudioImport
+        . runStubLogger
+        . runInMemoryProjectStore
+        . runStubUserInterface (eventsVector (cmds <> pure Exit))
+        . runTimelineMode
+
+hasEqualTimelineTo m1 m2 =
+  History.current (m1 ^. existingProject . projectHistory)
+    ^.  timeline
+    === History.current (m2 ^. existingProject . projectHistory)
+    ^.  timeline
 
 hprop_undo_actions_are_inversible = property $ do
   initialModel <- forAll genTimelineModel
   cmds <- forAllWith (show . map commandName)
-                     (Gen.list (Range.linear 1 20) genUndoableTimelineCommand)
-  -- we add as many undo commands as undoable commands
+                     (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
   let undos = const Undo <$> cmds
-      allCmds =
-        eventsVector cmds <> eventsVector undos <> eventsVector (pure Exit)
-  let result = runTimelineEffectsStubbed
-        (runStubUserInterface allCmds (runTimelineMode initialModel))
-  case result of
-    Left  err           -> annotateShow err >> failure
-    Right TimelineClose -> failure
-    Right (TimelineExit endModel) ->
-      History.current (initialModel ^. existingProject . projectHistory) ^. timeline
-        === History.current (endModel ^. existingProject . projectHistory) ^. timeline
+  -- we run as many undo commands as undoable commands
+  afterUndos <- runTimelineStubbedWithExit (cmds <> undos) initialModel
+  initialModel `hasEqualTimelineTo` afterUndos
+
+hprop_undo_actions_are_redoable = property $ do
+  initialModel <- forAll genTimelineModel
+  cmds <- forAllWith (show . map commandName)
+                     (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
+  -- we begin by running 'cmds' on the original model
+  beforeUndos <- runTimelineStubbedWithExit cmds initialModel
+  -- then we undo and redo all of them
+  afterRedos  <-
+    runTimelineStubbedWithExit (const Undo <$> cmds) beforeUndos
+    >>= runTimelineStubbedWithExit (const Redo <$> cmds)
+  -- that should result in a timeline equal to the one we had before
+  -- starting the undos
+  beforeUndos `hasEqualTimelineTo` afterRedos
