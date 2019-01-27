@@ -53,6 +53,7 @@ import           Komposition.Application.LibraryMode
 data TimelineModeResult
   = TimelineExit TimelineModel
   | TimelineClose
+  deriving (Eq, Show)
 
 type TimelineEffects sig =
   ( Member ProjectStore sig
@@ -171,8 +172,11 @@ timelineMode gui model = do
           Just m  -> refreshPreviewAndContinue gui m
           Nothing -> beep gui >> timelineMode gui model
       CommandKeyMappedEvent SaveProject ->
-        ilift (saveExistingProject (model ^. existingProject)) >>= \case
-          _ -> continue
+        model ^. existingProject
+          & projectHistory %~ trim
+          & saveExistingProject
+          & ilift
+          & (>> continue)
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
       CommandKeyMappedEvent Cancel       -> continue
       CommandKeyMappedEvent Help ->
@@ -268,7 +272,10 @@ insertIntoTimeline gui model type' position =
   where continue = timelineMode gui model
 
 insertGap
-  :: (Application t m sig, HasType parent (Window (t m) parentEvent) r)
+  :: ( Application t m sig
+     , HasType parent (Window (t m) parentEvent) r
+     , Typeable parentEvent
+     )
   => Name parent
   -> TimelineModel
   -> SMediaType mt
@@ -309,6 +316,7 @@ previewFocusedComposition
      , HasType n (Window (t m) e) r
      , Carrier sig m
      , TimelineEffects sig
+     , Typeable e
      )
   => Name n
   -> TimelineModel

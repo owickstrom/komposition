@@ -174,6 +174,7 @@ data FileChooserMode
   | Save FileChooserType
 
 newtype ZoomLevel = ZoomLevel Double
+  deriving (Eq, Show)
 
 data TimelineModel = TimelineModel
   { _existingProject  :: ExistingProject
@@ -182,7 +183,7 @@ data TimelineModel = TimelineModel
   , _zoomLevel        :: ZoomLevel
   , _clipboard        :: Maybe (SomeComposition ())
   , _previewImagePath :: Maybe FilePath
-  }
+  } deriving (Eq, Show)
 
 makeLenses ''TimelineModel
 
@@ -226,31 +227,37 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   type WindowMarkup m :: Type -> Type
 
   newWindow
-    :: Name n
+    :: Typeable event
+    => Name n
     -> WindowMarkup m event
     -> KeyMap event
     -> m r (Extend n (Window m event) r) ()
 
   patchWindow
-    :: HasType n (Window m event) r
+    :: Typeable event
+    => HasType n (Window m event) r
     => Modify n (Window m event) r ~ r
     => Name n
     -> WindowMarkup m event
     -> m r r ()
 
   setTransientFor
-    :: HasType child (Window m e1) r
+    :: Typeable e1
+    => Typeable e2
+    => HasType child (Window m e1) r
     => HasType parent (Window m e2) r
     => Name child
     -> Name parent
     -> m r r ()
 
   destroyWindow
-    :: Name n
-    -> Actions m '[ n !- Window m e] r ()
+    :: Typeable event
+    => Name n
+    -> Actions m '[ n !- Window m event] r ()
 
   withNewWindow
     :: ( r' ~ (n .== Window m event)
+       , Typeable event
        )
     => Name n
     -> WindowMarkup m event
@@ -261,6 +268,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   withNewModalWindow
     :: ( HasType parent (Window m parentEvent) r
        , r' ~ (modal .== Window m event)
+       , Typeable event
        )
     => Name parent
     -> Name modal
@@ -271,17 +279,20 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   nextEvent
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> m r r e
 
   nextEventOrTimeout
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> DiffTime
     -> m r r (Maybe e)
 
   runInBackground
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> IO (Vector e)
     -> m r r ()
@@ -290,6 +301,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   prompt
     :: HasType n (Window m event) r
+    => Typeable event
     => Name n
     -> Text -- ^ Prompt window title.
     -> Text -- ^ Prompt message.
@@ -301,6 +313,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   chooseFile
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> FileChooserMode
     -> Text -- ^ Dialog window title.
@@ -308,6 +321,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> m r r (Maybe FilePath)
   progressBar
     :: Exception e
+    => Typeable event
     => HasType n (Window m event) r
     => Name n -- ^ Name of parent window
     -> Text -- ^ Progress window title
@@ -315,6 +329,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> m r r (Maybe (Either e a))
   previewStream
     :: HasType n (Window m event) r
+    => Typeable event
     => Name n -- ^ Name of parent window
     -> Text -- ^ URI to stream
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process

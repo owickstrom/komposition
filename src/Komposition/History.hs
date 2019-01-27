@@ -1,14 +1,14 @@
 {-# LANGUAGE DeriveGeneric #-}
-module Komposition.History (History, initialise, current, edit, edit', undo, redo) where
+module Komposition.History (History, initialise, current, edit, edit', undo, redo, trim) where
 
 import           Komposition.Prelude
 
 -- | The complete 'History' of 'a' values.
 data History a = History
-    { past    :: [a] -- ^ All previous versions of the 'a'.
-    , current :: a   -- ^ The current version of the 'a'.
-    , future  :: [a] -- ^ All future versions of the 'a' (after a
-                           --   series of 'undo' operations).
+    { past    :: ![a] -- ^ All previous versions of the 'a'.
+    , current :: !a   -- ^ The current version of the 'a'.
+    , future  :: ![a] -- ^ All future versions of the 'a' (after a
+                      --   series of 'undo' operations).
     } deriving (Eq, Show, Generic)
 
 -- | Create a 'History' comprising only the current version of the 'a'.
@@ -34,3 +34,6 @@ undo (History (p:ps) c fs) = Just $ History ps p (c:fs)
 redo :: History a -> Maybe (History a)
 redo (History _  _ []    ) = Nothing
 redo (History ps c (f:fs)) = Just $ History (c:ps) f fs
+
+trim :: History a -> History a
+trim (History ps c fs) = History (take 1 ps) c (take 1 fs)

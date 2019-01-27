@@ -113,6 +113,7 @@ importSelectedFile
      , r ~ (n .== Window (t m) e)
      , DialogView (WindowMarkup (t m))
      , ImportEffects sig
+     , Typeable e
      )
   => Name n
   -> ExistingProject

@@ -154,7 +154,7 @@ executable komposition
                       , time
   hs-source-dirs:       exe
   default-language:     Haskell2010
-  ghc-options:        -Wall -threaded -O -with-rtsopts=-N
+  ghc-options:        -Wall -threaded -O2 -rtsopts -with-rtsopts=-N
   default-extensions: NoImplicitPrelude
 
 executable komposition-split
@@ -189,7 +189,8 @@ test-suite komposition-tests
   type:            exitcode-stdio-1.0
   hs-source-dirs:  test
   main-is:         Main.hs
-  other-modules:   Komposition.Composition.FocusedTest
+  other-modules:   Komposition.Application.TimelineModeTest
+                 , Komposition.Composition.FocusedTest
                  , Komposition.Composition.DeleteTest
                  , Komposition.Composition.Generators
                  , Komposition.Composition.InsertTest
@@ -197,17 +198,24 @@ test-suite komposition-tests
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
                  , Komposition.Import.Video.FFmpegTest
+                 , Komposition.Import.Video.StubVideoImport
+                 , Komposition.Import.Audio.StubAudioImport
+                 , Komposition.Logging.StubLogger
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
+                 , Komposition.Project.InMemoryProjectStore
                  , Komposition.Render.CompositionTest
                  , Komposition.Render.FFmpegTest
+                 , Komposition.Render.StubRender
                  , Komposition.TestLibrary
                  , Komposition.TimestampTest
+                 , Komposition.UserInterface.StubUserInterface
   build-depends:   base                 >= 4        && < 5
                  , extra
                  , komposition
                  , filepath
                  , hedgehog
+                 , indexed
                  , JuicyPixels
                  , fused-effects
                  , lens
@@ -216,6 +224,8 @@ test-suite komposition-tests
                  , pipes-safe
                  , massiv
                  , massiv-io
+                 , motor
+                 , row-types
                  , tasty
                  , tasty-hunit
                  , tasty-hspec
@@ -223,6 +233,7 @@ test-suite komposition-tests
                  , tasty-discover
                  , temporary
                  , unordered-containers >= 0.2      && < 0.3
+                 , vector
   default-language:     Haskell2010
   default-extensions:   NoImplicitPrelude
   ghc-options:     -Wall -fno-warn-unticked-promoted-constructors
