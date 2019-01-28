@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+
 {-# LANGUAGE ConstraintKinds    #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
@@ -30,7 +32,6 @@ import qualified Komposition.Composition.Paste  as Paste
 import qualified Komposition.Composition.Insert as Insert
 import           Komposition.Duration
 import           Komposition.Focus
-import           Komposition.History
 import           Komposition.KeyMap
 import           Komposition.Library
 import           Komposition.MediaType
@@ -194,9 +195,6 @@ data NewProjectModel = NewProjectModel
   }
 
 makeLenses ''NewProjectModel
-
-currentProject :: TimelineModel -> Project
-currentProject = current . view (existingProject . projectHistory)
 
 data ImportFileModel = ImportFileModel
   { classifyValue         :: Bool

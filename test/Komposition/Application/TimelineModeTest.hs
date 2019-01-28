@@ -21,7 +21,6 @@ import           Motor.FSM                                   (ireturn, (>>>),
 import           Komposition.Application.Base                (Application)
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
-import qualified Komposition.History                         as History
 import           Komposition.Project
 import           Komposition.UserInterface
 
@@ -40,7 +39,7 @@ genTimelineModel = do
   existingProject'    <-
     ExistingProject
     <$> (ProjectPath <$> Gen.string (Range.linear 1 10) Gen.unicode)
-    <*> (History.initialise <$> Gen.projectWithTimeline (pure timeline'))
+    <*> Gen.projectWithTimeline (pure timeline')
   pure TimelineModel
     { _existingProject  = existingProject'
     , _currentFocus     = focus'
@@ -86,10 +85,9 @@ runTimelineStubbedWithExit cmds model = case runPure model of
         . runTimelineMode
 
 hasEqualTimelineTo m1 m2 =
-  History.current (m1 ^. existingProject . projectHistory)
-    ^.  timeline
-    === History.current (m2 ^. existingProject . projectHistory)
-    ^.  timeline
+  m1 ^. existingProject . project . timeline
+  ===
+  m2 ^. existingProject . project . timeline
 
 hprop_undo_actions_are_inversible = property $ do
   initialModel <- forAll genTimelineModel

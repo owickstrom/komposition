@@ -27,7 +27,6 @@ import           Data.Time.Clock           (diffTimeToPicoseconds,
                                             picosecondsToDiffTime)
 import           Komposition.Composition
 import           Komposition.Duration
-import           Komposition.History
 import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
@@ -60,8 +59,6 @@ instance Binary AllVideoSettings
 instance Binary VideoSpeed
 instance Binary Project
 
-instance Binary a => Binary (History a)
-
 -- * File-Based Project Store
 
 projectDataFilePath :: ProjectPath -> FilePath
@@ -73,14 +70,14 @@ writeProject existingProject =
     $          liftIO
                  (writeProjectDataFile
                    (projectDataFilePath (existingProject ^. projectPath))
-                   (existingProject ^. projectHistory)
+                   (existingProject ^. project)
                  )
     `catchAny` (\(e :: SomeException) ->
                  throwError (UnexpectedSaveError (show e))
                )
 
 readProjectDataFile
-  :: FilePath -> IO (Either OpenProjectError (History Project))
+  :: FilePath -> IO (Either OpenProjectError Project)
 readProjectDataFile p =
   runExceptT
     $          liftIO (Binary.decodeFile p)
@@ -88,7 +85,7 @@ readProjectDataFile p =
                  throwError (InvalidProjectDataFile p (show e))
                )
 
-writeProjectDataFile :: FilePath -> History Project -> IO ()
+writeProjectDataFile :: FilePath -> Project -> IO ()
 writeProjectDataFile = Binary.encodeFile
 
 newtype FileProjectStoreIOC m a = FileProjectStoreIOC { runFileProjectStoreIOC :: m a }
@@ -101,7 +98,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
       whenM (liftIO (not . null <$> listDirectory targetPath)) $
         throwError (ProjectDirectoryNotEmpty targetPath)
       liftIO (createDirectoryIfMissing False targetPath)
-      let existingProject =  ExistingProject (ProjectPath targetPath) (initialise newProject)
+      let existingProject =  ExistingProject (ProjectPath targetPath) newProject
       ExceptT (liftIO (writeProject existingProject))
       return existingProject)
 

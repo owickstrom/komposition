@@ -12,9 +12,8 @@ import           Komposition.Prelude
 import qualified Prelude
 
 import           Control.Lens
-import           Hedgehog                hiding ( Parallel )
-import qualified Hedgehog.Gen                  as Gen
-                                         hiding ( parallel )
+import           Hedgehog                           hiding (Parallel)
+import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import           Hedgehog.Range
 
 import           Komposition.Composition
@@ -23,25 +22,19 @@ import           Komposition.Composition.Insert
 import           Komposition.Composition.Split
 import           Komposition.Focus
 import           Komposition.Focus.Parent
-import           Komposition.History
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.VideoSettings
 
-import qualified Komposition.Composition.Generators
-                                               as Gen
+import qualified Komposition.Composition.Generators as Gen
 
 data TestCommand
   = TestChangeFocus FocusCommand
   | TestInsert (Insertion ()) InsertPosition
   | TestSplit
   | TestDelete
-  | TestUndo
-  | TestRedo
   deriving (Eq, Show)
-
-currentProject p = current (p ^. projectHistory)
 
 changeFocusCommand
   :: MonadGen m
@@ -49,7 +42,7 @@ changeFocusCommand
   -> Focus (ToFocusType Timeline)
   -> m TestCommand
 changeFocusCommand p focus =
-  case atFocus focus (currentProject p ^. timeline) of
+  case atFocus focus (p ^. project . timeline) of
     Just SomeSequence{} ->
       Gen.element (TestChangeFocus <$> [FocusDown, FocusLeft, FocusRight])
     Just SomeParallel{}  -> TestChangeFocus <$> Gen.enumBounded
@@ -91,7 +84,7 @@ splitCommands
   -> Focus (ToFocusType Timeline)
   -> [m TestCommand]
 splitCommands p focus =
-  case (parentAtFocus focus (currentProject p ^. timeline), focus) of
+  case (parentAtFocus focus (p ^. project . timeline), focus) of
     (Just (SequenceParent (Sequence _ pars)), SequenceFocus _ (Just (ParallelFocus pIdx Nothing)))
       | pars `validToSplitAt` pIdx
       -> [pure TestSplit]
@@ -110,7 +103,7 @@ deleteCommands
   -> Focus (ToFocusType Timeline)
   -> [m TestCommand]
 deleteCommands p focus =
-  case parentAtFocus focus (currentProject p ^. timeline) of
+  case parentAtFocus focus (p ^. project . timeline) of
     Just (TimelineParent (Timeline seqs)) | length seqs >= 2 ->
       [pure TestDelete]
     Just (SequenceParent (Sequence _ pars)) | length pars >= 2 ->
@@ -127,7 +120,6 @@ testCommand composition focus = Gen.frequency
   (  [(20, insertCommand composition focus)]
   <> map (10, ) (splitCommands composition focus)
   <> map (10, ) (deleteCommands composition focus)
-  <> [(1, pure TestUndo), (1, pure TestRedo)]
   )
 
 applyTestCommand
@@ -149,12 +141,10 @@ applyTestCommand focus ep = \case
   TestSplit -> modifyTimeline $ \tl -> maybe failure pure (split focus tl)
   TestDelete ->
     modifyTimeline $ \tl -> handleDeleteResult focus tl (delete focus tl)
-  TestUndo -> pure (ep & projectHistory %%~ undo & fromMaybe ep, focus)
-  TestRedo -> pure (ep & projectHistory %%~ undo & fromMaybe ep, focus)
   where
     modifyTimeline f = do
-      (tl, focus') <- f (currentProject ep ^. timeline)
-      return (ep & projectHistory %~ edit (set timeline tl), focus')
+      (tl, focus') <- f (ep ^. project . timeline)
+      return (ep & project . timeline .~ tl, focus')
     handleDeleteResult initialFocus tl = \case
       Nothing -> failure
       Just (DeletionResult tl' _ (Just cmd)) -> do
@@ -199,8 +189,8 @@ hprop_focusNeverGoesInvalid = withTests 1000 $ property $ do
     (tl, focus) <- Gen.timelineWithFocus (linear 0 3) Gen.parallel
     n           <- Gen.integral (linear 1 10)
     pure (tl, focus, n)
-  let ep = ExistingProject (ProjectPath "foo") (initialise (initialProject tl))
+  let ep = ExistingProject (ProjectPath "foo") (initialProject tl)
   (ep', focus') <- generateAndApplyTestCommands ep focus n
-  assert . isJust $ atFocus focus' (currentProject ep' ^. timeline)
+  assert . isJust $ atFocus focus' (ep' ^. project . timeline)
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}

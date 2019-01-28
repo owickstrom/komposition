@@ -47,7 +47,6 @@ library
                       , Komposition.FFmpeg.Process
                       , Komposition.Focus
                       , Komposition.Focus.Parent
-                      , Komposition.History
                       , Komposition.Import.Audio
                       , Komposition.Import.Audio.Sox
                       , Komposition.Import.Video

@@ -39,13 +39,13 @@ createNewProject ::
   => FilePath
   -> Project
   -> m (Either SaveProjectError ExistingProject)
-createNewProject path project = send (CreateNewProject path project ret)
+createNewProject path project' = send (CreateNewProject path project' ret)
 
 saveExistingProject ::
      (Member ProjectStore sig, Carrier sig m)
   => ExistingProject
   -> m (Either SaveProjectError ())
-saveExistingProject project = send (SaveExistingProject project ret)
+saveExistingProject project' = send (SaveExistingProject project' ret)
 
 openExistingProject ::
      (Member ProjectStore sig, Carrier sig m)
@@ -69,8 +69,8 @@ instance HFunctor ProjectStore where
 
 instance Effect ProjectStore where
   handle st handler = \case
-    CreateNewProject path' project k -> CreateNewProject path' project (handler . (<$ st) . k)
-    SaveExistingProject project k -> SaveExistingProject project (handler . (<$ st) . k)
+    CreateNewProject path' project' k -> CreateNewProject path' project' (handler . (<$ st) . k)
+    SaveExistingProject project' k -> SaveExistingProject project' (handler . (<$ st) . k)
     OpenExistingProject path' k -> OpenExistingProject path' (handler . (<$ st) . k)
     GetDefaultProjectsDirectory k -> GetDefaultProjectsDirectory (handler . (<$ st) . k)
     GetCacheDirectory k -> GetCacheDirectory (handler . (<$ st) . k)

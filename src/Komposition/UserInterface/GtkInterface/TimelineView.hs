@@ -314,7 +314,7 @@ renderMainArea model =
   (renderPreviewPane (model ^. previewImagePath))
   (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline)))
   where
-    project' = currentProject model
+    project' = model ^. existingProject . project
     currentFocus' = model ^. currentFocus
 
 
@@ -380,7 +380,7 @@ timelineView :: TimelineModel -> Bin Window (Event TimelineMode)
 timelineView model =
   bin
       Window
-      [ #title := (currentProject model ^. projectName)
+      [ #title := (model ^. existingProject . project . projectName)
       , on #deleteEvent (const (True, WindowClosed))
       , #widthRequest := 600
       ]
@@ -402,5 +402,5 @@ timelineView model =
         ]
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
-    focusedTimelineWithSetFoci = withAllFoci (currentProject model ^. timeline)
+    focusedTimelineWithSetFoci = withAllFoci (model ^. existingProject . project . timeline)
       <&> \f -> (f, focusedState (model ^. currentFocus) f)

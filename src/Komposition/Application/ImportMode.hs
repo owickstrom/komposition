@@ -29,7 +29,6 @@ import           Data.String                      (fromString)
 
 import           Komposition.Application.Form
 import           Komposition.Classification
-import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
@@ -125,7 +124,7 @@ importSelectedFile
        ( Maybe
            (Either ImportError (Either [VideoAsset] [AudioAsset]))
        )
-importSelectedFile gui project ImportFileForm{selectedFile, classify, defaultVideoSpeed} = do
+importSelectedFile gui existingProject' ImportFileForm{selectedFile, classify, defaultVideoSpeed} = do
   v <- ilift (isSupportedVideoFile selectedFile)
   a <- ilift (isSupportedAudioFile selectedFile)
   let classification = bool Unclassified Classified classify
@@ -135,10 +134,10 @@ importSelectedFile gui project ImportFileForm{selectedFile, classify, defaultVid
         ilift $
         importVideoFile
           classification
-          (current (project ^. projectHistory) ^. videoSettings)
+          (existingProject' ^. project . videoSettings)
           defaultVideoSpeed
           selectedFile
-          (project ^. projectPath . unProjectPath)
+          (existingProject' ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Video" action
       ireturn (bimap ImportError Left <$> result)
     (False, True) -> do
@@ -147,7 +146,7 @@ importSelectedFile gui project ImportFileForm{selectedFile, classify, defaultVid
         importAudioFile
           classification
           selectedFile
-          (project ^. projectPath . unProjectPath)
+          (existingProject' ^. projectPath . unProjectPath)
       result <- progressBar gui "Importing Audio" action
       ireturn (bimap ImportError Right <$> result)
     _ -> do

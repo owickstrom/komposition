@@ -20,7 +20,6 @@ import           Control.Lens
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
 
-import qualified Komposition.History       as History
 import           Komposition.Project
 import           Komposition.Project.Store
 
@@ -35,7 +34,7 @@ instance (Monad m, Carrier sig m, Effect sig)
   ret = InMemoryProjectStoreC . ret
   eff = InMemoryProjectStoreC . handleSum (eff . R . handleCoercible) (\case
     CreateNewProject path' project' k -> do
-      let ep = ExistingProject (ProjectPath path') (History.initialise project')
+      let ep = ExistingProject (ProjectPath path') project'
       modify (HashMap.insert (ep ^. projectPath) ep)
       runInMemoryProjectStoreC (k (Right ep))
     SaveExistingProject ep k -> do

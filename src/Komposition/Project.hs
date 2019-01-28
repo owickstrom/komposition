@@ -16,7 +16,6 @@ import           Control.Lens
 import           Data.Text                 (Text)
 
 import           Komposition.Composition
-import           Komposition.History
 import           Komposition.Library
 import           Komposition.VideoSettings
 
@@ -35,8 +34,8 @@ newtype ProjectPath = ProjectPath { _unProjectPath :: FilePath }
 makeLenses ''ProjectPath
 
 data ExistingProject = ExistingProject
-  { _projectPath    :: !ProjectPath
-  , _projectHistory :: !(History Project)
+  { _projectPath :: !ProjectPath
+  , _project     :: !Project
   } deriving (Eq, Show)
 
 makeLenses ''ExistingProject
