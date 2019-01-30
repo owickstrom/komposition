@@ -49,7 +49,7 @@ genTimelineModel = do
     , _previewImagePath = Nothing
     }
 
-genUndoableTimelineCommand :: MonadGen m => m (Command TimelineMode)
+genUndoableTimelineCommand :: MonadGen m => m (Command 'TimelineMode)
 genUndoableTimelineCommand =
   Gen.choice [pure Split, pure Delete, Paste <$> Gen.enumBounded]
 
@@ -66,7 +66,7 @@ runTimelineMode model =
 
 runTimelineStubbedWithExit
   :: MonadTest m
-  => [Command TimelineMode]
+  => [Command 'TimelineMode]
   -> TimelineModel
   -> m TimelineModel
 runTimelineStubbedWithExit cmds model = case runPure model of
@@ -93,7 +93,7 @@ hprop_undo_actions_are_inversible = property $ do
   initialModel <- forAll genTimelineModel
   cmds <- forAllWith (show . map commandName)
                      (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
-  let undos = const Undo <$> cmds
+  let undos = Undo <$ cmds
   -- we run as many undo commands as undoable commands
   afterUndos <- runTimelineStubbedWithExit (cmds <> undos) initialModel
   initialModel `hasEqualTimelineTo` afterUndos
@@ -106,8 +106,8 @@ hprop_undo_actions_are_redoable = property $ do
   beforeUndos <- runTimelineStubbedWithExit cmds initialModel
   -- then we undo and redo all of them
   afterRedos  <-
-    runTimelineStubbedWithExit (const Undo <$> cmds) beforeUndos
-    >>= runTimelineStubbedWithExit (const Redo <$> cmds)
+    runTimelineStubbedWithExit (Undo <$ cmds) beforeUndos
+    >>= runTimelineStubbedWithExit (Redo <$ cmds)
   -- that should result in a timeline equal to the one we had before
   -- starting the undos
   beforeUndos `hasEqualTimelineTo` afterRedos

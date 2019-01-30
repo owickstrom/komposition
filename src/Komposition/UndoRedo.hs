@@ -59,8 +59,12 @@ runAndRecord
   -> History action state
   -> f (History action state)
 runAndRecord action history =
-  run (unDirected action) (current history) <&> \c ->
-    history { current = c, toUndo = invertDirected action : toUndo history }
+  run (unDirected action) (current history) <&> \c -> history
+    { current = c
+    , toUndo  = invertDirected action : toUndo history
+    , toRedo  = mempty -- clear the redo stack when we "branch" the
+                       -- history
+    }
 
 undo
   :: (Functor f, Runnable action state f, Invertible action)
