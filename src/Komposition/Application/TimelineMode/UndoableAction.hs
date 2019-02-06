@@ -28,31 +28,27 @@ data UndoableState = UndoableState
 
 makeLenses ''UndoableState
 
-data UndoableAction dir where
-  DeleteAction :: UndoableAction 'Forward
-  UnDeleteAction :: Focus 'SequenceFocusType -> Insertion () -> UndoableAction 'Backward
-deriving instance Eq (UndoableAction dir)
-deriving instance Show (UndoableAction dir)
+data UndoableAction
+  = InsertAction (Focus 'SequenceFocusType) (Insertion ())
+  | DeleteAction (Focus 'SequenceFocusType)
+  deriving (Eq, Show)
 
 instance MonadError Text m => Runnable UndoableAction UndoableState m where
   run action state' =
     case action of
-      DeleteAction ->
-            case delete_ currentFocus' currentTimeline of
-              Left (Just (_, _focusErr)) -> throwError "Delete failed."
-              Left Nothing -> throwError "Can't delete at current focus."
-              Right (timeline', deletedComposition', focus') ->
-                state'
-                & existingProject . project . timeline .~ timeline'
-                & timelineFocus .~ focus'
-                & (UnDeleteAction currentFocus' (insertionFromSomeComposition deletedComposition'),)
-                & pure
+      DeleteAction focus'           ->
+        case delete_ focus' currentTimeline of
+          Left (Just (_, _focusErr)) -> throwError "Delete failed."
+          Left Nothing -> throwError "Can't delete at current focus."
+          Right (timeline', deletedComposition', newFocus) ->
+            state'
+            & existingProject . project . timeline .~ timeline'
+            & timelineFocus .~ newFocus
+            & (InsertAction focus' (insertionFromSomeComposition deletedComposition'),)
+            & pure
         where
-          currentFocus' = state' ^. timelineFocus
           currentTimeline = state' ^. existingProject . project . timeline
-  revert action state' =
-    case action of
-      UnDeleteAction focus' reinsertion ->
+      InsertAction focus' reinsertion ->
         state'
           & existingProject . project . timeline %~
             insert_
@@ -61,6 +57,5 @@ instance MonadError Text m => Runnable UndoableAction UndoableState m where
                LeftOf
           -- "insert left of" moves the focus right, so we reset to the previous focus manually
           & timelineFocus .~ focus'
-          & (DeleteAction,)
+          & (DeleteAction focus',)
           & pure
-

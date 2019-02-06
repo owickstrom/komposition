@@ -141,10 +141,12 @@ timelineMode gui state' = do
       CommandKeyMappedEvent (InsertCommand type' position) ->
         insertIntoTimeline gui state' type' position
       CommandKeyMappedEvent Delete ->
-        case state' & history %%~ runAndRecord DeleteAction of
+        case state' & history %%~ runAndRecord (DeleteAction currentFocus') of
           Left err      ->
             beep gui >>> continueWithStatusMessage err
           Right state'' -> refreshPreviewAndContinue gui state''
+        where
+          currentFocus' = state' ^. history . current . timelineFocus
       CommandKeyMappedEvent Copy ->
         state'
           &  clipboard

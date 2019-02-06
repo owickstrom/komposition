@@ -9,38 +9,41 @@ import           Komposition.Prelude
 
 import           Control.Effect
 import           Control.Lens
-import           Data.Row.Records                            (Empty)
-import           Data.Tree                                   (drawTree)
-import qualified Data.Vector                                 as Vector
-import           Hedgehog                                    hiding (Command)
-import qualified Hedgehog.Gen                                as Gen hiding
-                                                                     (parallel)
-import qualified Hedgehog.Range                              as Range
-import           Motor.FSM                                   (ireturn, (>>>),
-                                                              (>>>=))
+import           Data.Row.Records                                    (Empty)
+import           Data.Tree                                           (drawTree)
+import qualified Data.Vector                                         as Vector
+import           Hedgehog                                            hiding
+                                                                      (Command)
+import qualified Hedgehog.Gen                                        as Gen hiding
+                                                                             (parallel)
+import qualified Hedgehog.Range                                      as Range
+import           Motor.FSM                                           (ireturn,
+                                                                      (>>>),
+                                                                      (>>>=))
 
-import           Komposition.Application.Base                (Application)
+import           Komposition.Application.Base                        (Application)
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
-import           Komposition.Composition                     (Timeline)
+import           Komposition.Application.TimelineMode.UndoableAction
+import           Komposition.Composition                             (Timeline)
 import           Komposition.Focus
 import           Komposition.Project
-import qualified Komposition.UndoRedo                        as UndoRedo
-import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
-                                                              project)
+import qualified Komposition.UndoRedo                                as UndoRedo
+import           Komposition.UserInterface                           hiding (TimelineViewModel (..),
+                                                                      project)
 
-import qualified Komposition.Composition.Generators          as Gen
+import qualified Komposition.Composition.Generators                  as Gen
 import           Komposition.Composition.ToTree
 import           Komposition.Import.Audio.StubAudioImport
 import           Komposition.Import.Video.StubVideoImport
 import           Komposition.Logging.StubLogger
-import qualified Komposition.Project.Generators              as Gen
+import qualified Komposition.Project.Generators                      as Gen
 import           Komposition.Project.InMemoryProjectStore
 import           Komposition.Render.StubRender
 import           Komposition.UserInterface.StubUserInterface
 
 
-initializeState :: MonadGen m => (Timeline (), Focus SequenceFocusType) -> m TimelineState
+initializeState :: MonadGen m => (Timeline (), Focus 'SequenceFocusType) -> m TimelineState
 initializeState (timeline', focus')= do
   existingProject'    <-
     ExistingProject
@@ -56,8 +59,8 @@ initializeState (timeline', focus')= do
 
 genUndoableTimelineCommand :: MonadGen m => m (Command 'TimelineMode)
 genUndoableTimelineCommand =
-  -- TODO: readd Split and Paste
-  Gen.choice [pure Delete]
+  -- TODO: add Split, Join, Insert
+  Gen.choice [pure Delete, Paste <$> Gen.enumBounded]
 
 eventsVector =
   Vector.fromList . map (SomeEvent . CommandKeyMappedEvent)
@@ -75,7 +78,7 @@ runTimelineStubbedWithExit
   => [Command 'TimelineMode]
   -> TimelineState
   -> m TimelineState
-runTimelineStubbedWithExit cmds state = case runPure state of
+runTimelineStubbedWithExit cmds state' = case runPure state' of
   Left  err                     -> annotateShow err >> failure
   Right TimelineClose           -> failure
   Right (TimelineExit endState) -> pure endState

@@ -2,8 +2,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TupleSections         #-}
 module Komposition.UndoRedoTest where
 
 import           Komposition.Prelude  hiding (applyN)
@@ -20,22 +18,19 @@ import           Komposition.UndoRedo
 type Idx = Int
 type Value = Char
 
-data TestAction dir where
-  SetValue :: Idx -> Char -> TestAction 'Forward
-  UnsetValue :: Idx -> Char -> TestAction 'Backward
-
-deriving instance Eq (TestAction dir)
-deriving instance Show (TestAction dir)
+data TestAction
+  = SetValue Idx Char
+  | UnsetValue Idx Char
+  deriving (Eq, Show)
 
 instance Applicative m => Runnable TestAction (Vector Char) m where
   run (SetValue idx new) values = pure (UnsetValue idx (values ! idx), values // [(idx, new)])
-  revert (UnsetValue idx old) values = pure (SetValue idx (values ! idx), values // [(idx, old)])
+  run (UnsetValue idx old) values = pure (SetValue idx (values ! idx), values // [(idx, old)])
 
-genTestActions :: MonadGen m => Range Int -> Int -> m ([TestAction 'Forward])
-genTestActions range numValues = do
-  actions <-
-    Gen.list range (SetValue <$> Gen.integral (Range.linear 0 (pred numValues)) <*> Gen.ascii)
-  pure actions
+genTestActions :: MonadGen m => Range Int -> Int -> m [TestAction]
+genTestActions range numValues = Gen.list
+  range
+  (SetValue <$> Gen.integral (Range.linear 0 (pred numValues)) <*> Gen.ascii)
 
 genTestValues :: MonadGen m => Range Int -> m (Vector Char)
 genTestValues range = do
@@ -45,7 +40,7 @@ genTestValues range = do
 runAndRecordAll
   :: (Monad m, Runnable action state m)
   => History action state
-  -> [action 'Forward]
+  -> [action]
   -> m (History action state)
 runAndRecordAll = foldM (flip runAndRecord)
 

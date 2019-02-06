@@ -14,7 +14,6 @@
 {-# LANGUAGE TypeFamilies          #-}
 module Komposition.UndoRedo
   ( Runnable(..)
-  , Direction(..)
   , History
   , init
   , current
@@ -32,34 +31,20 @@ import           Komposition.Prelude
 import           Control.Lens        hiding (uncons)
 
 class Runnable action subject f where
-  run :: action 'Forward -> subject -> f (action 'Backward, subject)
-  revert :: action 'Backward -> subject -> f (action 'Forward, subject)
+  run :: action -> subject -> f (action, subject)
 
-data Direction = Forward | Backward
-
-data Directed (dir :: Direction) action where
-  ForwardAction :: action -> Directed Forward action
-  BackwardAction :: action -> Directed Backward action
-
-deriving instance Eq action => Eq (Directed dir action)
-deriving instance Show action => Show (Directed dir action)
-
-type family Flip (d :: Direction) where
-  Flip Forward = Backward
-  Flip Backward = Forward
-
-data History (action :: Direction -> Type) state = History
+data History action state = History
   { _current :: state
-  , toUndo   :: [action Backward]
-  , toRedo   :: [action Forward]
+  , toUndo   :: [action]
+  , toRedo   :: [action]
   }
 
 deriving instance
-  (Eq state, Eq (action 'Forward), Eq (action 'Backward))
+  (Eq state, Eq action, Eq action)
   => Eq (History action state)
 
 deriving instance
-  (Show state, Show (action 'Forward), Show (action 'Backward))
+  (Show state, Show action, Show action)
   => Show (History action state)
 
 makeLenses ''History
@@ -79,7 +64,7 @@ numRedos History { toRedo } = length toRedo
 
 runAndRecord
   :: (Functor f, Runnable action state f)
-  => action Forward
+  => action
   -> History action state
   -> f (History action state)
 runAndRecord action history =
@@ -102,7 +87,7 @@ undo history = do
         , toUndo  = us
         , toRedo  = inverted : toRedo history
         }
-  pure (f <$> revert u (_current history))
+  pure (f <$> run u (_current history))
 
 redo
   :: (Functor f, Runnable action state f)

@@ -28,7 +28,9 @@ parallelToTree (Parallel ann vs as) =
   Node ("Parallel " <> show ann) ((videoPartToTree <$> vs) <> (audioPartToTree <$> as))
 
 videoPartToTree :: Show a => VideoPart a -> Tree String
-videoPartToTree (VideoClip ann asset timespan speed) = Node ("VideoClip " <> show ann) [videoAssetToTree asset, speedToTree speed]
+videoPartToTree (VideoClip ann asset ts speed) = Node
+  ("VideoClip " <> show ann)
+  [videoAssetToTree asset, timeSpanToTree ts, speedToTree speed]
 videoPartToTree (VideoGap ann meta)      = Node ("VideoGap " <> show ann) [Node (show meta) []]
 
 audioPartToTree :: Show a => AudioPart a -> Tree String
