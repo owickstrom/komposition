@@ -194,6 +194,7 @@ test-suite komposition-tests
                  , Komposition.Composition.DeleteTest
                  , Komposition.Composition.Generators
                  , Komposition.Composition.InsertTest
+                 , Komposition.Composition.ToTree
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
@@ -212,26 +213,27 @@ test-suite komposition-tests
                  , Komposition.UndoRedoTest
                  , Komposition.UserInterface.StubUserInterface
   build-depends:   base                 >= 4        && < 5
+                 , containers
                  , extra
-                 , komposition
                  , filepath
+                 , fused-effects
                  , hedgehog
                  , indexed
                  , JuicyPixels
-                 , fused-effects
+                 , komposition
                  , lens
-                 , pipes
-                 , pipes-parse
-                 , pipes-safe
                  , massiv
                  , massiv-io
                  , motor
+                 , pipes
+                 , pipes-parse
+                 , pipes-safe
                  , row-types
                  , tasty
-                 , tasty-hunit
-                 , tasty-hspec
-                 , tasty-hedgehog
                  , tasty-discover
+                 , tasty-hedgehog
+                 , tasty-hspec
+                 , tasty-hunit
                  , temporary
                  , unordered-containers >= 0.2      && < 0.3
                  , vector

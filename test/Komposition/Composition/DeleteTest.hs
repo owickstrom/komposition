@@ -21,6 +21,6 @@ spec_delete = it "deletes only audio part and retains valid focus" $ do
       before' = Timeline (pure (Sequence () (pure (Parallel () [] [audio1s]))))
       focus'  = SequenceFocus 0 (Just (ParallelFocus 0 Nothing))
       after'  = Timeline (pure (Sequence () (pure (Parallel () [] []))))
-  delete_ focus before' `shouldBe` Right (after', focus')
+  delete_ focus before' `shouldBe` Right (after', SomeAudioPart audio1s, focus')
 
 {-# ANN module ("HLint: ignore Use camelCase" :: Prelude.String) #-}

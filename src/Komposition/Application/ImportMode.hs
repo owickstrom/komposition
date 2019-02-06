@@ -34,6 +34,7 @@ import           Komposition.Import.Video
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
+import           Komposition.UserInterface        hiding (project)
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Komposition.VideoSpeed

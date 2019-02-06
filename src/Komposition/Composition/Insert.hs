@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds  #-}
 {-# LANGUAGE GADTs      #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 
 -- | Transform a 'Composition' by inserting children.
@@ -7,7 +8,7 @@ module Komposition.Composition.Insert where
 
 import           Komposition.Prelude
 
-import qualified Data.List.NonEmpty   as NonEmpty
+import qualified Data.List.NonEmpty       as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -136,3 +137,10 @@ insert_
   -> Timeline a
   -> Timeline a
 insert_ f i p s = fromMaybe s (insert f i p s)
+
+insertionFromSomeComposition :: SomeComposition a -> Insertion a
+insertionFromSomeComposition = \case
+  SomeSequence s -> InsertSequence s
+  SomeParallel p -> InsertParallel p
+  SomeVideoPart v -> InsertVideoParts [v]
+  SomeAudioPart a -> InsertAudioParts [a]

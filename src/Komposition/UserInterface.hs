@@ -26,7 +26,6 @@ import           Motor.FSM                      hiding (Delete)
 import           Pipes
 import           Pipes.Safe                     (SafeT)
 
-import           Komposition.Composition
 import qualified Komposition.Composition.Paste  as Paste
 
 import qualified Komposition.Composition.Insert as Insert
@@ -177,16 +176,15 @@ data FileChooserMode
 newtype ZoomLevel = ZoomLevel Double
   deriving (Eq, Show)
 
-data TimelineModel = TimelineModel
-  { _existingProject  :: ExistingProject
+data TimelineViewModel = TimelineViewModel
+  { _project          :: Project
   , _currentFocus     :: Focus SequenceFocusType
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel
-  , _clipboard        :: Maybe (SomeComposition ())
   , _previewImagePath :: Maybe FilePath
   } deriving (Eq, Show)
 
-makeLenses ''TimelineModel
+makeLenses ''TimelineViewModel
 
 data NewProjectModel = NewProjectModel
   { _newProjectName       :: Text
@@ -216,7 +214,7 @@ data PromptMode ret where
 class UserInterfaceMarkup markup where
   welcomeView :: markup (Event WelcomeScreenMode)
   newProjectView :: NewProjectModel -> markup (Event NewProjectMode)
-  timelineView :: TimelineModel -> markup (Event TimelineMode)
+  timelineView :: TimelineViewModel -> markup (Event TimelineMode)
   libraryView :: SelectAssetsModel mediaType -> markup (Event LibraryMode)
   importView :: ImportFileModel -> markup (Event ImportMode)
 

@@ -40,7 +40,7 @@ import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.MediaType
-import           Komposition.Project
+import           Komposition.Project                                      hiding (project)
 import           Komposition.Timestamp
 import           Komposition.UserInterface                                hiding (Window,
                                                                            timelineView)
@@ -308,13 +308,13 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
     formatDuration = printTimestampWithPrecision (Just 2)
 
 renderMainArea
-  :: TimelineModel -> Widget (Event TimelineMode)
+  :: TimelineViewModel -> Widget (Event TimelineMode)
 renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
   (renderPreviewPane (model ^. previewImagePath))
   (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline)))
   where
-    project' = model ^. existingProject . project
+    project' = model ^. project
     currentFocus' = model ^. currentFocus
 
 
@@ -360,7 +360,7 @@ renderMenu = container
         )
       ]
 
-renderBottomBar :: TimelineModel -> Widget (Event TimelineMode)
+renderBottomBar :: TimelineViewModel -> Widget (Event TimelineMode)
 renderBottomBar model = container
   Box
   [#orientation := OrientationHorizontal, classes ["bottom-bar"]]
@@ -376,11 +376,11 @@ renderBottomBar model = container
   ]
   where toZoomEvent (RangeSliderChanged d) = ZoomLevelChanged (ZoomLevel d)
 
-timelineView :: TimelineModel -> Bin Window (Event TimelineMode)
+timelineView :: TimelineViewModel -> Bin Window (Event TimelineMode)
 timelineView model =
   bin
       Window
-      [ #title := (model ^. existingProject . project . projectName)
+      [ #title := (model ^. project . projectName)
       , on #deleteEvent (const (True, WindowClosed))
       , #widthRequest := 600
       ]
@@ -402,5 +402,5 @@ timelineView model =
         ]
   where
     focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
-    focusedTimelineWithSetFoci = withAllFoci (model ^. existingProject . project . timeline)
+    focusedTimelineWithSetFoci = withAllFoci (model ^. project . timeline)
       <&> \f -> (f, focusedState (model ^. currentFocus) f)

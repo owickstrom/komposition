@@ -1,47 +1,58 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TupleSections         #-}
 module Komposition.UndoRedoTest where
 
 import           Komposition.Prelude  hiding (applyN)
 
+import           Control.Lens
+import           Data.Vector          (Vector, (!), (//))
+import qualified Data.Vector          as Vector
 import           Hedgehog             hiding (Parallel)
 import qualified Hedgehog.Gen         as Gen hiding (parallel)
 import qualified Hedgehog.Range       as Range
 
 import           Komposition.UndoRedo
 
-data TestAction = SetValue Int Int
-  deriving (Eq, Show)
+type Idx = Int
+type Value = Char
 
-instance Invertible TestAction where
-  invert (SetValue old new) = SetValue new old
+data TestAction dir where
+  SetValue :: Idx -> Char -> TestAction 'Forward
+  UnsetValue :: Idx -> Char -> TestAction 'Backward
 
-instance Applicative m => Runnable TestAction Int m where
-  run (SetValue _ new) _ = pure new
+deriving instance Eq (TestAction dir)
+deriving instance Show (TestAction dir)
 
-genTestActions :: MonadGen m => Range Int -> Int -> m [Directed Forward TestAction]
-genTestActions range initialOld = do
-  len <- Gen.int range
-  genActions initialOld len []
-  where
-    genActions _ 0 actions = pure actions
-    genActions old len actions = do
-      new <- Gen.filter (/= old) (Gen.int (Range.linear (-100) 100))
-      genActions new (pred len) (actions <> [Directed (SetValue old new)])
+instance Applicative m => Runnable TestAction (Vector Char) m where
+  run (SetValue idx new) values = pure (UnsetValue idx (values ! idx), values // [(idx, new)])
+  revert (UnsetValue idx old) values = pure (SetValue idx (values ! idx), values // [(idx, old)])
+
+genTestActions :: MonadGen m => Range Int -> Int -> m ([TestAction 'Forward])
+genTestActions range numValues = do
+  actions <-
+    Gen.list range (SetValue <$> Gen.integral (Range.linear 0 (pred numValues)) <*> Gen.ascii)
+  pure actions
+
+genTestValues :: MonadGen m => Range Int -> m (Vector Char)
+genTestValues range = do
+  n <- Gen.integral range
+  pure ( Vector.replicate n '\NUL')
 
 runAndRecordAll
-  :: (Monad m, Invertible action, Runnable action state m)
+  :: (Monad m, Runnable action state m)
   => History action state
-  -> [Directed Forward action]
+  -> [action 'Forward]
   -> m (History action state)
 runAndRecordAll = foldM (flip runAndRecord)
 
 applyN
-  :: (Monad m, MonadTest m, Invertible action, Runnable action state m)
+  :: (Monad m, MonadTest m, Runnable action state m)
   => (History action state -> Maybe (m (History action state)))
-  -> (History action state)
+  -> History action state
   -> Int
   -> m (History action state)
 applyN f acc n = foldM
@@ -53,7 +64,7 @@ applyN f acc n = foldM
   (replicate n ())
 
 applyAll
-  :: (Monad m, MonadTest m, Invertible action, Runnable action state m)
+  :: (Monad m, MonadTest m, Runnable action state m)
   => (History action state -> Maybe (m (History action state)))
   -> History action state
   -> m (History action state)
@@ -63,35 +74,35 @@ applyAll f history =
     Nothing -> pure history
 
 hprop_undo_history_has_correct_number_of_undos = property $ do
-  initial <- forAll (Gen.int Range.linearBounded)
-  actions <- forAllWith (show . map unDirected) (genTestActions (Range.linear 0 100) initial)
+  initial <- forAll (genTestValues (Range.exponential 1 100))
+  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
   history <- runAndRecordAll (init initial) actions
   numUndos history === length actions
 
 hprop_undo_all_returns_initial_state = property $ do
-  initial <- forAll (Gen.int Range.linearBounded)
-  actions <- forAllWith (show . map unDirected) (genTestActions (Range.linear 0 100) initial)
+  initial <- forAll (genTestValues (Range.exponential 1 100))
+  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
   -- we apply all actions
   afterActions <- runAndRecordAll (init initial) actions
   -- then undo them all
   numUndos afterActions === length actions
   afterUndos <- applyAll undo afterActions
   -- and we expect to be back at the initial state
-  current afterUndos === initial
+  afterUndos ^. current === initial
 
 hprop_redo_all_returns_final_state = property $ do
-  initial <- forAll (Gen.int Range.linearBounded)
-  actions <- forAllWith (show . map unDirected) (genTestActions (Range.linear 0 100) initial)
+  initial <- forAll (genTestValues (Range.exponential 1 100))
+  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
   -- we apply all actions
   afterActions <- runAndRecordAll (init initial) actions
   -- then undo and redo them all
   afterRedos <- applyAll undo afterActions >>= applyAll redo
   -- and we expect to be back at the initial state
-  current afterRedos === current afterActions
+  afterRedos ^. current === afterActions ^. current
 
 hprop_run_new_action_clears_redos = property $ do
-  initial      <- forAll (Gen.int Range.linearBounded)
-  actions      <- forAllWith (show . map unDirected) (genTestActions (Range.linear 0 100) initial)
+  initial <- forAll (genTestValues (Range.exponential 1 100))
+  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
   -- we apply all actions
   afterActions <- runAndRecordAll (init initial) actions
   -- and undo them all
@@ -100,8 +111,7 @@ hprop_run_new_action_clears_redos = property $ do
   numRedos afterUndos === length actions
 
   -- then generate more actions to run, at least one
-  moreActions <- forAllWith (show . map unDirected)
-                            (genTestActions (Range.linear 1 100) (current afterUndos))
+  moreActions <- forAll (genTestActions (Range.linear 1 100) (Vector.length (afterUndos ^. current)))
   -- and apply those
   afterNewActions <- runAndRecordAll afterUndos moreActions
   -- make sure we have no redos, and the new amount of undos

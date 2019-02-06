@@ -10,6 +10,7 @@ import           Komposition.Prelude
 import           Control.Effect
 import           Control.Lens
 import           Data.Row.Records                            (Empty)
+import           Data.Tree                                   (drawTree)
 import qualified Data.Vector                                 as Vector
 import           Hedgehog                                    hiding (Command)
 import qualified Hedgehog.Gen                                as Gen hiding
@@ -21,10 +22,15 @@ import           Motor.FSM                                   (ireturn, (>>>),
 import           Komposition.Application.Base                (Application)
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
+import           Komposition.Composition                     (Timeline)
+import           Komposition.Focus
 import           Komposition.Project
-import           Komposition.UserInterface
+import qualified Komposition.UndoRedo                        as UndoRedo
+import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
+                                                              project)
 
 import qualified Komposition.Composition.Generators          as Gen
+import           Komposition.Composition.ToTree
 import           Komposition.Import.Audio.StubAudioImport
 import           Komposition.Import.Video.StubVideoImport
 import           Komposition.Logging.StubLogger
@@ -34,15 +40,14 @@ import           Komposition.Render.StubRender
 import           Komposition.UserInterface.StubUserInterface
 
 
-genTimelineModel = do
-  (timeline', focus') <- Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel
+initializeState :: MonadGen m => (Timeline (), Focus SequenceFocusType) -> m TimelineState
+initializeState (timeline', focus')= do
   existingProject'    <-
     ExistingProject
     <$> (ProjectPath <$> Gen.string (Range.linear 1 10) Gen.unicode)
     <*> Gen.projectWithTimeline (pure timeline')
-  pure TimelineModel
-    { _existingProject  = existingProject'
-    , _currentFocus     = focus'
+  pure TimelineState
+    { _history  = UndoRedo.init (UndoableState existingProject' focus')
     , _statusMessage    = Nothing
     , _clipboard        = Nothing
     , _zoomLevel        = ZoomLevel 1
@@ -51,28 +56,29 @@ genTimelineModel = do
 
 genUndoableTimelineCommand :: MonadGen m => m (Command 'TimelineMode)
 genUndoableTimelineCommand =
-  Gen.choice [pure Split, pure Delete, Paste <$> Gen.enumBounded]
+  -- TODO: readd Split and Paste
+  Gen.choice [pure Delete]
 
 eventsVector =
   Vector.fromList . map (SomeEvent . CommandKeyMappedEvent)
 
 runTimelineMode
-  :: (Application t m sig, TimelineEffects sig) => TimelineModel -> t m Empty Empty TimelineModeResult
-runTimelineMode model =
-  newWindow #gui (timelineView model) keymap
-    >>> timelineMode #gui model
+  :: (Application t m sig, TimelineEffects sig) => TimelineState -> t m Empty Empty TimelineModeResult
+runTimelineMode state' =
+  newWindow #gui (timelineViewFromState state') keymap
+    >>> timelineMode #gui state'
     >>>= \r -> destroyWindow #gui >>> ireturn r
   where keymap = CommandKeyMappedEvent <$> keymaps STimelineMode
 
 runTimelineStubbedWithExit
   :: MonadTest m
   => [Command 'TimelineMode]
-  -> TimelineModel
-  -> m TimelineModel
-runTimelineStubbedWithExit cmds model = case runPure model of
+  -> TimelineState
+  -> m TimelineState
+runTimelineStubbedWithExit cmds state = case runPure state of
   Left  err                     -> annotateShow err >> failure
   Right TimelineClose           -> failure
-  Right (TimelineExit endModel) -> pure endModel
+  Right (TimelineExit endState) -> pure endState
   where
     runPure =
       run
@@ -84,30 +90,36 @@ runTimelineStubbedWithExit cmds model = case runPure model of
         . runStubUserInterface (eventsVector (cmds <> pure Exit))
         . runTimelineMode
 
-hasEqualTimelineTo m1 m2 =
-  m1 ^. existingProject . project . timeline
-  ===
-  m2 ^. existingProject . project . timeline
+currentTimeline :: Lens' TimelineState (Timeline ())
+currentTimeline = history.UndoRedo.current.existingProject.project.timeline
 
-hprop_undo_actions_are_inversible = property $ do
-  initialModel <- forAll genTimelineModel
+showTimelineAndFocus (t, f) = drawTree (timelineToTree t) <> "\n" <> show f
+
+hprop_undo_actions_are_undoable = property $ do
+  timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
+  initialState <- forAll (initializeState timelineAndFocus)
   cmds <- forAllWith (show . map commandName)
                      (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
-  let undos = Undo <$ cmds
-  -- we run as many undo commands as undoable commands
-  afterUndos <- runTimelineStubbedWithExit (cmds <> undos) initialModel
-  initialModel `hasEqualTimelineTo` afterUndos
+
+  -- we begin by running 'cmds' on the original state
+  beforeUndos <- runTimelineStubbedWithExit cmds initialState
+  annotate (drawTree (timelineToTree (beforeUndos^.currentTimeline)))
+
+  -- then we run as many undo commands as undoable commands
+  afterUndos <- runTimelineStubbedWithExit (Undo <$ cmds) beforeUndos
+  timelineToTree (initialState ^. currentTimeline) === timelineToTree (afterUndos ^. currentTimeline)
 
 hprop_undo_actions_are_redoable = property $ do
-  initialModel <- forAll genTimelineModel
+  timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
+  initialState <- forAll (initializeState timelineAndFocus)
   cmds <- forAllWith (show . map commandName)
                      (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
-  -- we begin by running 'cmds' on the original model
-  beforeUndos <- runTimelineStubbedWithExit cmds initialModel
+  -- we begin by running 'cmds' on the original state
+  beforeUndos <- runTimelineStubbedWithExit cmds initialState
   -- then we undo and redo all of them
   afterRedos  <-
     runTimelineStubbedWithExit (Undo <$ cmds) beforeUndos
     >>= runTimelineStubbedWithExit (Redo <$ cmds)
   -- that should result in a timeline equal to the one we had before
   -- starting the undos
-  beforeUndos `hasEqualTimelineTo` afterRedos
+  timelineToTree (beforeUndos ^. currentTimeline) === timelineToTree (afterRedos ^. currentTimeline)

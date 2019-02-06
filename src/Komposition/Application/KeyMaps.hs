@@ -1,8 +1,8 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedLists  #-}
 module Komposition.Application.KeyMaps where
 
 import           Komposition.Application.Base
@@ -12,6 +12,7 @@ import           Komposition.Composition.Paste
 import           Komposition.Focus
 import           Komposition.KeyMap
 import           Komposition.MediaType
+import           Komposition.UserInterface
 
 addBindings :: InsertPosition -> KeyMapEntry (Command 'TimelineMode)
 addBindings position = SequencedMappings

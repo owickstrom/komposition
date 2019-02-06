@@ -29,11 +29,13 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
+import qualified Komposition.UndoRedo                 as UndoRedo
 import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
+import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
 
 type WelcomeScreenModeEffects sig =
@@ -98,9 +100,9 @@ toTimelineWithProject
     )
   => ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
-toTimelineWithProject project = do
+toTimelineWithProject project' = do
   destroyWindow #welcome
-  openTimelineWindowWithProject project
+  openTimelineWindowWithProject project'
 
 openTimelineWindowWithProject
   :: ( Application t m sig
@@ -109,13 +111,13 @@ openTimelineWindowWithProject
     )
   => ExistingProject
   -> t m Empty Empty ()
-openTimelineWindowWithProject project = do
-  let model = TimelineModel project initialFocus Nothing (ZoomLevel 1) Nothing Nothing
+openTimelineWindowWithProject project' = do
+  let state' = TimelineState (UndoRedo.init (UndoableState project' initialFocus)) Nothing Nothing (ZoomLevel 1) Nothing
   newWindow
     #timeline
-    (timelineView model)
+    (timelineViewFromState state')
     (CommandKeyMappedEvent <$> keymaps STimelineMode)
-  runTimeline model
+  runTimeline state'
   where
     runTimeline model =
       timelineMode #timeline model >>= \case

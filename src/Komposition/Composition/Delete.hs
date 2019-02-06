@@ -9,8 +9,8 @@ module Komposition.Composition.Delete where
 import           Komposition.Prelude
 
 import           Control.Lens
-import qualified Data.List                     as List
-import qualified Data.List.NonEmpty            as NonEmpty
+import qualified Data.List                as List
+import qualified Data.List.NonEmpty       as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -50,18 +50,25 @@ delete focus comp = do
       | idx >= maxIndex = pure FocusLeft
       | otherwise       = mzero
 
--- | Same as 'delete', but trying to apply the returned focus command.
+-- | Same as 'delete', but trying to apply the returned focus
+-- command. If successful, returns the updated timeline, the
+-- composition that was deleted (if any), and the updated focus. If
+-- failed, returns a pair of the focus command and error that resulted
+-- from trying the command, or 'Nothing' if the deletion was invalid
+-- to begin with.
 delete_
   :: ft ~ ToFocusType Timeline
   => Focus ft
   -> Timeline a
-  -> Either (FocusCommand, FocusError) (Timeline a, Focus ft)
+  -> Either (Maybe (FocusCommand, FocusError)) (Timeline a, SomeComposition a, Focus ft)
 delete_ f s = case delete f s of
-  Nothing -> pure (s, f)
+  Nothing -> Left Nothing
   Just r  -> case adjustingFocusCommand r of
-    Nothing -> pure (resultingTimeline r, f)
+    Nothing -> pure (resultingTimeline r, deletedComposition r, f)
     Just cmd ->
-      modifyFocus s cmd f & _Left %~ (cmd, ) <&> (resultingTimeline r, )
+      modifyFocus s cmd f
+      & _Left %~ Just . (cmd, )
+      <&> (resultingTimeline r, deletedComposition r, )
 
 -- | In case a deletion was successful, this data type describes what
 -- the resulting timeline is, what in the composition was deleted, and
@@ -69,8 +76,8 @@ delete_ f s = case delete f s of
 -- the focus consistent with regards to the new timeline.
 data DeletionResult a =
   DeletionResult
-  { resultingTimeline :: Timeline a
-  , deletedComposition :: SomeComposition a
+  { resultingTimeline     :: Timeline a
+  , deletedComposition    :: SomeComposition a
   , adjustingFocusCommand :: Maybe FocusCommand
   }
 
