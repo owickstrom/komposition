@@ -14,12 +14,13 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
-import           Control.Effect                       (Member)
-import           Control.Effect.Carrier               (Carrier)
+import           Control.Effect                                      (Member)
+import           Control.Effect.Carrier                              (Carrier)
 import           Control.Lens
-import qualified Data.List.NonEmpty                   as NonEmpty
-import           Data.Row.Records                     hiding (split)
-import           Data.String                          (fromString)
+import qualified Data.List.NonEmpty                                  as NonEmpty
+import           Data.Row.Records                                    hiding
+                                                                      (split)
+import           Data.String                                         (fromString)
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -29,12 +30,13 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
-import qualified Komposition.UndoRedo                 as UndoRedo
+import qualified Komposition.UndoRedo                                as UndoRedo
 import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
+import           Komposition.Application.TimelineMode.UndoableAction
 import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
 

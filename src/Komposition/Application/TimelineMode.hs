@@ -19,18 +19,18 @@ module Komposition.Application.TimelineMode where
 
 import           Komposition.Application.Base
 
-import           Control.Effect                      (Member)
-import           Control.Effect.Carrier              (Carrier)
+import           Control.Effect                                      (Member)
+import           Control.Effect.Carrier                              (Carrier)
 import           Control.Lens
-import qualified Data.List.NonEmpty                  as NonEmpty
-import           Data.Row.Records                    hiding (split)
-import           Data.String                         (fromString)
+import qualified Data.List.NonEmpty                                  as NonEmpty
+import           Data.Row.Records                                    hiding
+                                                                      (split)
+import           Data.String                                         (fromString)
 import qualified Pipes
-import           System.FilePath                     ((</>))
+import           System.FilePath                                     ((</>))
 
 import           Komposition.Application.Form
 import           Komposition.Composition
-import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Paste
 import           Komposition.Composition.Split
@@ -44,14 +44,19 @@ import           Komposition.Progress
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
-import qualified Komposition.Render.Composition      as Render
-import qualified Komposition.Render.FFmpeg           as FFmpeg
-import           Komposition.UndoRedo                as UndoRedo
-import           Komposition.UserInterface           hiding
-                                                      (TimelineViewModel (..),
-                                                      previewImagePath, project,
-                                                      statusMessage, zoomLevel)
-import qualified Komposition.UserInterface           as UI
+import qualified Komposition.Render.Composition                      as Render
+import qualified Komposition.Render.FFmpeg                           as FFmpeg
+import           Komposition.UndoRedo                                (History,
+                                                                      current,
+                                                                      redo,
+                                                                      runAndRecord,
+                                                                      undo)
+import           Komposition.UserInterface                           hiding (TimelineViewModel (..),
+                                                                      previewImagePath,
+                                                                      project,
+                                                                      statusMessage,
+                                                                      zoomLevel)
+import qualified Komposition.UserInterface                           as UI
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Komposition.VideoSettings
@@ -59,6 +64,7 @@ import           Komposition.VideoSettings
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.LibraryMode
+import           Komposition.Application.TimelineMode.UndoableAction
 
 type TimelineEffects sig =
   ( Member ProjectStore sig
@@ -67,22 +73,8 @@ type TimelineEffects sig =
   , Member Render sig
   )
 
-data UndoableAction dir where
-  DeleteAction :: UndoableAction Forward
-  UnDeleteAction :: Focus SequenceFocusType -> Insertion () -> UndoableAction Backward
-deriving instance Eq (UndoableAction dir)
-deriving instance Show (UndoableAction dir)
-
-data UndoableState = UndoableState
-  { _existingProject :: ExistingProject
-  , _timelineFocus   :: Focus SequenceFocusType
-  }
-  deriving (Eq, Show)
-
-makeLenses ''UndoableState
-
 data TimelineState = TimelineState
-  { _history          :: UndoRedo.History UndoableAction UndoableState
+  { _history          :: History UndoableAction UndoableState
   , _clipboard        :: Maybe (SomeComposition ())
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel
@@ -108,36 +100,6 @@ timelineViewFromState state' =
   (state' ^. statusMessage)
   (state' ^. zoomLevel)
   (state' ^. previewImagePath)
-
-instance MonadError Text m => Runnable UndoableAction UndoableState m where
-  run action state' =
-    case action of
-      DeleteAction ->
-            case delete_ currentFocus' currentTimeline of
-              Left (Just (_, _focusErr)) -> throwError "Delete failed."
-              Left Nothing -> throwError "Can't delete at current focus."
-              Right (timeline', deletedComposition', focus') ->
-                state'
-                & existingProject . project . timeline .~ timeline'
-                & timelineFocus .~ focus'
-                & (UnDeleteAction currentFocus' (insertionFromSomeComposition deletedComposition'),)
-                & pure
-        where
-          currentFocus' = state' ^. timelineFocus
-          currentTimeline = state' ^. existingProject . project . timeline
-  revert action state' =
-    case action of
-      UnDeleteAction focus' reinsertion ->
-        state'
-          & existingProject . project . timeline %~
-            insert_
-               focus'
-               reinsertion
-               LeftOf
-          -- "insert left of" moves the focus right, so we reset to the previous focus manually
-          & timelineFocus .~ focus'
-          & (DeleteAction,)
-          & pure
 
 timelineMode
   :: ( Application t m sig
