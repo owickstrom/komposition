@@ -286,8 +286,57 @@ insertIntoTimeline gui state' type' position =
                 (state' ^. history . current . existingProject . project . timeline)
       )
     of
-      (InsertComposition, Just (SomeSequence _)) ->
-         case state' & history %%~ runAndRecord (InsertAction currentFocus' position (InsertSequence emptySequence)) of
+      (InsertComposition, Just (SomeSequence _)) -> insertComposition (InsertSequence emptySequence)
+      (InsertComposition, Just (SomeParallel _)) -> insertComposition (InsertParallel emptyParallel)
+      (InsertClip (Just mt), Just SomeParallel{}) -> case mt of
+        Video -> selectAssetAndInsert gui state' SVideo position
+        Audio -> selectAssetAndInsert gui state' SAudio position
+      (InsertClip Nothing, Just SomeVideoTrack{}) -> insertVideoClip
+      (InsertClip (Just Video), Just SomeVideoTrack{}) -> insertVideoClip
+      (InsertClip Nothing, Just SomeAudioTrack{}) -> insertAudioClip
+      (InsertClip (Just Audio), Just SomeAudioTrack{}) -> insertAudioClip
+      (InsertClip Nothing, Just SomeVideoPart{}) -> insertVideoClip
+      (InsertClip (Just Video), Just SomeVideoPart{}) -> insertVideoClip
+      (InsertClip Nothing, Just SomeAudioPart{}) -> insertAudioClip
+      (InsertClip (Just Audio), Just SomeAudioPart{}) -> insertAudioClip
+      (InsertGap (Just mt), Just SomeParallel{}) -> case mt of
+        Video -> insertVideoGap
+        Audio -> insertAudioGap
+      (InsertGap Nothing, Just SomeVideoTrack{}) -> insertVideoGap
+      (InsertGap (Just Video), Just SomeVideoTrack{}) -> insertVideoGap
+      (InsertGap Nothing, Just SomeAudioTrack{}) -> insertAudioGap
+      (InsertGap (Just Audio), Just SomeAudioTrack{}) -> insertAudioGap
+      (InsertGap Nothing, Just SomeVideoPart{}) -> insertVideoGap
+      (InsertGap (Just Video), Just SomeVideoPart{}) -> insertVideoGap
+      (InsertGap Nothing, Just SomeAudioPart{}) -> insertAudioGap
+      (InsertGap (Just Audio), Just SomeAudioPart{}) -> insertAudioGap
+      (insertType, Just f) -> do
+        let
+          insertTypePretty = \case
+            InsertComposition -> "insert composition"
+            InsertClip mt -> "insert" <> mediaTypePretty mt <> " clip"
+            InsertGap mt -> "insert" <> mediaTypePretty mt <> " gap"
+          mediaTypePretty = \case
+            Just Video -> " video"
+            Just Audio -> " audio"
+            Nothing -> mempty
+          msg =
+            "Cannot "
+              <> insertTypePretty insertType
+              <> " when focused at "
+              <> prettyFocusedAt f
+        timelineMode gui (state' & statusMessage ?~ msg)
+      (_, Nothing) -> do
+        ilift (logLnText Warning "Focus is invalid.")
+        continue
+  where
+    continue = timelineMode gui state'
+    insertVideoClip = selectAssetAndInsert gui state' SVideo position
+    insertAudioClip = selectAssetAndInsert gui state' SAudio position
+    insertVideoGap = insertGap gui state' SVideo position >>>= refreshPreviewAndContinue gui
+    insertAudioGap = insertGap gui state' SAudio position >>>= refreshPreviewAndContinue gui
+    insertComposition insertion =
+         case state' & history %%~ runAndRecord (InsertAction currentFocus' position insertion) of
            Left err      -> do
              beep gui
              state'
@@ -296,35 +345,8 @@ insertIntoTimeline gui state' type' position =
            Right state'' -> refreshPreviewAndContinue gui state''
          where
            currentFocus' = state' ^. history . current . timelineFocus
-           emptySequence = Sequence () (pure (Parallel () mempty mempty))
-      (InsertClip (Just mt), Just SomeParallel{}) -> case mt of
-        Video -> selectAssetAndInsert gui state' SVideo position
-        Audio -> selectAssetAndInsert gui state' SAudio position
-      (InsertClip Nothing, Just SomeVideoPart{}) ->
-        selectAssetAndInsert gui state' SVideo position
-      (InsertClip Nothing, Just SomeAudioPart{}) ->
-        selectAssetAndInsert gui state' SAudio position
-      (InsertGap (Just mt), Just SomeParallel{}) -> case mt of
-        Video ->
-          insertGap gui state' SVideo position >>>= refreshPreviewAndContinue gui
-        Audio ->
-          insertGap gui state' SAudio position >>>= refreshPreviewAndContinue gui
-      (InsertGap Nothing, Just SomeVideoPart{}) ->
-        insertGap gui state' SVideo position >>>= refreshPreviewAndContinue gui
-      (InsertGap Nothing, Just SomeAudioPart{}) ->
-        insertGap gui state' SAudio position >>>= refreshPreviewAndContinue gui
-      (c, Just f) -> do
-        let
-          msg =
-            "Cannot perform "
-              <> show c
-              <> " when focused at "
-              <> prettyFocusedAt f
-        timelineMode gui (state' & statusMessage ?~ msg)
-      (_, Nothing) -> do
-        ilift (logLnText Warning "Focus is invalid.")
-        continue
-  where continue = timelineMode gui state'
+    emptySequence = Sequence () (pure emptyParallel)
+    emptyParallel = Parallel () mempty mempty
 
 insertGap
   :: ( Application t m sig

@@ -198,7 +198,7 @@ instance ModifyFocus Parallel where
     (Parallel{}, FocusUp, TrackFocus Audio subFocus) ->
       case subFocus of
         Just _  -> pure (TrackFocus Audio Nothing)
-        Nothing -> throwError (CannotMove FocusUp)
+        Nothing -> pure (TrackFocus Video Nothing)
 
     -- We can move down from video to audio.
     (Parallel{}, FocusDown, TrackFocus Video subFocus) ->

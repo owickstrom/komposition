@@ -20,7 +20,7 @@ addBindings position = SequencedMappings
   , ([KeyChar 'a'], mediaTypeBindings (Just Audio))
   , ([KeyChar 'c'], Mapping (InsertCommand (InsertClip Nothing) position))
   , ([KeyChar 'g'], Mapping (InsertCommand (InsertGap Nothing) position))
-  , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftMost))
+  , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition position))
   ]
   where
     mediaTypeBindings mediaType' = SequencedMappings
