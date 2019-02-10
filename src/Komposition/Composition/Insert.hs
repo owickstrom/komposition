@@ -1,7 +1,8 @@
-{-# LANGUAGE DataKinds  #-}
-{-# LANGUAGE GADTs      #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs         #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE RankNTypes    #-}
 
 -- | Transform a 'Composition' by inserting children.
 module Komposition.Composition.Insert where
@@ -53,14 +54,14 @@ data InsertPosition
   | LeftOf
   | RightOf
   | RightMost
-  deriving (Show, Eq, Ord, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded, Generic)
 
 data Insertion a
   = InsertSequence (Sequence a)
   | InsertParallel (Parallel a)
   | InsertVideoParts (NonEmpty (TrackPart 'Video a))
   | InsertAudioParts (NonEmpty (TrackPart 'Audio a))
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
 
 -- | Inserts a 'Composition' or 'TrackPart', wrapped in the
 -- 'Insertion', relative to 'InsertPosition' and the 'Focus'.

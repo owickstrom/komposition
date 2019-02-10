@@ -11,7 +11,8 @@ import           Hedgehog.Range
 import           Komposition.Composition
 import qualified Komposition.Composition.Generators as Gen
 import           Komposition.Library
-import           Komposition.Project                (Project (..))
+import           Komposition.Project                (Project (..),
+                                                     WithoutHistory)
 import           Komposition.VideoSettings          (AllVideoSettings (..),
                                                      Resolution (..),
                                                      VideoSettings (..))
@@ -32,7 +33,7 @@ videoSettings :: MonadGen m => m VideoSettings
 videoSettings =
   VideoSettings <$> Gen.word (linear 15 25) <*> resolution
 
-projectWithTimeline :: MonadGen m => m (Timeline ()) -> m Project
+projectWithTimeline :: MonadGen m => m (Timeline ()) -> m (WithoutHistory Project)
 projectWithTimeline genTimeline = do
   _projectName   <- Gen.text (linear 1 5) Gen.unicode
   _timeline      <- genTimeline
@@ -40,5 +41,5 @@ projectWithTimeline genTimeline = do
   _videoSettings <- AllVideoSettings <$> videoSettings <*> videoSettings
   return Project {..}
 
-project :: MonadGen m => m Project
+project :: MonadGen m => m (WithoutHistory Project)
 project = projectWithTimeline (Gen.timeline (linear 1 10) Gen.parallel)

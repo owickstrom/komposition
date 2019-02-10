@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs         #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns  #-}
@@ -20,7 +21,7 @@ import           Komposition.MediaType
 -- | Specifies the number of video or audio parts to delete. Not used
 -- for other composition parts.
 newtype DeletionOf = DeletionOf Int
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
 -- | Delete a composition or part in the 'Timeline', at the 'Focus',
 -- returning a new 'Timeline' if the focus is valid.

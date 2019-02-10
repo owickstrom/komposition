@@ -34,7 +34,6 @@ library
                       , Komposition.Application.KeyMaps
                       , Komposition.Application.LibraryMode
                       , Komposition.Application.TimelineMode
-                      , Komposition.Application.TimelineMode.UndoableAction
                       , Komposition.Application.WelcomeScreenMode
                       , Komposition.Classification
                       , Komposition.Composition
@@ -60,6 +59,7 @@ library
                       , Komposition.Project
                       , Komposition.Project.Store
                       , Komposition.Project.Store.File
+                      , Komposition.Project.UndoableAction
                       , Komposition.Library
                       , Komposition.MediaType
                       , Komposition.Render

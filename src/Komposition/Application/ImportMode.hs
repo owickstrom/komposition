@@ -116,7 +116,7 @@ importSelectedFile
      , Typeable e
      )
   => Name n
-  -> ExistingProject
+  -> WithHistory ExistingProject
   -> ImportFileForm Valid
   -> t
        m

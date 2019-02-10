@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -23,9 +24,9 @@ data TestAction
   | UnsetValue Idx Char
   deriving (Eq, Show)
 
-instance Applicative m => Runnable TestAction (Vector Char) m where
-  run (SetValue idx new) values = pure (UnsetValue idx (values ! idx), values // [(idx, new)])
-  run (UnsetValue idx old) values = pure (SetValue idx (values ! idx), values // [(idx, old)])
+instance Applicative m => Runnable TestAction (Vector Char) () m where
+  run (SetValue idx new) values = pure ((UnsetValue idx (values ! idx), values // [(idx, new)]), ())
+  run (UnsetValue idx old) values = pure ((SetValue idx (values ! idx), values // [(idx, old)]), ())
 
 genTestActions :: MonadGen m => Range Int -> Int -> m [TestAction]
 genTestActions range numValues = Gen.list
@@ -38,34 +39,32 @@ genTestValues range = do
   pure ( Vector.replicate n '\NUL')
 
 runAndRecordAll
-  :: (Monad m, Runnable action state m)
+  :: (Monad m, Runnable action state () m)
   => History action state
   -> [action]
   -> m (History action state)
-runAndRecordAll = foldM (flip runAndRecord)
+runAndRecordAll = foldM (\history action -> runAndRecord action history <&>
+                        \(newHistory, ()) -> newHistory)
 
 applyN
-  :: (Monad m, MonadTest m, Runnable action state m)
+  :: (Monad m, MonadTest m, Runnable action state () m)
   => (History action state -> Maybe (m (History action state)))
   -> History action state
   -> Int
   -> m (History action state)
 applyN f acc n = foldM
-  (\history' _ -> case f history' of
-    Just ma -> ma
-    Nothing -> failure
-  )
+  (\history' _ -> fromMaybe failure (f history'))
   acc
   (replicate n ())
 
 applyAll
-  :: (Monad m, MonadTest m, Runnable action state m)
-  => (History action state -> Maybe (m (History action state)))
+  :: (Monad m, MonadTest m, Runnable action state () m)
+  => (History action state -> Maybe (m (History action state, ())))
   -> History action state
   -> m (History action state)
 applyAll f history =
   case f history of
-    Just ma -> applyAll f =<< ma
+    Just ma -> applyAll f . fst =<< ma
     Nothing -> pure history
 
 hprop_undo_history_has_correct_number_of_undos = property $ do

@@ -177,7 +177,7 @@ newtype ZoomLevel = ZoomLevel Double
   deriving (Eq, Show)
 
 data TimelineViewModel = TimelineViewModel
-  { _project          :: Project
+  { _project          :: WithHistory Project
   , _currentFocus     :: Focus SequenceFocusType
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel

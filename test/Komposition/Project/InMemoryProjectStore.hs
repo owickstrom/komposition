@@ -27,7 +27,7 @@ newtype InMemoryProjectStoreC m a =
   InMemoryProjectStoreC { runInMemoryProjectStoreC :: Eff (StateC StoreState m) a }
   deriving (Functor, Applicative, Monad)
 
-type StoreState = HashMap ProjectPath ExistingProject
+type StoreState = HashMap ProjectPath (WithoutHistory ExistingProject)
 
 instance (Monad m, Carrier sig m, Effect sig)
          => Carrier (ProjectStore :+: sig) (InMemoryProjectStoreC m) where

@@ -42,6 +42,7 @@ import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project                                      hiding (project)
 import           Komposition.Timestamp
+import           Komposition.UndoRedo
 import           Komposition.UserInterface                                hiding (Window,
                                                                            timelineView)
 import           Komposition.UserInterface.GtkInterface.NumberInput       as NumberInput
@@ -208,8 +209,8 @@ renderPreviewPane path' = pane defaultPaneProperties $ container
   where noPreviewAvailable = widget Label [#label := "No preview available."]
 
 durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
-durationControl vs range' current = toDuration <$> numberInput NumberInputProperties
-  { value              = durationToSeconds current
+durationControl vs range' currentDur = toDuration <$> numberInput NumberInputProperties
+  { value              = durationToSeconds currentDur
   , NumberInput.range  = range' & both %~ durationToSeconds
   , step               = 1 / fromIntegral (vs ^. frameRate)
   , digits             = 2
@@ -336,7 +337,7 @@ renderMainArea
 renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
   (renderPreviewPane (model ^. previewImagePath))
-  (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline)))
+  (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline . current)))
   where
     project' = model ^. project
     currentFocus' = model ^. currentFocus
@@ -426,5 +427,5 @@ timelineView model =
         ]
   where
     focusedTimelineWithSetFoci :: Timeline (Focus 'SequenceFocusType, Focused)
-    focusedTimelineWithSetFoci = withAllFoci (model ^. project . timeline)
+    focusedTimelineWithSetFoci = withAllFoci (model ^. project.timeline.current)
       <&> \f -> (f, focusedState (model ^. currentFocus) f)

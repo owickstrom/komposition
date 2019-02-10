@@ -39,7 +39,7 @@ data TestCommand
 
 changeFocusCommand
   :: MonadGen m
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> Focus (ToFocusType Timeline)
   -> m TestCommand
 changeFocusCommand p focus =
@@ -65,7 +65,7 @@ insertCommand = fmap (uncurry TestInsert) . Gen.insertion
 
 splitCommands
   :: MonadGen m
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> Focus (ToFocusType Timeline)
   -> [m TestCommand]
 splitCommands p focus =
@@ -84,7 +84,7 @@ splitCommands p focus =
 
 deleteCommands
   :: MonadGen m
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> Focus (ToFocusType Timeline)
   -> [m TestCommand]
 deleteCommands p focus = case parentAtFocus focus (p ^. project . timeline) of
@@ -101,7 +101,7 @@ deleteCommands p focus = case parentAtFocus focus (p ^. project . timeline) of
 
 testCommand
   :: MonadGen m
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> Focus (ToFocusType Timeline)
   -> m TestCommand
 testCommand composition focus = Gen.frequency
@@ -113,9 +113,9 @@ testCommand composition focus = Gen.frequency
 applyTestCommand
   :: Monad m
   => Focus 'SequenceFocusType
-  -> ExistingProject
+  -> WithoutHistory ExistingProject
   -> TestCommand
-  -> PropertyT m (ExistingProject, Focus 'SequenceFocusType)
+  -> PropertyT m (WithoutHistory ExistingProject, Focus 'SequenceFocusType)
 applyTestCommand focus ep = \case
   TestChangeFocus cmd ->
     modifyTimeline $ \tl -> case modifyFocus tl cmd focus of
@@ -141,10 +141,10 @@ applyTestCommand focus ep = \case
 
 generateAndApplyTestCommands
   :: Monad m
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> Focus SequenceFocusType
   -> Int
-  -> PropertyT m (ExistingProject, Focus SequenceFocusType)
+  -> PropertyT m (WithoutHistory ExistingProject, Focus SequenceFocusType)
 generateAndApplyTestCommands ep focus n
   | n == 0 = pure (ep, focus)
   | otherwise = do
@@ -152,7 +152,7 @@ generateAndApplyTestCommands ep focus n
     (ep', focus') <- applyTestCommand focus ep cmd
     generateAndApplyTestCommands ep' focus' (pred n)
 
-initialProject :: Timeline () -> Project
+initialProject :: Timeline () -> WithoutHistory Project
 initialProject tl = Project
   { _projectName   = "Test"
   , _timeline      = tl

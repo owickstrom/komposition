@@ -9,36 +9,34 @@ import           Komposition.Prelude
 
 import           Control.Effect
 import           Control.Lens
-import           Data.Row.Records                                    (Empty)
-import           Data.Tree                                           (drawTree)
-import qualified Data.Vector                                         as Vector
-import           Hedgehog                                            hiding
-                                                                      (Command)
-import qualified Hedgehog.Gen                                        as Gen hiding
-                                                                             (parallel)
-import qualified Hedgehog.Range                                      as Range
-import           Motor.FSM                                           (ireturn,
-                                                                      (>>>),
-                                                                      (>>>=))
+import           Data.Row.Records                            (Empty)
+import           Data.Tree                                   (drawTree)
+import qualified Data.Vector                                 as Vector
+import           Hedgehog                                    hiding (Command)
+import qualified Hedgehog.Gen                                as Gen hiding
+                                                                     (parallel)
+import qualified Hedgehog.Range                              as Range
+import           Motor.FSM                                   (ireturn, (>>>),
+                                                              (>>>=))
 
-import           Komposition.Application.Base                        (Application)
+import           Komposition.Application.Base                (Application)
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
-import           Komposition.Application.TimelineMode.UndoableAction
-import           Komposition.Composition                             (Timeline)
+import           Komposition.Composition                     (Timeline)
 import           Komposition.Composition.Paste
 import           Komposition.Focus
 import           Komposition.Project
-import qualified Komposition.UndoRedo                                as UndoRedo
-import           Komposition.UserInterface                           hiding (TimelineViewModel (..),
-                                                                      project)
+import           Komposition.Project.UndoableAction
+import qualified Komposition.UndoRedo                        as UndoRedo
+import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
+                                                              project)
 
-import qualified Komposition.Composition.Generators                  as Gen
+import qualified Komposition.Composition.Generators          as Gen
 import           Komposition.Composition.ToTree
 import           Komposition.Import.Audio.StubAudioImport
 import           Komposition.Import.Video.StubVideoImport
 import           Komposition.Logging.StubLogger
-import qualified Komposition.Project.Generators                      as Gen
+import qualified Komposition.Project.Generators              as Gen
 import           Komposition.Project.InMemoryProjectStore
 import           Komposition.Render.StubRender
 import           Komposition.UserInterface.StubUserInterface
@@ -51,7 +49,8 @@ initializeState (timeline', focus')= do
     <$> (ProjectPath <$> Gen.string (Range.linear 1 10) Gen.unicode)
     <*> Gen.projectWithTimeline (pure timeline')
   pure TimelineState
-    { _history  = UndoRedo.init (UndoableState existingProject' focus')
+    { _existingProject  = initializeHistory existingProject'
+    , _timelineFocus    = focus'
     , _statusMessage    = Nothing
     , _clipboard        = Nothing
     , _zoomLevel        = ZoomLevel 1
@@ -94,8 +93,8 @@ runTimelineStubbedWithExit cmds state' = case runPure state' of
         . runStubUserInterface (eventsVector (cmds <> pure Exit))
         . runTimelineMode
 
-currentTimeline :: Lens' TimelineState (Timeline ())
-currentTimeline = history.UndoRedo.current.existingProject.project.timeline
+currentTimeline :: Getter TimelineState (Timeline ())
+currentTimeline = existingProject.project.timeline.UndoRedo.current
 
 showTimelineAndFocus (t, f) = drawTree (timelineToTree t) <> "\n" <> show f
 

@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
@@ -59,14 +60,14 @@ instance Binary Resolution
 instance Binary VideoSettings
 instance Binary AllVideoSettings
 instance Binary VideoSpeed
-instance Binary Project
+instance Binary (WithoutHistory Project)
 
 -- * File-Based Project Store
 
 projectDataFilePath :: ProjectPath -> FilePath
 projectDataFilePath p = p ^. unProjectPath </> "project-history.bin"
 
-writeProject :: ExistingProject -> IO (Either SaveProjectError ())
+writeProject :: WithoutHistory ExistingProject -> IO (Either SaveProjectError ())
 writeProject existingProject =
   runExceptT
     $          liftIO
@@ -79,7 +80,7 @@ writeProject existingProject =
                )
 
 readProjectDataFile
-  :: FilePath -> IO (Either OpenProjectError Project)
+  :: FilePath -> IO (Either OpenProjectError (WithoutHistory Project))
 readProjectDataFile p =
   runExceptT
     $          liftIO (Binary.decodeFile p)
@@ -87,7 +88,7 @@ readProjectDataFile p =
                  throwError (InvalidProjectDataFile p (show e))
                )
 
-writeProjectDataFile :: FilePath -> Project -> IO ()
+writeProjectDataFile :: FilePath -> WithoutHistory Project -> IO ()
 writeProjectDataFile = Binary.encodeFile
 
 newtype FileProjectStoreIOC m a = FileProjectStoreIOC { runFileProjectStoreIOC :: m a }

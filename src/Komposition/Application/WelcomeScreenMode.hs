@@ -14,13 +14,12 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
-import           Control.Effect                                      (Member)
-import           Control.Effect.Carrier                              (Carrier)
+import           Control.Effect                       (Member)
+import           Control.Effect.Carrier               (Carrier)
 import           Control.Lens
-import qualified Data.List.NonEmpty                                  as NonEmpty
-import           Data.Row.Records                                    hiding
-                                                                      (split)
-import           Data.String                                         (fromString)
+import qualified Data.List.NonEmpty                   as NonEmpty
+import           Data.Row.Records                     hiding (split)
+import           Data.String                          (fromString)
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -30,13 +29,13 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
-import qualified Komposition.UndoRedo                                as UndoRedo
+import qualified Komposition.UndoRedo                 as UndoRedo
 import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
-import           Komposition.Application.TimelineMode.UndoableAction
+import           Komposition.Project.UndoableAction
 import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
 
@@ -100,7 +99,7 @@ toTimelineWithProject
     , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
 toTimelineWithProject project' = do
   destroyWindow #welcome
@@ -111,10 +110,10 @@ openTimelineWindowWithProject
     , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> t m Empty Empty ()
 openTimelineWindowWithProject project' = do
-  let state' = TimelineState (UndoRedo.init (UndoableState project' initialFocus)) Nothing Nothing (ZoomLevel 1) Nothing
+  let state' = TimelineState (initializeHistory project') initialFocus Nothing Nothing (ZoomLevel 1) Nothing
   newWindow
     #timeline
     (timelineViewFromState state')
@@ -132,7 +131,7 @@ openTimelineWindowWithProject project' = do
           destroyWindow #timeline
           welcomeScreenMode
 
-initialProject :: Project
+initialProject :: WithoutHistory Project
 initialProject =
   Project
     { _projectName = "Test"
