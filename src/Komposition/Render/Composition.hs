@@ -95,7 +95,7 @@ flattenSequenceTracks :: Core.Sequence a -> Maybe Tracks
 flattenSequenceTracks (Core.Sequence _ pars) = foldMap flattenParallelTracks pars
 
 flattenParallelTracks :: Core.Parallel a -> Maybe Tracks
-flattenParallelTracks (Core.Parallel _ vs as) =
+flattenParallelTracks (Core.Parallel _ (Core.VideoTrack _ vs) (Core.AudioTrack _ as)) =
   let (video, lastAsset, lastGaps) =
         foldl' foldVideo (mempty, Nothing, mempty) vs
       audio = foldMap toAudio as

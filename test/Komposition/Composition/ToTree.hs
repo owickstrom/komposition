@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | In order to make timelines and composition easier to compare for
 -- equality in tests they can be converted to comparable 'Tree'
@@ -15,6 +16,15 @@ import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.VideoSpeed
 
+someCompositionToTree :: Show a => SomeComposition a -> Tree String
+someCompositionToTree = \case
+  SomeSequence s -> sequenceToTree s
+  SomeParallel s -> parallelToTree s
+  SomeVideoTrack t -> videoTrackToTree t
+  SomeAudioTrack t -> audioTrackToTree t
+  SomeVideoPart p -> videoPartToTree p
+  SomeAudioPart p -> audioPartToTree p
+
 timelineToTree :: Show a => Timeline a -> Tree String
 timelineToTree (Timeline seqs) =
   Node "Timeline" (toList (sequenceToTree <$> seqs))
@@ -24,8 +34,16 @@ sequenceToTree (Sequence ann pars) =
   Node ("Sequence " <> show ann) (toList (parallelToTree <$> pars))
 
 parallelToTree :: Show a => Parallel a -> Tree String
-parallelToTree (Parallel ann vs as) =
-  Node ("Parallel " <> show ann) ((videoPartToTree <$> vs) <> (audioPartToTree <$> as))
+parallelToTree (Parallel ann videoTrack audioTrack) =
+  Node ("Parallel " <> show ann) [videoTrackToTree videoTrack, audioTrackToTree audioTrack]
+
+videoTrackToTree :: Show a => VideoTrack a -> Tree String
+videoTrackToTree (VideoTrack ann vs) =
+  Node ("Video Track " <> show ann) (videoPartToTree <$> vs)
+
+audioTrackToTree :: Show a => AudioTrack a -> Tree String
+audioTrackToTree (AudioTrack ann as) =
+  Node ("Audio Track " <> show ann) (audioPartToTree <$> as)
 
 videoPartToTree :: Show a => VideoPart a -> Tree String
 videoPartToTree (VideoClip ann asset ts speed) = Node

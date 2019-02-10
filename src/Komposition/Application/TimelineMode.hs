@@ -31,6 +31,7 @@ import           System.FilePath                                     ((</>))
 
 import           Komposition.Application.Form
 import           Komposition.Composition
+import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Paste
 import           Komposition.Composition.Split
@@ -75,7 +76,7 @@ type TimelineEffects sig =
 
 data TimelineState = TimelineState
   { _history          :: History UndoableAction UndoableState
-  , _clipboard        :: Maybe (SomeComposition ())
+  , _clipboard        :: Maybe (Insertion ())
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel
   , _previewImagePath :: Maybe FilePath
@@ -140,33 +141,35 @@ timelineMode gui state' = do
             beep gui >>> continueWithStatusMessage "Couldn't set focus."
       CommandKeyMappedEvent (InsertCommand type' position) ->
         insertIntoTimeline gui state' type' position
-      CommandKeyMappedEvent Delete ->
-        case state' & history %%~ runAndRecord (DeleteAction currentFocus') of
+      CommandKeyMappedEvent Delete -> -- trace ("Delete" :: Text) $
+        case state' & clipboard .~ (insertionFromSomeComposition =<< atFocus currentFocus' currentTimeline)
+                    & history %%~ runAndRecord (DeleteAction currentFocus' (DeletionOf 1)) of
           Left err      ->
             beep gui >>> continueWithStatusMessage err
           Right state'' -> refreshPreviewAndContinue gui state''
         where
           currentFocus' = state' ^. history . current . timelineFocus
+          currentTimeline = state' ^. history . current . existingProject . project . timeline
       CommandKeyMappedEvent Copy ->
         state'
-          &  clipboard
-          .~ atFocus (state' ^. history . current . timelineFocus) (state' ^. history . current . existingProject . project . timeline)
+          &  clipboard .~ (insertionFromSomeComposition =<< atFocus currentFocus' currentTimeline)
           &  timelineMode gui
-      CommandKeyMappedEvent (Paste pos) -> case state' ^. clipboard of
-        Nothing -> beep gui >>> continue
-        Just cb ->
-          case
-              paste ( state' ^. history . current . timelineFocus)
-                    cb
-                    pos
-                    (state' ^. history . current . existingProject . project . timeline)
-            of
-              Just timeline' ->
-                state'
-                  &  history . current .  existingProject . project . timeline .~ timeline'
-                  &  refreshPreviewAndContinue gui
-              Nothing ->
-                beep gui >> continueWithStatusMessage "Couldn't paste."
+        where
+          currentFocus' = state' ^. history . current . timelineFocus
+          currentTimeline = state' ^. history . current . existingProject . project . timeline
+      CommandKeyMappedEvent (Paste pos) ->  -- trace ("Paste" :: Text) $
+        case state' ^. clipboard of
+          Nothing -> beep gui >>> continue
+          Just clipboardInsertion ->
+            case state' & history %%~ runAndRecord (InsertAction currentFocus' insertPos clipboardInsertion) of
+              Left err      ->
+                beep gui >>> continueWithStatusMessage err
+              Right state'' -> refreshPreviewAndContinue gui state''
+            where
+              currentFocus' = state' ^. history . current . timelineFocus
+              insertPos = case pos of
+                PasteLeftOf  -> LeftOf
+                PasteRightOf -> RightOf
       CommandKeyMappedEvent Split ->
         case split ( state' ^. history . current . timelineFocus) (state' ^. history . current . existingProject . project . timeline) of
           Just (timeline', newFocus) ->
@@ -203,14 +206,15 @@ timelineMode gui state' = do
               "Cannot render a composition without video clips."
       CommandKeyMappedEvent Preview ->
         previewFocusedComposition gui state' >>> continue
-      CommandKeyMappedEvent Undo ->
+      CommandKeyMappedEvent Undo -> -- trace ("Undo" :: Text) $
         case undo (state' ^. history) of
           Just (Left err) -> beep gui >> continueWithStatusMessage err
           Just (Right history') ->
             state'
               & history .~ history'
               & refreshPreviewAndContinue gui
-          Nothing -> beep gui >> timelineMode gui state'
+          Nothing -> -- trace ("Can't undo" :: Text) $
+            beep gui >> timelineMode gui state'
       CommandKeyMappedEvent Redo ->
         case redo (state' ^. history) of
           Just (Left err) -> beep gui >> continueWithStatusMessage err
@@ -281,17 +285,7 @@ insertIntoTimeline gui state' type' position =
                 (state' ^. history . current . existingProject . project . timeline)
       )
     of
-      (InsertComposition, Just (SomeSequence _)) ->
-        state'
-          &  history
-          .  current
-          .  existingProject
-          .  project
-          .  timeline
-          %~ insert_ ( state' ^. history . current . timelineFocus)
-                     (InsertParallel (Parallel () [] []))
-                     RightOf
-          &  refreshPreviewAndContinue gui
+      (InsertComposition, Just (SomeSequence _)) -> continue -- TODO: runAndRecord Insert
       (InsertClip (Just mt), Just SomeParallel{}) -> case mt of
         Video -> selectAssetAndInsert gui state' SVideo position
         Audio -> selectAssetAndInsert gui state' SAudio position
@@ -337,20 +331,13 @@ insertGap parent state' mediaType' position = do
                         "Please specify a gap duration in seconds."
                         "Insert Gap"
                         (PromptNumber (0.1, 10e10, 0.1))
-  let gapInsertion seconds = case mediaType' of
-        SVideo -> InsertVideoParts [VideoGap () (durationFromSeconds seconds)]
-        SAudio -> InsertAudioParts [AudioGap () (durationFromSeconds seconds)]
+  -- let gapInsertion seconds = case mediaType' of
+  --       SVideo -> InsertVideoParts [VideoGap () (durationFromSeconds seconds)]
+  --       SAudio -> InsertAudioParts [AudioGap () (durationFromSeconds seconds)]
   case gapDuration of
     Just seconds ->
-      state'
-        &  history
-        .  current
-        .  existingProject
-        .  project
-        .  timeline
-        %~ insert_ ( state' ^. history . current . timelineFocus) (gapInsertion seconds) position
-        &  ireturn
-    Nothing -> ireturn state'
+      ireturn state'
+    Nothing -> ireturn state' -- TODO: runAndRecord Insert
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt = \case
@@ -466,24 +453,29 @@ insertSelectedAssets
   -> Maybe [Asset mt]
   -> t m r r TimelineModeResult
 insertSelectedAssets gui state' mediaType' position result = do
-  state'' <- case result of
-    Just assets ->
-      state'
-        &  history
-        .  current
-        .  existingProject
-        .  project
-        . timeline
-        %~ insert_ ( state' ^. history . current . timelineFocus) (insertionOf mediaType' assets) position
-        &  ireturn
+  case result of
+    Just assets -> timelineMode gui state' -- TODO: runAndRecord Insert
+      -- case insert_ (state'^.history.current.timelineFocus) (insertionOf mediaType' assets) position (state'^.history.current.existingProject.project.timeline) of
+      --   Left _ ->
+      --     state'
+      --     & returnWithStatusMessage "Failed to insert assets."
+      --   Right (newTimeline, newFocus) ->
+      --     state'
+      --     & history.current.existingProject.project.timeline ^. newTimeline
+      --     & history.current.timelineFocus ^. newFocus
+      --     & refreshPreviewAndContinue gui
     Nothing -> do
       beep gui
-      state' & statusMessage ?~ noAssetsMessage mediaType' & ireturn
-  refreshPreviewAndContinue gui state''
+      state' & returnWithStatusMessage (noAssetsMessage mediaType')
+  where
+    returnWithStatusMessage msg state' =
+      state'
+      & statusMessage ?~ msg
+      & timelineMode gui
 
 insertionOf
   :: SMediaType mt
-  -> [Asset mt]
+  -> NonEmpty (Asset mt)
   -> Insertion ()
 insertionOf SVideo a = InsertVideoParts (toVideoClip <$> a)
   where
@@ -499,7 +491,7 @@ addImportedAssetsToLibrary
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -534,7 +526,7 @@ refreshPreview
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -558,7 +550,7 @@ refreshPreviewAndContinue
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState

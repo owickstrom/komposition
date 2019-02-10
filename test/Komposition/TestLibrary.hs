@@ -36,8 +36,8 @@ videoGap1s = VideoGap () 1
 videoGap3s = VideoGap () 3
 audioGap1s = AudioGap () 1
 audioGap3s = AudioGap () 3
-parallel1 = Parallel () [videoGap1s, video4s] [audio1s]
-parallel2 = Parallel () [videoGap3s, video10s] [audio4s, audio10s]
+parallel1 = Parallel () (VideoTrack () [videoGap1s, video4s]) (AudioTrack () [audio1s])
+parallel2 = Parallel () (VideoTrack () [videoGap3s, video10s]) (AudioTrack () [audio4s, audio10s])
 
 seqWithTwoParallels = Sequence () (parallel1 :| [parallel2])
 

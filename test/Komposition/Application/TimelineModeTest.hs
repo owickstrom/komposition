@@ -26,6 +26,7 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 import           Komposition.Application.TimelineMode.UndoableAction
 import           Komposition.Composition                             (Timeline)
+import           Komposition.Composition.Paste
 import           Komposition.Focus
 import           Komposition.Project
 import qualified Komposition.UndoRedo                                as UndoRedo
@@ -102,7 +103,7 @@ hprop_undo_actions_are_undoable = property $ do
   timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
   initialState <- forAll (initializeState timelineAndFocus)
   cmds <- forAllWith (show . map commandName)
-                     (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
+                     (Gen.list (Range.exponential 1 100) genUndoableTimelineCommand)
 
   -- we begin by running 'cmds' on the original state
   beforeUndos <- runTimelineStubbedWithExit cmds initialState
@@ -116,7 +117,7 @@ hprop_undo_actions_are_redoable = property $ do
   timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
   initialState <- forAll (initializeState timelineAndFocus)
   cmds <- forAllWith (show . map commandName)
-                     (Gen.list (Range.linear 1 10) genUndoableTimelineCommand)
+                     (Gen.list (Range.exponential 1 100) genUndoableTimelineCommand)
   -- we begin by running 'cmds' on the original state
   beforeUndos <- runTimelineStubbedWithExit cmds initialState
   -- then we undo and redo all of them
@@ -126,3 +127,32 @@ hprop_undo_actions_are_redoable = property $ do
   -- that should result in a timeline equal to the one we had before
   -- starting the undos
   timelineToTree (beforeUndos ^. currentTimeline) === timelineToTree (afterRedos ^. currentTimeline)
+
+hprop_delete_and_undo_is_a_noop = property $ do
+  timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
+  initialState <- forAll (initializeState timelineAndFocus)
+  let cmds = [Delete, Undo]
+
+  after <- runTimelineStubbedWithExit cmds initialState
+  timelineToTree (initialState ^. currentTimeline) === timelineToTree (after ^. currentTimeline)
+
+hprop_delete_paste_and_undo_is_a_noop = property $ do
+  timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
+  initialState <- forAll (initializeState timelineAndFocus)
+
+  afterDeletes <- runTimelineStubbedWithExit [Delete, Delete] initialState
+  annotate (drawTree (timelineToTree (afterDeletes^.currentTimeline)))
+
+  pasteCmd <- forAllWith (show . commandName) (Paste <$> Gen.enumBounded)
+  beforeUndos <- runTimelineStubbedWithExit [pasteCmd] afterDeletes
+  annotate (drawTree (timelineToTree (beforeUndos^.currentTimeline)))
+
+  afterFirstUndo <- runTimelineStubbedWithExit [Undo] beforeUndos
+  annotate (drawTree (timelineToTree (afterFirstUndo^.currentTimeline)))
+
+  afterSecondUndo <- runTimelineStubbedWithExit [Undo] afterFirstUndo
+  annotate (drawTree (timelineToTree (afterSecondUndo^.currentTimeline)))
+
+  after <- runTimelineStubbedWithExit [Undo] afterSecondUndo
+
+  timelineToTree (initialState ^. currentTimeline) === timelineToTree (after ^. currentTimeline)

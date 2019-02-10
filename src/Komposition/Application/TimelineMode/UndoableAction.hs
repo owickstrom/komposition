@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE StandaloneDeriving    #-}
@@ -13,8 +14,8 @@ import           Komposition.Prelude
 
 import           Control.Lens
 
-import           Komposition.Composition.Delete
-import           Komposition.Composition.Insert
+import           Komposition.Composition.Delete as Delete
+import           Komposition.Composition.Insert as Insert
 import           Komposition.Focus
 import           Komposition.Project
 import           Komposition.UndoRedo
@@ -29,33 +30,39 @@ data UndoableState = UndoableState
 makeLenses ''UndoableState
 
 data UndoableAction
-  = InsertAction (Focus 'SequenceFocusType) (Insertion ())
-  | DeleteAction (Focus 'SequenceFocusType)
+  = InsertAction (Focus 'SequenceFocusType) InsertPosition (Insertion ())
+  | DeleteAction (Focus 'SequenceFocusType) DeletionOf
   deriving (Eq, Show)
 
 instance MonadError Text m => Runnable UndoableAction UndoableState m where
   run action state' =
     case action of
-      DeleteAction focus'           ->
-        case delete_ focus' currentTimeline of
-          Left (Just (_, _focusErr)) -> throwError "Delete failed."
-          Left Nothing -> throwError "Can't delete at current focus."
-          Right (timeline', deletedComposition', newFocus) ->
+      DeleteAction oldFocus           deletionOf ->
+        case delete oldFocus deletionOf currentTimeline of
+          Nothing -> -- trace ("Can't delete" :: Text) $
+            throwError "Can't delete at current focus."
+          Just res@DeletionResult{inverseInsertion = (insertion, insertPos)} ->
             state'
-            & existingProject . project . timeline .~ timeline'
-            & timelineFocus .~ newFocus
-            & (InsertAction focus' (insertionFromSomeComposition deletedComposition'),)
-            & pure
+                & existingProject . project . timeline .~ Delete.resultingTimeline res
+                & timelineFocus .~ Delete.resultingFocus res
+                & (InsertAction (Delete.resultingFocus res) insertPos insertion, )
+                & pure
         where
           currentTimeline = state' ^. existingProject . project . timeline
-      InsertAction focus' reinsertion ->
-        state'
-          & existingProject . project . timeline %~
-            insert_
-               focus'
-               reinsertion
-               LeftOf
-          -- "insert left of" moves the focus right, so we reset to the previous focus manually
-          & timelineFocus .~ focus'
-          & (DeleteAction focus',)
-          & pure
+      InsertAction oldFocus pos insertion ->
+        case insert_ oldFocus insertion pos (state'^.existingProject.project.timeline) of
+          Nothing -> -- trace ("Can't insert" :: Text) $
+            throwError "Can't insert at current focus."
+          Just (newTimeline, newFocus) ->
+            state'
+              & existingProject . project . timeline .~ newTimeline
+              & timelineFocus .~ newFocus
+              & (DeleteAction newFocus (inverseDeletionOf insertion),)
+              & pure
+
+inverseDeletionOf :: Insertion a -> DeletionOf
+inverseDeletionOf = \case
+  InsertSequence _ -> DeletionOf 1
+  InsertParallel _ -> DeletionOf 1
+  InsertVideoParts vs -> DeletionOf (length vs)
+  InsertAudioParts as -> DeletionOf (length as)

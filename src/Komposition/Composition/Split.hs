@@ -51,20 +51,20 @@ splitOnSequence ::
   => focus
   -> Sequence a
   -> Maybe (Sequence a, focus)
-splitOnSequence (ParallelFocus pIdx (Just (ClipFocus mediaType' cIdx))) (Sequence sAnn pars) = do
-  let newFocus = ParallelFocus pIdx (Just (ClipFocus mediaType' (pred cIdx)))
-  Parallel pAnn vs as <- toList pars `atMay` pIdx
+splitOnSequence (ParallelFocus pIdx (Just (TrackFocus mediaType' (Just (ClipFocus cIdx))))) (Sequence sAnn pars) = do
+  let newFocus = ParallelFocus pIdx (Just (TrackFocus mediaType' (Just (ClipFocus (pred cIdx)))))
+  Parallel pAnn (VideoTrack vAnn vs) (AudioTrack aAnn as) <- toList pars `atMay` pIdx
   splitPars <- case mediaType' of
     Video -> do
       let (vs1, vs2) = splitAt cIdx vs
           (as1, as2) = splitAtDuration (foldMap (durationOf AdjustedDuration) vs1) as
       guard (not (null vs1 || null vs2))
-      pure [Parallel pAnn vs1 as1, Parallel pAnn vs2 as2]
+      pure [Parallel pAnn (VideoTrack vAnn vs1) (AudioTrack aAnn as1), Parallel pAnn (VideoTrack vAnn vs2) (AudioTrack aAnn as2)]
     Audio -> do
       let (as1, as2) = splitAt cIdx as
           (vs1, vs2) = splitAtDuration (foldMap (durationOf AdjustedDuration) as1) vs
       guard (not (null as1 || null as2))
-      pure [Parallel pAnn vs1 as1, Parallel pAnn vs2 as2]
+      pure [Parallel pAnn (VideoTrack vAnn vs1) (AudioTrack aAnn as1), Parallel pAnn (VideoTrack vAnn vs2) (AudioTrack aAnn as2)]
   pure (Sequence sAnn (replaceManyAt pIdx splitPars pars), newFocus)
 splitOnSequence _ _ = mzero
 

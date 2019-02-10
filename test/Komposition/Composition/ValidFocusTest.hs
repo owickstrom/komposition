@@ -12,6 +12,7 @@ import           Komposition.Prelude
 import qualified Prelude
 
 import           Control.Lens
+import qualified Data.List.NonEmpty                 as NonEmpty
 import           Hedgehog                           hiding (Parallel)
 import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import           Hedgehog.Range
@@ -46,6 +47,10 @@ changeFocusCommand p focus =
     Just SomeSequence{} ->
       Gen.element (TestChangeFocus <$> [FocusDown, FocusLeft, FocusRight])
     Just SomeParallel{}  -> TestChangeFocus <$> Gen.enumBounded
+    Just SomeVideoTrack{} -> Gen.element
+      (TestChangeFocus <$> [FocusUp, FocusDown])
+    Just SomeAudioTrack{} -> Gen.element
+      (TestChangeFocus <$> [FocusUp])
     Just SomeVideoPart{} -> Gen.element
       (TestChangeFocus <$> [FocusUp, FocusDown, FocusLeft, FocusRight])
     Just SomeAudioPart{} ->
@@ -54,29 +59,9 @@ changeFocusCommand p focus =
 
 insertCommand
   :: MonadGen m
-  => ExistingProject
-  -> Focus (ToFocusType Timeline)
+  => Focus (ToFocusType Timeline)
   -> m TestCommand
-insertCommand _ focus = case focusType focus of
-  SequenceFocusType ->
-    TestInsert
-      <$> (InsertSequence <$> Gen.sequence' (linear 1 5) Gen.parallel)
-      <*> Gen.enumBounded
-  ParallelFocusType ->
-    TestInsert
-      <$> Gen.choice
-            [ InsertParallel <$> Gen.parallel
-            , InsertVideoParts <$> Gen.list (linear 0 5) Gen.videoPart
-            , InsertAudioParts <$> Gen.list (linear 0 5) Gen.audioPart
-            ]
-      <*> Gen.enumBounded
-  ClipFocusType ->
-    TestInsert
-      <$> Gen.choice
-            [ InsertVideoParts <$> Gen.list (linear 0 5) Gen.videoPart
-            , InsertAudioParts <$> Gen.list (linear 0 5) Gen.audioPart
-            ]
-      <*> Gen.enumBounded
+insertCommand = fmap (uncurry TestInsert) . Gen.insertion
 
 splitCommands
   :: MonadGen m
@@ -88,7 +73,7 @@ splitCommands p focus =
     (Just (SequenceParent (Sequence _ pars)), SequenceFocus _ (Just (ParallelFocus pIdx Nothing)))
       | pars `validToSplitAt` pIdx
       -> [pure TestSplit]
-    (Just (ParallelParent (Parallel _ vs as)), SequenceFocus _ (Just (ParallelFocus _ (Just (ClipFocus mt cIdx)))))
+    (Just (ParallelParent (Parallel _ (VideoTrack _ vs) (AudioTrack _ as))), SequenceFocus _ (Just (ParallelFocus _ (Just (TrackFocus mt (Just (ClipFocus cIdx)))))))
       | mt == Video && vs `validToSplitAt` cIdx
       -> [pure TestSplit]
       | mt == Audio && as `validToSplitAt` cIdx
@@ -102,14 +87,17 @@ deleteCommands
   => ExistingProject
   -> Focus (ToFocusType Timeline)
   -> [m TestCommand]
-deleteCommands p focus =
-  case parentAtFocus focus (p ^. project . timeline) of
-    Just (TimelineParent (Timeline seqs)) | length seqs >= 2 ->
-      [pure TestDelete]
-    Just (SequenceParent (Sequence _ pars)) | length pars >= 2 ->
-      [pure TestDelete]
-    Just (ParallelParent _) -> [pure TestDelete]
-    _                       -> []
+deleteCommands p focus = case parentAtFocus focus (p ^. project . timeline) of
+  Just (TimelineParent (Timeline seqs)) | length seqs >= 2 -> [pure TestDelete]
+  Just (SequenceParent (Sequence _ pars)) | length pars >= 2 ->
+    [pure TestDelete]
+  Just (ParallelParent (Parallel _ (VideoTrack _ vs) (AudioTrack _ as)))
+    | not (null vs) && not (null as) -> [pure TestDelete]
+  Just (VideoTrackParent (VideoTrack _ parts')) | not (null parts') ->
+    [pure TestDelete]
+  Just (AudioTrackParent (AudioTrack _ parts')) | not (null parts') ->
+    [pure TestDelete]
+  _ -> []
 
 testCommand
   :: MonadGen m
@@ -117,17 +105,17 @@ testCommand
   -> Focus (ToFocusType Timeline)
   -> m TestCommand
 testCommand composition focus = Gen.frequency
-  (  [(20, insertCommand composition focus)]
+  (  [(20, insertCommand focus)]
   <> map (10, ) (splitCommands composition focus)
   <> map (10, ) (deleteCommands composition focus)
   )
 
 applyTestCommand
   :: Monad m
-  => Focus SequenceFocusType
+  => Focus 'SequenceFocusType
   -> ExistingProject
   -> TestCommand
-  -> PropertyT m (ExistingProject, Focus SequenceFocusType)
+  -> PropertyT m (ExistingProject, Focus 'SequenceFocusType)
 applyTestCommand focus ep = \case
   TestChangeFocus cmd ->
     modifyTimeline $ \tl -> case modifyFocus tl cmd focus of
@@ -136,23 +124,20 @@ applyTestCommand focus ep = \case
       -- Other movement errors are considered failures.
       Left  e           -> footnoteShow e >> failure
       Right focus'      -> pure (tl, focus')
-  TestInsert insertion position -> modifyTimeline $ \tl ->
-    maybe failure (pure . (, focus)) (insert focus insertion position tl)
+  TestInsert insertion position -> modifyTimeline $ \tl -> do
+    annotateShow focus
+    maybe failure pure $ insert_ focus insertion position tl
   TestSplit -> modifyTimeline $ \tl -> maybe failure pure (split focus tl)
   TestDelete ->
-    modifyTimeline $ \tl -> handleDeleteResult focus tl (delete focus tl)
+    modifyTimeline $ \tl ->
+      case delete focus (DeletionOf 1) tl of
+        Nothing -> failure
+        Just (DeletionResult tl' _ newFocus) ->
+          pure (tl', newFocus)
   where
     modifyTimeline f = do
       (tl, focus') <- f (ep ^. project . timeline)
       return (ep & project . timeline .~ tl, focus')
-    handleDeleteResult initialFocus tl = \case
-      Nothing -> failure
-      Just (DeletionResult tl' _ (Just cmd)) -> do
-        focus' <- either (\e -> footnoteShow e >> failure)
-                         pure
-                         (modifyFocus tl cmd initialFocus)
-        pure (tl', focus')
-      Just (DeletionResult tl' _ Nothing) -> pure (tl', initialFocus)
 
 generateAndApplyTestCommands
   :: Monad m

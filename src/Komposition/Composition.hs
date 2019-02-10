@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveFunctor         #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE KindSignatures        #-}
@@ -20,9 +21,9 @@ import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.VideoSpeed
 
-type family CompositionPart (mt :: MediaType) where
-  CompositionPart 'Video = VideoPart
-  CompositionPart 'Audio = AudioPart
+type family TrackPart (mt :: MediaType) where
+  TrackPart 'Video = VideoPart
+  TrackPart 'Audio = AudioPart
 
 data VideoPart a
   = VideoClip a VideoAsset TimeSpan VideoSpeed
@@ -56,11 +57,26 @@ data Sequence a =
            (NonEmpty (Parallel a))
   deriving (Eq, Show, Functor, Generic)
 
-data Parallel a =
-  Parallel a
-           [VideoPart a]
-           [AudioPart a]
+data Parallel a = Parallel a (VideoTrack a) (AudioTrack a)
   deriving (Eq, Show, Functor, Generic)
+
+data VideoTrack a = VideoTrack a [VideoPart a]
+  deriving (Eq, Show, Functor, Generic)
+
+instance Semigroup a => Semigroup (VideoTrack a) where
+  VideoTrack a1 p1 <> VideoTrack a2 p2 = VideoTrack (a1 <> a2) (p1 <> p2)
+
+instance Monoid a => Monoid (VideoTrack a) where
+  mempty = VideoTrack mempty mempty
+
+data AudioTrack a = AudioTrack a [AudioPart a]
+  deriving (Eq, Show, Functor, Generic)
+
+instance Semigroup a => Semigroup (AudioTrack a) where
+  AudioTrack a1 p1 <> AudioTrack a2 p2 = AudioTrack (a1 <> a2) (p1 <> p2)
+
+instance Monoid a => Monoid (AudioTrack a) where
+  mempty = AudioTrack mempty mempty
 
 instance HasDuration (Timeline a) where
   durationOf mode (Timeline seqs) = foldMap (durationOf mode) seqs
@@ -70,17 +86,27 @@ instance HasDuration (Sequence a) where
 
 instance HasDuration (Parallel a) where
   durationOf mode (Parallel _ vs as) =
-    max (foldMap (durationOf mode) vs) (foldMap (durationOf mode) as)
+    max (durationOf mode vs) (durationOf mode as)
+
+instance HasDuration (VideoTrack a) where
+  durationOf mode (VideoTrack _ parts') =
+    foldMap (durationOf mode) parts'
+
+instance HasDuration (AudioTrack a) where
+  durationOf mode (AudioTrack _ parts') =
+    foldMap (durationOf mode) parts'
 
 emptyTimeline :: Timeline ()
-emptyTimeline = Timeline (Sequence () (Parallel () [] [] :| []) :| [])
+emptyTimeline = Timeline (Sequence () (Parallel () mempty mempty:| []) :| [])
 
 data SomeComposition a
   = SomeSequence (Sequence a)
   | SomeParallel (Parallel a)
-  | SomeVideoPart (CompositionPart Video a)
-  | SomeAudioPart (CompositionPart Audio a)
-  deriving (Show, Eq)
+  | SomeVideoTrack (VideoTrack a)
+  | SomeAudioTrack (AudioTrack a)
+  | SomeVideoPart (TrackPart 'Video a)
+  | SomeAudioPart (TrackPart 'Audio a)
+  deriving (Show, Eq, Functor)
 
 -- * Lenses and prisms
 

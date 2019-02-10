@@ -142,7 +142,7 @@ renderParallel
   :: ZoomLevel
   -> Parallel (Focus SequenceFocusType, Focused)
   -> BoxChild (Event TimelineMode)
-renderParallel zl (Parallel (_thisFocus, focused) vs as) = container
+renderParallel zl (Parallel (_thisFocus, focused) vt@(VideoTrack _ vs) at@(AudioTrack _ as)) = container
   Box
   [ #orientation := OrientationVertical
   , classes
@@ -152,7 +152,16 @@ renderParallel zl (Parallel (_thisFocus, focused) vs as) = container
     , emptyClass (null vs && null as)
     ]
   ]
-  [ container
+  [ renderVideoTrack zl vt
+  , renderAudioTrack zl at
+  ]
+
+renderVideoTrack
+  :: ZoomLevel
+  -> VideoTrack (Focus SequenceFocusType, Focused)
+  -> BoxChild (Event TimelineMode)
+renderVideoTrack zl (VideoTrack (_thisFocus, focused) vs) =
+  container
     Box
     [classes ["video", focusedClass focused]]
     (fmap
@@ -164,7 +173,13 @@ renderParallel zl (Parallel (_thisFocus, focused) vs as) = container
       )
       (Vector.fromList vs)
     )
-  , container
+
+renderAudioTrack
+  :: ZoomLevel
+  -> AudioTrack (Focus SequenceFocusType, Focused)
+  -> BoxChild (Event TimelineMode)
+renderAudioTrack zl (AudioTrack (_thisFocus, focused) as) =
+  container
     Box
     [classes ["audio", focusedClass focused]]
     (fmap
@@ -176,7 +191,6 @@ renderParallel zl (Parallel (_thisFocus, focused) vs as) = container
       )
       (Vector.fromList as)
     )
-  ]
 
 emptyClass :: Bool -> Text
 emptyClass True  = "empty"

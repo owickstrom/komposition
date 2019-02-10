@@ -1,15 +1,18 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
+{-# LANGUAGE LambdaCase #-}
 module Komposition.Composition.Generators where
 
 import           Komposition.Prelude     hiding ( nonEmpty )
 
+import qualified Data.List.NonEmpty                 as NonEmpty
 import           Control.Lens
 import           Hedgehog                hiding ( Parallel(..) )
 import qualified Hedgehog.Gen                  as Gen
 import           Hedgehog.Range
 
 import           Komposition.Composition
+import           Komposition.Composition.Insert
 import           Komposition.Focus
 import           Komposition.Duration
 import           Komposition.VideoSpeed
@@ -24,18 +27,17 @@ sequence' :: MonadGen m => Range Int -> m (Parallel ()) -> m (Sequence ())
 sequence' range genParallel = Sequence () <$> Gen.nonEmpty range genParallel
 
 parallel :: MonadGen m => m (Parallel ())
-parallel = Gen.filter notEmpty (Parallel () <$> vs <*> as)
-  where
-    vs = Gen.list (linear 0 10) videoPart
-    as = Gen.list (linear 0 10) audioPart
-    notEmpty :: Parallel () -> Bool
-    notEmpty (Parallel _ vs' as') = not (null vs' && null as')
+parallel =
+  Parallel ()
+  <$> (VideoTrack () <$> Gen.list (linear 1 10) videoPart)
+  <*> (AudioTrack () <$> Gen.list (linear 1 10) audioPart)
 
 parallelWithClips :: MonadGen m => m (Parallel ())
-parallelWithClips = Parallel () <$> vs <*> as
+parallelWithClips =
+  Parallel ()
+  <$> (VideoTrack () <$> Gen.filter (any isClip) (Gen.list (linear 1 10) videoPart))
+  <*> (AudioTrack () <$> Gen.list (linear 0 10) audioPart)
   where
-    vs = Gen.filter (any isClip) (Gen.list (linear 1 10) videoPart)
-    as = Gen.list (linear 0 10) audioPart
     isClip VideoClip{} = True
     isClip VideoGap{}  = False
 
@@ -53,7 +55,7 @@ videoAsset = do
 audioAsset :: MonadGen m => m AudioAsset
 audioAsset = AudioAsset <$> assetMetadata
 
-videoPart :: MonadGen m => m (CompositionPart Video ())
+videoPart :: MonadGen m => m (TrackPart 'Video ())
 videoPart = Gen.choice [clip, gap]
   where
     clip = do
@@ -66,7 +68,7 @@ videoPart = Gen.choice [clip, gap]
       VideoClip () asset (TimeSpan spanStart' spanEnd') <$> genVideoSpeed
     gap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
 
-audioPart :: MonadGen m => m (CompositionPart Audio ())
+audioPart :: MonadGen m => m (TrackPart 'Audio ())
 audioPart = Gen.choice [clip, gap]
   where
     clip = AudioClip () <$> audioAsset
@@ -87,26 +89,62 @@ timelineWithFocus
   :: MonadGen m
   => Range Int
   -> m (Parallel ())
-  -> m (Timeline (), Focus SequenceFocusType)
+  -> m (Timeline (), Focus 'SequenceFocusType)
 timelineWithFocus r genParallel = do
   t <- timeline r genParallel
   f <- sequenceFocus t
   pure (t, f)
 
-sequenceFocus :: MonadGen m => Timeline () -> m (Focus SequenceFocusType)
+sequenceFocus :: MonadGen m => Timeline () -> m (Focus 'SequenceFocusType)
 sequenceFocus (Timeline seqs) =
   Gen.choice $ flip concatMap (zip [0 ..] (toList seqs)) $ \(i, seq') ->
     [ pure (SequenceFocus i Nothing)
     , SequenceFocus i . Just <$> parallelFocus seq'
     ]
 
-parallelFocus :: MonadGen m => Sequence () -> m (Focus ParallelFocusType)
+parallelFocus :: MonadGen m => Sequence () -> m (Focus 'ParallelFocusType)
 parallelFocus (Sequence _ pars) =
-  Gen.choice $ flip concatMap (zip [0 ..] (toList pars)) $ \(i, par) ->
-    [pure (ParallelFocus i Nothing), ParallelFocus i . Just <$> clipFocus par]
+  Gen.choice
+    $ flip concatMap (zip [0 ..] (toList pars))
+    $ \(i, Parallel _ videoTrack audioTrack) ->
+        [ pure (ParallelFocus i Nothing)
+        , ParallelFocus i . Just <$> videoTrackFocus videoTrack
+        , ParallelFocus i . Just <$> audioTrackFocus audioTrack
+        ]
 
-clipFocus :: MonadGen m => Parallel () -> m (Focus ClipFocusType)
-clipFocus (Parallel _ vs as) = Gen.choice (anyOf' Video vs <> anyOf' Audio as)
-  where
-    anyOf' mediaType xs =
-      [ pure (ClipFocus mediaType i) | i <- [0 .. pred (length xs)] ]
+videoTrackFocus :: MonadGen m => VideoTrack () -> m (Focus 'TrackFocusType)
+videoTrackFocus (VideoTrack _ vs) = 
+  Gen.choice [pure (TrackFocus Video Nothing), TrackFocus Video . Just <$> clipFocus vs]
+
+audioTrackFocus :: MonadGen m => AudioTrack () -> m (Focus 'TrackFocusType)
+audioTrackFocus (AudioTrack _ vs) =
+  Gen.choice [pure (TrackFocus Audio Nothing), TrackFocus Audio . Just <$> clipFocus vs]
+
+clipFocus :: MonadGen m => [a] -> m (Focus 'ClipFocusType)
+clipFocus xs = Gen.choice [ pure (ClipFocus i) | i <- [0 .. pred (length xs)] ]
+
+insertion
+  :: MonadGen m
+  => Focus (ToFocusType Timeline)
+  -> m (Insertion (), InsertPosition)
+insertion = \case
+  SequenceFocus _ Nothing ->
+    (,)
+      <$> (InsertSequence <$> sequence' (linear 1 5) parallel)
+      <*> Gen.enumBounded
+  SequenceFocus _ (Just (ParallelFocus _ Nothing)) ->
+    (,)
+      <$> Gen.choice
+            [ InsertParallel <$> parallel
+            , InsertVideoParts . NonEmpty.fromList <$> Gen.list (linear 1 5) videoPart
+            , InsertAudioParts . NonEmpty.fromList <$> Gen.list (linear 1 5) audioPart
+            ]
+      <*> Gen.enumBounded
+  SequenceFocus _ (Just (ParallelFocus _ (Just (TrackFocus Video _)))) ->
+    (,)
+      <$> InsertVideoParts . NonEmpty.fromList <$> Gen.list (linear 1 5) videoPart
+      <*> Gen.enumBounded
+  SequenceFocus _ (Just (ParallelFocus _ (Just (TrackFocus Audio _)))) ->
+    (,)
+      <$> InsertAudioParts . NonEmpty.fromList <$> Gen.list (linear 1 5) audioPart
+      <*> Gen.enumBounded

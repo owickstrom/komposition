@@ -49,6 +49,8 @@ instance Binary TimeSpan
 
 instance Binary a => Binary (VideoPart a)
 instance Binary a => Binary (AudioPart a)
+instance Binary a => Binary (VideoTrack a)
+instance Binary a => Binary (AudioTrack a)
 instance Binary a => Binary (Parallel a)
 instance Binary a => Binary (Sequence a)
 instance Binary a => Binary (Timeline a)
