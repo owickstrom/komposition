@@ -113,7 +113,7 @@ openTimelineWindowWithProject
   => WithoutHistory ExistingProject
   -> t m Empty Empty ()
 openTimelineWindowWithProject project' = do
-  let state' = TimelineState (initializeHistory project') initialFocus Nothing Nothing (ZoomLevel 1) Nothing
+  let state' = TimelineState (initializeHistory project') initialFocus Nothing Nothing (ZoomLevel 5) Nothing
   newWindow
     #timeline
     (timelineViewFromState state')

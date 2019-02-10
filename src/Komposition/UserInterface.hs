@@ -91,6 +91,8 @@ deriving instance Eq (Command mode)
 
 deriving instance Ord (Command mode)
 
+deriving instance Show (Command mode)
+
 commandName :: Command mode -> Text
 commandName = \case
   Cancel           -> "Cancel"
@@ -135,7 +137,7 @@ commandName = \case
       Insert.RightMost -> "Rightmost"
 
 data Event mode where
-  CommandKeyMappedEvent :: Command mode -> Event mode
+  CommandKeyMappedEvent :: Show (Command mode) => Command mode -> Event mode
   -- Welcome Screen
   CreateNewProjectClicked :: Event WelcomeScreenMode
   OpenExistingProjectClicked :: Event WelcomeScreenMode
@@ -156,9 +158,15 @@ data Event mode where
   ImportDefaultVideoSpeedChanged :: VideoSpeed -> Event ImportMode
   ImportClicked :: Event ImportMode
   -- Library
-  LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
+  LibraryAssetsSelected
+    :: (Show (SMediaType mt), Show (Asset mt))
+    => SMediaType mt
+    -> [Asset mt]
+    -> Event LibraryMode
   LibrarySelectionConfirmed :: Event LibraryMode
   WindowClosed :: Event mode
+
+deriving instance Show (Event mode)
 
 data ModeKeyMap where
   ModeKeyMap :: forall mode. Ord (Command mode) => SMode mode -> KeyMap (Command mode) -> ModeKeyMap
@@ -201,11 +209,16 @@ data ImportFileModel = ImportFileModel
   , selectedFileMediaType :: Maybe MediaType
   }
 
-data SelectAssetsModel mt = SelectAssetsModel
-  { mediaType      :: SMediaType mt
-  , allAssets      :: NonEmpty (Asset mt)
-  , selectedAssets :: [Asset mt]
-  }
+data SelectAssetsModel mt where
+  SelectAssetsModel 
+    :: ( Show (Asset mt) 
+       , Show (SMediaType mt)
+       )
+    => { mediaType      :: SMediaType mt
+       , allAssets      :: NonEmpty (Asset mt)
+       , selectedAssets :: [Asset mt]
+       }
+    -> SelectAssetsModel mt
 
 data PromptMode ret where
   PromptNumber :: (Double, Double, Double) -> PromptMode Double

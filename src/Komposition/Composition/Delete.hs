@@ -68,7 +68,9 @@ onlyOne :: [a] -> Maybe a
 onlyOne [a] = Just a
 onlyOne _   = Nothing
 
-changeFocusOnDelete :: Foldable t => Focus ft -> Int -> t a -> Maybe (Focus ft)
+changeFocusOnDelete
+  :: (ChangeFocusUp focus, HasLeafFocusIndexLens focus)
+  => Foldable t => focus -> Int -> t a -> Maybe focus
 changeFocusOnDelete oldFocus i (length -> len)
   | len == 1 = changeFocusUp oldFocus
   | succ i == len = oldFocus & leafFocusIndex %~ pred & pure

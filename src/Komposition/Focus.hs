@@ -38,44 +38,69 @@ type family ToFocusType (ct :: * -> *) :: FocusType where
   ToFocusType VideoTrack = 'ClipFocusType
   ToFocusType AudioTrack = 'ClipFocusType
 
-data Focus (t :: FocusType) where
-  SequenceFocus
-    :: Int -> Maybe (Focus 'ParallelFocusType) -> Focus 'SequenceFocusType
-  ParallelFocus :: Int -> Maybe (Focus 'TrackFocusType) -> Focus 'ParallelFocusType
-  TrackFocus :: MediaType -> Maybe (Focus 'ClipFocusType) -> Focus 'TrackFocusType
-  ClipFocus :: Int -> Focus 'ClipFocusType
+data SequenceFocus = SequenceFocus Int (Maybe ParallelFocus)
+  deriving (Eq, Show, Ord, Generic)
 
-deriving instance Eq (Focus t)
-deriving instance Show (Focus t)
-deriving instance Ord (Focus t)
+data ParallelFocus = ParallelFocus Int (Maybe TrackFocus)
+  deriving (Eq, Show, Ord, Generic)
 
-leafFocusIndex :: Applicative f => (Int -> f Int) -> Focus t ->  f (Focus t)
-leafFocusIndex f = \case
-  SequenceFocus i Nothing -> flip SequenceFocus Nothing <$> f i
-  SequenceFocus i (Just pf) -> SequenceFocus i . Just <$> leafFocusIndex f pf
-  ParallelFocus i Nothing ->   flip ParallelFocus Nothing <$> f i
-  ParallelFocus i (Just tf) -> ParallelFocus i . Just <$> leafFocusIndex f tf
-  TrackFocus mt cf ->   TrackFocus mt <$> maybe (pure Nothing) (fmap Just <$> leafFocusIndex f) cf
-  ClipFocus i ->   ClipFocus <$> f i
+data TrackFocus = TrackFocus MediaType (Maybe ClipFocus)
+  deriving (Eq, Show, Ord, Generic)
 
-changeFocusUp :: Focus t -> Maybe (Focus t)
-changeFocusUp = \case
-  SequenceFocus _  Nothing   -> mzero
-  SequenceFocus i  (Just pf) -> pure (SequenceFocus i (changeFocusUp pf))
-  ParallelFocus _  Nothing   -> mzero
-  ParallelFocus i  (Just tf) -> pure (ParallelFocus i (changeFocusUp tf))
-  TrackFocus    _  Nothing   -> mzero
-  TrackFocus    mt (Just cf) -> pure (TrackFocus mt (changeFocusUp cf))
-  ClipFocus _                -> mzero
+newtype ClipFocus = ClipFocus Int
+  deriving (Eq, Show, Ord, Generic)
 
-focusType :: Focus t -> FocusType
+type family Focus (t :: FocusType) where
+  Focus 'SequenceFocusType = SequenceFocus
+  Focus 'ParallelFocusType = ParallelFocus
+  Focus 'TrackFocusType = TrackFocus
+  Focus 'ClipFocusType = ClipFocus
+
+class HasLeafFocusIndexLens focus where
+  leafFocusIndex :: Applicative f => (Int -> f Int) -> focus -> f focus
+
+instance HasLeafFocusIndexLens SequenceFocus where
+  leafFocusIndex f (SequenceFocus i Nothing) = flip SequenceFocus Nothing <$> f i
+  leafFocusIndex f (SequenceFocus i (Just pf)) = SequenceFocus i . Just <$> leafFocusIndex f pf
+
+instance HasLeafFocusIndexLens ParallelFocus where
+  leafFocusIndex f (ParallelFocus i Nothing) =   flip ParallelFocus Nothing <$> f i
+  leafFocusIndex f (ParallelFocus i (Just tf)) = ParallelFocus i . Just <$> leafFocusIndex f tf
+
+instance HasLeafFocusIndexLens TrackFocus where
+  leafFocusIndex f (TrackFocus mt cf) =   TrackFocus mt <$> maybe (pure Nothing) (fmap Just <$> leafFocusIndex f) cf
+
+instance HasLeafFocusIndexLens ClipFocus where
+  leafFocusIndex f (ClipFocus i ) = ClipFocus <$> f i
+
+class ChangeFocusUp focus where
+  changeFocusUp :: focus -> Maybe focus
+
+instance ChangeFocusUp SequenceFocus where
+  changeFocusUp (SequenceFocus _  Nothing)   = mzero
+  changeFocusUp (SequenceFocus i  (Just pf)) = pure (SequenceFocus i (changeFocusUp pf))
+
+instance ChangeFocusUp ParallelFocus where
+  changeFocusUp (ParallelFocus _  Nothing)   = mzero
+  changeFocusUp (ParallelFocus i  (Just tf)) = pure (ParallelFocus i (changeFocusUp tf))
+
+instance ChangeFocusUp TrackFocus where
+  changeFocusUp (TrackFocus    _  Nothing)   = mzero
+  changeFocusUp (TrackFocus    mt (Just cf)) = pure (TrackFocus mt (changeFocusUp cf))
+
+instance ChangeFocusUp ClipFocus where
+  changeFocusUp (ClipFocus _)                = mzero
+
+focusType :: SequenceFocus -> FocusType
 focusType = \case
   SequenceFocus _ Nothing  -> SequenceFocusType
-  SequenceFocus _ (Just f) -> focusType f
-  ParallelFocus _ Nothing  -> ParallelFocusType
-  ParallelFocus _ (Just f) -> focusType f
-  TrackFocus{}              -> TrackFocusType
-  ClipFocus{}              -> TrackFocusType
+  SequenceFocus _ (Just pf) ->
+    case pf of
+      ParallelFocus _ Nothing  -> ParallelFocusType
+      ParallelFocus _ (Just tf) ->
+        case tf of
+          TrackFocus _ Nothing  -> TrackFocusType
+          TrackFocus _ (Just _) -> ClipFocusType
 
 data FocusCommand = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show, Ord, Enum, Bounded)

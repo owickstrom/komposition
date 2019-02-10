@@ -18,6 +18,7 @@ type CustomState = ()
 
 data RangeSliderProperties = RangeSliderProperties
   { range              :: (Double, Double)
+  , rangeValue         :: Double
   , rangeSliderClasses :: ClassSet
   } deriving (Eq, Show)
 
@@ -28,9 +29,10 @@ rangeSlider :: RangeSliderProperties -> Widget RangeSliderEvent
 rangeSlider customData = Widget (CustomWidget {..})
   where
     customWidget = Gtk.Scale
-    customCreate RangeSliderProperties { range, rangeSliderClasses } = do
+    customCreate RangeSliderProperties { range, rangeValue, rangeSliderClasses } = do
       scale <- Gtk.new Gtk.Scale []
       uncurry (#setRange scale) range
+      #setValue scale rangeValue
       Gtk.scaleSetDrawValue scale False
       sc <- Gtk.widgetGetStyleContext scale
       updateClasses sc mempty rangeSliderClasses

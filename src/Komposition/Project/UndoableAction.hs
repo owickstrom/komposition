@@ -29,7 +29,7 @@ data UndoableAction
   | SetClipEnd (Focus 'SequenceFocusType) Duration
   deriving (Eq, Show, Generic)
 
-instance MonadError Text m => Runnable UndoableAction (Timeline ()) (Focus 'SequenceFocusType) m where
+instance MonadError Text m => Runnable UndoableAction (Timeline ()) SequenceFocus m where
   run action timeline = case action of
     DeleteAction oldFocus deletionOf ->
       case delete oldFocus deletionOf timeline of

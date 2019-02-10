@@ -24,25 +24,28 @@ data Focused
 -- (the same as the first), transitively focused (a sub-path of the
 -- current focus), or not focused at all.
 focusedState
-  :: Focus ft -- ^ Current focus
-  -> Focus ft -- ^ A focus to check
+  :: SequenceFocus -- ^ Current focus
+  -> SequenceFocus -- ^ A focus to check
   -> Focused
-focusedState f1 f2 =
-  case (f1, f2) of
-    (SequenceFocus i1 mf1, SequenceFocus i2 mf2)
-      | i1 == i2 -> subFocusState (mf1, mf2)
-    (ParallelFocus i1 mf1, ParallelFocus i2 mf2)
-      | i1 == i2 -> subFocusState (mf1, mf2)
-    (TrackFocus mt1 cf1, TrackFocus mt2 cf2)
-      | mt1 == mt2 -> subFocusState (cf1, cf2)
-    (ClipFocus i1, ClipFocus i2) | i1 == i2 -> Focused
-    _ -> Blurred
+focusedState f1 f2 = onSequenceFocus (f1, f2)
   where
-    subFocusState =
+    onSequenceFocus (SequenceFocus i1 mf1, SequenceFocus i2 mf2)
+      | i1 == i2 = subFocusState onParallelFocus (mf1, mf2)
+      | otherwise = Blurred
+    onParallelFocus (ParallelFocus i1 mf1, ParallelFocus i2 mf2)
+      | i1 == i2 = subFocusState onTrackFocus (mf1, mf2)
+      | otherwise = Blurred
+    onTrackFocus (TrackFocus mt1 cf1, TrackFocus mt2 cf2)
+      | mt1 == mt2 = subFocusState onClipFocus (cf1, cf2)
+      | otherwise = Blurred
+    onClipFocus (ClipFocus i1, ClipFocus i2)
+      | i1 == i2 = Focused
+      | otherwise = Blurred
+    subFocusState f =
       \case
         (Nothing, Nothing) -> Focused
         (Just _, Nothing) -> TransitivelyFocused
-        (Just f1', Just f2') -> focusedState f1' f2'
+        (Just f1', Just f2') -> f (f1', f2')
         (Nothing, Just _) -> Blurred
 
 numsFromZero :: (Enum n, Num n) => NonEmpty n

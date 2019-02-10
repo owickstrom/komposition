@@ -397,9 +397,11 @@ renderBottomBar model = container
     , #halign := AlignStart
     ]
   , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ toZoomEvent <$> rangeSlider
-    (RangeSliderProperties (1, 9) ["zoom-level"])
+    (RangeSliderProperties (1, 9) zl ["zoom-level"])
   ]
-  where toZoomEvent (RangeSliderChanged d) = ZoomLevelChanged (ZoomLevel d)
+  where
+    ZoomLevel zl = model ^. zoomLevel
+    toZoomEvent (RangeSliderChanged d) = ZoomLevelChanged (ZoomLevel d)
 
 timelineView :: TimelineViewModel -> Bin Window (Event 'TimelineMode)
 timelineView model =
