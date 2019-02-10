@@ -113,7 +113,7 @@ openTimelineWindowWithProject
   => WithoutHistory ExistingProject
   -> t m Empty Empty ()
 openTimelineWindowWithProject project' = do
-  let state' = TimelineState (initializeHistory project') initialFocus Nothing Nothing (ZoomLevel 5) Nothing
+  let state' = TimelineState (initializeHistory project') Nothing Nothing (ZoomLevel 5) Nothing
   newWindow
     #timeline
     (timelineViewFromState state')
@@ -136,6 +136,7 @@ initialProject =
   Project
     { _projectName = "Test"
     , _timeline = emptyTimeline
+    , _timelineFocus = initialFocus
     , _library = Library [] []
     , _videoSettings = AllVideoSettings
                        { _renderVideoSettings =
@@ -145,7 +146,7 @@ initialProject =
                        }
     }
 
-initialFocus :: Focus SequenceFocusType
+initialFocus :: SequenceFocus
 initialFocus = SequenceFocus 0 Nothing
 
 initialNewProjectModel :: NewProjectModel

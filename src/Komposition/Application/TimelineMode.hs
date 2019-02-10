@@ -72,7 +72,6 @@ type TimelineEffects sig =
 
 data TimelineState = TimelineState
   { _existingProject  :: WithHistory ExistingProject
-  , _timelineFocus    :: Focus 'SequenceFocusType
   , _clipboard        :: Maybe (Insertion ())
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel
@@ -94,7 +93,7 @@ timelineViewFromState state' =
   timelineView $
   UI.TimelineViewModel
   (state' ^. existingProject.project)
-  (state' ^. timelineFocus)
+  (state' ^. existingProject.project.timelineFocus)
   (state' ^. statusMessage)
   (state' ^. zoomLevel)
   (state' ^. previewImagePath)
@@ -121,7 +120,7 @@ timelineMode gui state' = do
         case
             modifyFocus (state' ^. existingProject.project.timeline.current)
                         cmd
-                        (state' ^. timelineFocus)
+                        (state' ^. existingProject.project.timelineFocus)
           of
             Left err -> do
               beep gui
@@ -129,11 +128,11 @@ timelineMode gui state' = do
               continue
             Right newFocus ->
               state'
-                & timelineFocus .~ newFocus
+                & existingProject.project.timelineFocus .~ newFocus
                 & refreshPreviewAndContinue gui
       CommandKeyMappedEvent (JumpFocus newFocus) ->
         case atFocus newFocus (state' ^. existingProject.project.timeline.current) of
-          Just _ -> refreshPreviewAndContinue gui (state' & timelineFocus .~ newFocus)
+          Just _ -> refreshPreviewAndContinue gui (state' & existingProject.project.timelineFocus .~ newFocus)
           Nothing ->
             beep gui >>> continueWithStatusMessage "Couldn't set focus."
       CommandKeyMappedEvent (InsertCommand type' position) ->
@@ -143,7 +142,7 @@ timelineMode gui state' = do
           & clipboard .~ clipboardInsertion
           & runUndoableAction gui (DeleteAction currentFocus' (DeletionOf 1))
         where
-          currentFocus' = state' ^. timelineFocus
+          currentFocus' = state' ^. existingProject.project.timelineFocus
           currentTimeline = state' ^. existingProject.project.timeline.current
           clipboardInsertion = insertionFromSomeComposition =<< atFocus currentFocus' currentTimeline
       CommandKeyMappedEvent Copy ->
@@ -151,7 +150,7 @@ timelineMode gui state' = do
           &  clipboard .~ (insertionFromSomeComposition =<< atFocus currentFocus' currentTimeline)
           &  timelineMode gui
         where
-          currentFocus' = state' ^. timelineFocus
+          currentFocus' = state' ^. existingProject.project.timelineFocus
           currentTimeline = state' ^. existingProject.project.timeline.current
       CommandKeyMappedEvent (Paste pos) ->  -- trace ("Paste" :: Text) $
         case state' ^. clipboard of
@@ -159,17 +158,17 @@ timelineMode gui state' = do
           Just clipboardInsertion ->
             runUndoableAction gui (InsertAction currentFocus' insertPos clipboardInsertion) state'
             where
-              currentFocus' = state' ^. timelineFocus
+              currentFocus' = state' ^. existingProject.project.timelineFocus
               insertPos = case pos of
                 PasteLeftOf  -> LeftOf
                 PasteRightOf -> RightOf
       CommandKeyMappedEvent Split ->
         continue -- TODO: Implement using runAndRecord (needs Join)
-        -- case split ( state' ^. timelineFocus) (state' ^. existingProject . project . timeline) of
+        -- case split ( state' ^. existingProject.project.timelineFocus) (state' ^. existingProject . project . timeline) of
         --   Just (timeline', newFocus) ->
         --     state'
         --       &  existingProject .  project . timeline .~ timeline'
-        --       &  timelineFocus .~ newFocus
+        --       &  existingProject.project.timelineFocus .~ newFocus
         --       &  refreshPreviewAndContinue gui
         --   Nothing -> do
         --     beep gui
@@ -206,7 +205,7 @@ timelineMode gui state' = do
           Just (Right (newHistory, newFocus)) ->
             state'
               & existingProject.project.timeline .~ newHistory
-              & timelineFocus .~ newFocus
+              & existingProject.project.timelineFocus .~ newFocus
               & refreshPreviewAndContinue gui
           Nothing ->
             beep gui >> timelineMode gui state'
@@ -216,7 +215,7 @@ timelineMode gui state' = do
           Just (Right (newHistory, newFocus)) ->
             state'
               & existingProject.project.timeline .~ newHistory
-              & timelineFocus .~ newFocus
+              & existingProject.project.timelineFocus .~ newFocus
               & refreshPreviewAndContinue gui
           Nothing -> beep gui >> timelineMode gui state'
       CommandKeyMappedEvent SaveProject ->
@@ -234,9 +233,9 @@ timelineMode gui state' = do
       CommandKeyMappedEvent Exit -> ireturn (TimelineExit state')
       ZoomLevelChanged      zl   -> state' & zoomLevel .~ zl & timelineMode gui
       PreviewImageRefreshed p -> state' & previewImagePath .~ p & timelineMode gui
-      FocusedClipSpeedSet speed -> runUndoableAction gui (SetClipSpeed (state' ^. timelineFocus) speed) state'
-      FocusedClipStartSet start -> runUndoableAction gui (SetClipStart (state' ^. timelineFocus)start) state'
-      FocusedClipEndSet end -> runUndoableAction gui (SetClipEnd (state' ^. timelineFocus)end) state'
+      FocusedClipSpeedSet speed -> runUndoableAction gui (SetClipSpeed (state' ^. existingProject.project.timelineFocus) speed) state'
+      FocusedClipStartSet start -> runUndoableAction gui (SetClipStart (state' ^. existingProject.project.timelineFocus)start) state'
+      FocusedClipEndSet end -> runUndoableAction gui (SetClipEnd (state' ^. existingProject.project.timelineFocus)end) state'
       WindowClosed               -> ireturn (TimelineExit state')
 
     printUnexpectedFocusError err cmd = case err of
@@ -261,7 +260,7 @@ insertIntoTimeline
 insertIntoTimeline gui state' type' position =
   case
       ( type'
-      , atFocus ( state' ^. timelineFocus)
+      , atFocus ( state' ^. existingProject.project.timelineFocus)
                 (state' ^. existingProject.project.timeline.current)
       )
     of
@@ -324,10 +323,10 @@ insertIntoTimeline gui state' type' position =
            Right (newHistory, newFocus) ->
              state'
                & existingProject.project.timeline .~ newHistory
-               & timelineFocus .~ newFocus
+               & existingProject.project.timelineFocus .~ newFocus
                & refreshPreviewAndContinue gui
          where
-           currentFocus' = state' ^. timelineFocus
+           currentFocus' = state' ^. existingProject.project.timelineFocus
     emptySequence = Sequence () (pure emptyParallel)
     emptyParallel = Parallel () mempty mempty
 
@@ -361,10 +360,10 @@ insertGap parent state' mediaType' position = do
         Right (newHistory, newFocus) ->
           state'
             & existingProject.project.timeline .~ newHistory
-            & timelineFocus .~ newFocus
+            & existingProject.project.timelineFocus .~ newFocus
             & ireturn
       where
-        currentFocus' = state' ^. timelineFocus
+        currentFocus' = state' ^. existingProject.project.timelineFocus
     Nothing -> ireturn state'
 
 prettyFocusedAt :: FocusedAt a -> Text
@@ -387,7 +386,7 @@ previewFocusedComposition
   -> TimelineState
   -> t m r r TimelineState
 previewFocusedComposition gui state' =
-  case atFocus (state' ^. timelineFocus) (state' ^. existingProject.project.timeline.current) of
+  case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
     Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
     Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
     Just (SomeVideoTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () t mempty))
@@ -498,10 +497,10 @@ insertSelectedAssets gui state' mediaType' position assets =
     Right (newHistory, newFocus) ->
       state'
         & existingProject.project.timeline .~ newHistory
-        & timelineFocus .~ newFocus
+        & existingProject.project.timelineFocus .~ newFocus
         & timelineMode gui
   where
-    currentFocus' = state'^.timelineFocus
+    currentFocus' = state'^.existingProject.project.timelineFocus
 
 insertionOf
   :: SMediaType mt
@@ -563,7 +562,7 @@ refreshPreview
   -> t m r r ()
 refreshPreview gui state' = do
   cacheDir <- ilift getCacheDirectory
-  case atFocus (state' ^. timelineFocus) (state' ^. existingProject.project.timeline.current) of
+  case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
     Just (SomeVideoPart (VideoClip _ videoAsset ts _)) ->
       runInBackground gui $
         pure . PreviewImageRefreshed . Just <$>
@@ -606,10 +605,6 @@ runUndoableAction gui action state' =
       state' & statusMessage ?~ err & timelineMode gui
     Right (newHistory, newFocus) ->
       state'
-        &  existingProject
-        .  project
-        .  timeline
-        .~ newHistory
-        &  timelineFocus
-        .~ newFocus
-        &  refreshPreviewAndContinue gui
+        & existingProject.project.timeline .~ newHistory
+        & existingProject.project.timelineFocus .~ newFocus
+        & refreshPreviewAndContinue gui

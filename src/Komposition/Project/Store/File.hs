@@ -28,7 +28,9 @@ import           Data.Time.Clock           (diffTimeToPicoseconds,
                                             picosecondsToDiffTime)
 import           Komposition.Composition
 import           Komposition.Duration
+import           Komposition.Focus
 import           Komposition.Library
+import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.VideoSettings
@@ -60,7 +62,12 @@ instance Binary Resolution
 instance Binary VideoSettings
 instance Binary AllVideoSettings
 instance Binary VideoSpeed
+instance Binary SequenceFocus
+instance Binary ParallelFocus
+instance Binary TrackFocus
+instance Binary ClipFocus
 instance Binary (WithoutHistory Project)
+instance Binary MediaType
 
 -- * File-Based Project Store
 

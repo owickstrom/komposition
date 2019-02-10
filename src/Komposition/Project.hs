@@ -17,6 +17,7 @@ import           Control.Lens
 import           Data.Text                          (Text)
 
 import           Komposition.Composition
+import           Komposition.Focus
 import           Komposition.Library
 import           Komposition.Project.UndoableAction
 import           Komposition.UndoRedo
@@ -25,6 +26,7 @@ import           Komposition.VideoSettings
 data Project timeline = Project
   { _projectName   :: !Text
   , _timeline      :: !timeline
+  , _timelineFocus :: SequenceFocus
   , _library       :: !Library
   , _videoSettings :: !AllVideoSettings
   }

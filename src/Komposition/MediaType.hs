@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -8,7 +9,7 @@ module Komposition.MediaType where
 import           Komposition.Prelude
 
 data MediaType = Video | Audio
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show, Ord, Generic)
 
 data SMediaType (mt :: MediaType) where
   SVideo :: SMediaType Video
