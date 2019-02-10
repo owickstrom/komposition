@@ -63,6 +63,9 @@ data Parallel a = Parallel a (VideoTrack a) (AudioTrack a)
 data VideoTrack a = VideoTrack a [VideoPart a]
   deriving (Eq, Show, Functor, Generic)
 
+videoTrackIsEmpty :: VideoTrack a -> Bool
+videoTrackIsEmpty (VideoTrack _ parts') = null parts'
+
 instance Semigroup a => Semigroup (VideoTrack a) where
   VideoTrack a1 p1 <> VideoTrack a2 p2 = VideoTrack (a1 <> a2) (p1 <> p2)
 
@@ -71,6 +74,9 @@ instance Monoid a => Monoid (VideoTrack a) where
 
 data AudioTrack a = AudioTrack a [AudioPart a]
   deriving (Eq, Show, Functor, Generic)
+
+audioTrackIsEmpty :: AudioTrack a -> Bool
+audioTrackIsEmpty (AudioTrack _ parts') = null parts'
 
 instance Semigroup a => Semigroup (AudioTrack a) where
   AudioTrack a1 p1 <> AudioTrack a2 p2 = AudioTrack (a1 <> a2) (p1 <> p2)

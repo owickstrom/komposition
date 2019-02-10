@@ -18,6 +18,7 @@
 module Komposition.Application.TimelineMode where
 
 import           Komposition.Application.Base
+import qualified Prelude
 
 import           Control.Effect                                      (Member)
 import           Control.Effect.Carrier                              (Carrier)
@@ -106,7 +107,7 @@ timelineMode
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -271,7 +272,7 @@ insertIntoTimeline
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -285,7 +286,17 @@ insertIntoTimeline gui state' type' position =
                 (state' ^. history . current . existingProject . project . timeline)
       )
     of
-      (InsertComposition, Just (SomeSequence _)) -> continue -- TODO: runAndRecord Insert
+      (InsertComposition, Just (SomeSequence _)) ->
+         case state' & history %%~ runAndRecord (InsertAction currentFocus' position (InsertSequence emptySequence)) of
+           Left err      -> do
+             beep gui
+             state'
+               & statusMessage ?~ err
+               & timelineMode gui
+           Right state'' -> refreshPreviewAndContinue gui state''
+         where
+           currentFocus' = state' ^. history . current . timelineFocus
+           emptySequence = Sequence () (pure (Parallel () mempty mempty))
       (InsertClip (Just mt), Just SomeParallel{}) -> case mt of
         Video -> selectAssetAndInsert gui state' SVideo position
         Audio -> selectAssetAndInsert gui state' SAudio position
@@ -331,20 +342,30 @@ insertGap parent state' mediaType' position = do
                         "Please specify a gap duration in seconds."
                         "Insert Gap"
                         (PromptNumber (0.1, 10e10, 0.1))
-  -- let gapInsertion seconds = case mediaType' of
-  --       SVideo -> InsertVideoParts [VideoGap () (durationFromSeconds seconds)]
-  --       SAudio -> InsertAudioParts [AudioGap () (durationFromSeconds seconds)]
+  let gapInsertion seconds = case mediaType' of
+        SVideo -> InsertVideoParts (pure (VideoGap () (durationFromSeconds seconds)))
+        SAudio -> InsertAudioParts (pure (AudioGap () (durationFromSeconds seconds)))
   case gapDuration of
     Just seconds ->
-      ireturn state'
-    Nothing -> ireturn state' -- TODO: runAndRecord Insert
+      case state' & history %%~ runAndRecord (InsertAction currentFocus' position (gapInsertion seconds)) of
+        Left err      -> do
+          beep parent
+          state'
+            & statusMessage ?~ err
+            & ireturn
+        Right state'' -> ireturn state''
+      where
+        currentFocus' = state' ^. history . current . timelineFocus
+    Nothing -> ireturn state'
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt = \case
   SomeSequence{}  -> "sequence"
   SomeParallel{}  -> "parallel"
-  SomeVideoPart{} -> "video track"
-  SomeAudioPart{} -> "audio track"
+  SomeVideoTrack{} -> "video track"
+  SomeAudioTrack{} -> "audio track"
+  SomeVideoPart{} -> "video part"
+  SomeAudioPart{} -> "audio part"
 
 previewFocusedComposition
   :: ( Application t m sig
@@ -360,6 +381,8 @@ previewFocusedComposition gui state' =
   case atFocus ( state' ^. history . current . timelineFocus) (state' ^. history . current . existingProject . project . timeline) of
     Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
     Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
+    Just (SomeVideoTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () t mempty))
+    Just (SomeAudioTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () mempty t))
     Just (SomeVideoPart p) -> renderFlatComposition (Render.singleVideoPart p)
     Just (SomeAudioPart (AudioClip _ asset)) ->
       previewFile (asset ^. assetMetadata . path . unOriginalPath)
@@ -405,7 +428,7 @@ selectAssetAndInsert
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -415,15 +438,19 @@ selectAssetAndInsert
 selectAssetAndInsert gui state' mediaType' position = case mediaType' of
   SVideo ->
     case NonEmpty.nonEmpty (state' ^. history . current . existingProject . project . library . videoAssets) of
-      Just vs ->
-        selectAsset (SelectAssetsModel SVideo vs [])
-          >>>= insertSelectedAssets gui state' SVideo position
+      Just vs -> do
+        selected <- selectAsset (SelectAssetsModel SVideo vs [])
+        case NonEmpty.nonEmpty Prelude.=<< selected of
+          Just assets -> insertSelectedAssets gui state' SVideo position assets
+          Nothing -> beep gui >>> timelineMode gui state'
       Nothing -> onNoAssets gui SVideo
   SAudio ->
     case NonEmpty.nonEmpty (state' ^. history . current . existingProject . project . library . audioAssets) of
-      Just as ->
-        selectAsset (SelectAssetsModel SAudio as [])
-          >>>= insertSelectedAssets gui state' SAudio position
+      Just as -> do
+        selected <- selectAsset (SelectAssetsModel SAudio as [])
+        case NonEmpty.nonEmpty Prelude.=<< selected of
+          Just assets -> insertSelectedAssets gui state' SAudio position assets
+          Nothing -> beep gui >>> timelineMode gui state'
       Nothing -> onNoAssets gui SAudio
   where
     onNoAssets
@@ -444,34 +471,24 @@ insertSelectedAssets
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event TimelineMode))
+     , r ~ (n .== Window (t m) (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
   -> SMediaType mt
   -> InsertPosition
-  -> Maybe [Asset mt]
+  -> NonEmpty (Asset mt)
   -> t m r r TimelineModeResult
-insertSelectedAssets gui state' mediaType' position result = do
-  case result of
-    Just assets -> timelineMode gui state' -- TODO: runAndRecord Insert
-      -- case insert_ (state'^.history.current.timelineFocus) (insertionOf mediaType' assets) position (state'^.history.current.existingProject.project.timeline) of
-      --   Left _ ->
-      --     state'
-      --     & returnWithStatusMessage "Failed to insert assets."
-      --   Right (newTimeline, newFocus) ->
-      --     state'
-      --     & history.current.existingProject.project.timeline ^. newTimeline
-      --     & history.current.timelineFocus ^. newFocus
-      --     & refreshPreviewAndContinue gui
-    Nothing -> do
+insertSelectedAssets gui state' mediaType' position assets =
+  case state' & history %%~ runAndRecord (InsertAction currentFocus' position (insertionOf mediaType' assets)) of
+    Left err      -> do
       beep gui
-      state' & returnWithStatusMessage (noAssetsMessage mediaType')
-  where
-    returnWithStatusMessage msg state' =
       state'
-      & statusMessage ?~ msg
-      & timelineMode gui
+        & statusMessage ?~ err
+        & refreshPreviewAndContinue gui
+    Right state'' -> timelineMode gui state''
+  where
+    currentFocus' = state'^.history.current.timelineFocus
 
 insertionOf
   :: SMediaType mt

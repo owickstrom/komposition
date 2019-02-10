@@ -25,19 +25,19 @@ import           Komposition.MediaType
 import           Komposition.VideoSpeed
 
 data Composition =
-  Composition (NonEmpty (CompositionPart Video))
-              (NonEmpty (CompositionPart Audio))
+  Composition (NonEmpty (CompositionPart 'Video))
+              (NonEmpty (CompositionPart 'Audio))
   deriving (Show, Eq, Generic)
 
 data StillFrameMode = FirstFrame | LastFrame
   deriving (Show, Eq, Generic, Hashable)
 
 data CompositionPart mt where
-  VideoClip :: VideoAsset -> TimeSpan -> VideoSpeed -> CompositionPart Video
+  VideoClip :: VideoAsset -> TimeSpan -> VideoSpeed -> CompositionPart 'Video
   StillFrame
-    :: StillFrameMode -> VideoAsset -> TimeSpan -> Duration -> CompositionPart Video
-  AudioClip :: AudioAsset -> CompositionPart Audio
-  Silence :: Duration -> CompositionPart Audio
+    :: StillFrameMode -> VideoAsset -> TimeSpan -> Duration -> CompositionPart 'Video
+  AudioClip :: AudioAsset -> CompositionPart 'Audio
+  Silence :: Duration -> CompositionPart 'Audio
 
 instance HasDuration (CompositionPart mt) where
   durationOf mode = \case
@@ -56,7 +56,7 @@ instance HasDuration Composition where
   durationOf mode (Composition vs as) =
     max (foldMap (durationOf mode) vs) (foldMap (durationOf mode) as)
 
-data Tracks = Tracks [CompositionPart Video] [CompositionPart Audio]
+data Tracks = Tracks [CompositionPart 'Video] [CompositionPart 'Audio]
   deriving (Eq, Show)
 
 instance Semigroup Tracks where
@@ -95,7 +95,10 @@ flattenSequenceTracks :: Core.Sequence a -> Maybe Tracks
 flattenSequenceTracks (Core.Sequence _ pars) = foldMap flattenParallelTracks pars
 
 flattenParallelTracks :: Core.Parallel a -> Maybe Tracks
-flattenParallelTracks (Core.Parallel _ (Core.VideoTrack _ vs) (Core.AudioTrack _ as)) =
+flattenParallelTracks (Core.Parallel _ vt at) = flattenTracks vt at
+
+flattenTracks :: Core.VideoTrack a -> Core.AudioTrack a -> Maybe Tracks
+flattenTracks (Core.VideoTrack _ vs) (Core.AudioTrack _ as) =
   let (video, lastAsset, lastGaps) =
         foldl' foldVideo (mempty, Nothing, mempty) vs
       audio = foldMap toAudio as

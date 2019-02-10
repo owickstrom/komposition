@@ -64,11 +64,11 @@ renderClipAsset
   :: AssetMetadataLens asset
   => HasDuration asset
   => ZoomLevel
-  -> Focus SequenceFocusType
+  -> Focus 'SequenceFocusType
   -> Focused
   -> asset
   -> Duration
-  -> Widget (Event TimelineMode)
+  -> Widget (Event 'TimelineMode)
 renderClipAsset zl thisFocus focused asset' duration' = container
   Box
   [ classes ["clip", focusedClass focused]
@@ -85,9 +85,9 @@ renderClipAsset zl thisFocus focused asset' duration' = container
 
 renderGap
   :: ZoomLevel
-  -> (Focus SequenceFocusType, Focused)
+  -> (Focus 'SequenceFocusType, Focused)
   -> Duration
-  -> Widget (Event TimelineMode)
+  -> Widget (Event 'TimelineMode)
 renderGap zl (thisFocus, focused) duration' = container
   Box
   [classes ["gap", focusedClass focused], #orientation := OrientationHorizontal]
@@ -102,8 +102,8 @@ renderGap zl (thisFocus, focused) duration' = container
 
 renderVideoPart
   :: ZoomLevel
-  -> VideoPart (Focus SequenceFocusType, Focused)
-  -> Widget (Event TimelineMode)
+  -> VideoPart (Focus 'SequenceFocusType, Focused)
+  -> Widget (Event 'TimelineMode)
 renderVideoPart zl = \case
   c@(VideoClip (thisFocus, focused) asset' _ _) ->
     renderClipAsset zl thisFocus focused asset' (durationOf AdjustedDuration c)
@@ -111,8 +111,8 @@ renderVideoPart zl = \case
 
 renderAudioPart
   :: ZoomLevel
-  -> AudioPart (Focus SequenceFocusType, Focused)
-  -> Widget (Event TimelineMode)
+  -> AudioPart (Focus 'SequenceFocusType, Focused)
+  -> Widget (Event 'TimelineMode)
 renderAudioPart zl = \case
   AudioClip (thisFocus, focused) asset' ->
     renderClipAsset zl thisFocus focused asset' (durationOf AdjustedDuration asset')
@@ -120,8 +120,8 @@ renderAudioPart zl = \case
 
 renderTimeline
   :: ZoomLevel
-  -> Timeline (Focus SequenceFocusType, Focused)
-  -> Widget (Event TimelineMode)
+  -> Timeline (Focus 'SequenceFocusType, Focused)
+  -> Widget (Event 'TimelineMode)
 renderTimeline zl (Timeline sub) = container
   Box
   [classes ["composition", "timeline", emptyClass (null sub)]]
@@ -129,8 +129,8 @@ renderTimeline zl (Timeline sub) = container
 
 renderSequence
   :: ZoomLevel
-  -> Sequence (Focus SequenceFocusType, Focused)
-  -> Widget (Event TimelineMode)
+  -> Sequence (Focus 'SequenceFocusType, Focused)
+  -> Widget (Event 'TimelineMode)
 renderSequence zl (Sequence (_thisFocus, focused) sub) = container
   Box
   [ classes
@@ -140,30 +140,30 @@ renderSequence zl (Sequence (_thisFocus, focused) sub) = container
 
 renderParallel
   :: ZoomLevel
-  -> Parallel (Focus SequenceFocusType, Focused)
-  -> BoxChild (Event TimelineMode)
-renderParallel zl (Parallel (_thisFocus, focused) vt@(VideoTrack _ vs) at@(AudioTrack _ as)) = container
+  -> Parallel (Focus 'SequenceFocusType, Focused)
+  -> BoxChild (Event 'TimelineMode)
+renderParallel zl (Parallel (_thisFocus, focused) videoTrack audioTrack) = container
   Box
   [ #orientation := OrientationVertical
   , classes
     [ "composition"
     , "parallel"
     , focusedClass focused
-    , emptyClass (null vs && null as)
+    , emptyClass (videoTrackIsEmpty videoTrack && audioTrackIsEmpty audioTrack)
     ]
   ]
-  [ renderVideoTrack zl vt
-  , renderAudioTrack zl at
+  [ renderVideoTrack zl videoTrack
+  , renderAudioTrack zl audioTrack
   ]
 
 renderVideoTrack
   :: ZoomLevel
-  -> VideoTrack (Focus SequenceFocusType, Focused)
-  -> BoxChild (Event TimelineMode)
+  -> VideoTrack (Focus 'SequenceFocusType, Focused)
+  -> BoxChild (Event 'TimelineMode)
 renderVideoTrack zl (VideoTrack (_thisFocus, focused) vs) =
   container
     Box
-    [classes ["video", focusedClass focused]]
+    [classes ["track", "video", focusedClass focused]]
     (fmap
       ( BoxChild defaultBoxChildProperties { expand  = False
                                            , fill    = False
@@ -176,12 +176,12 @@ renderVideoTrack zl (VideoTrack (_thisFocus, focused) vs) =
 
 renderAudioTrack
   :: ZoomLevel
-  -> AudioTrack (Focus SequenceFocusType, Focused)
-  -> BoxChild (Event TimelineMode)
+  -> AudioTrack (Focus 'SequenceFocusType, Focused)
+  -> BoxChild (Event 'TimelineMode)
 renderAudioTrack zl (AudioTrack (_thisFocus, focused) as) =
   container
     Box
-    [classes ["audio", focusedClass focused]]
+    [classes ["track", "audio", focusedClass focused]]
     (fmap
       ( BoxChild defaultBoxChildProperties { expand  = False
                                            , fill    = False
@@ -197,7 +197,7 @@ emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
 renderPreviewPane
-  :: Maybe FilePath -> Pane (Event TimelineMode)
+  :: Maybe FilePath -> Pane (Event 'TimelineMode)
 renderPreviewPane path' = pane defaultPaneProperties $ container
   Box
   [classes ["preview-pane"]]
@@ -217,7 +217,7 @@ durationControl vs range' current = toDuration <$> numberInput NumberInputProper
   }
   where toDuration (NumberInputChanged n) = durationFromSeconds n
 
-clipSpanControl :: VideoSettings -> VideoAsset -> TimeSpan -> BoxChild (Event TimelineMode)
+clipSpanControl :: VideoSettings -> VideoAsset -> TimeSpan -> BoxChild (Event 'TimelineMode)
 clipSpanControl vs asset ts = container
   Box
   [#orientation := OrientationHorizontal]
@@ -236,7 +236,7 @@ clipSpanControl vs asset ts = container
   ]
 
 renderSidebar
-  :: VideoSettings -> Maybe (SomeComposition a) -> Pane (Event TimelineMode)
+  :: VideoSettings -> Maybe (SomeComposition a) -> Pane (Event 'TimelineMode)
 renderSidebar vs mcomp = pane defaultPaneProperties $ container
   Box
   [ #orientation := OrientationVertical
@@ -254,6 +254,16 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
         [ heading "Parallel"
         , textEntry "Duration" (formatDuration (durationOf AdjustedDuration p))
         ]
+      Just (SomeVideoTrack t@(VideoTrack _ videoParts))
+        -> [ heading "Video Track"
+           , textEntry "Parts" (show (length videoParts))
+           , textEntry "Duration" (formatDuration (durationOf AdjustedDuration t))
+           ]
+      Just (SomeAudioTrack t@(AudioTrack _ audioParts))
+        -> [ heading "Audio Track"
+           , textEntry "Parts" (show (length audioParts))
+           , textEntry "Duration" (formatDuration (durationOf AdjustedDuration t))
+           ]
       Just (SomeVideoPart (VideoClip _ asset ts speed))
         -> [ heading "Video Clip"
            , textEntry "Duration"
@@ -322,7 +332,7 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
     formatDuration = printTimestampWithPrecision (Just 2)
 
 renderMainArea
-  :: TimelineViewModel -> Widget (Event TimelineMode)
+  :: TimelineViewModel -> Widget (Event 'TimelineMode)
 renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
   (renderPreviewPane (model ^. previewImagePath))
@@ -332,7 +342,7 @@ renderMainArea model =
     currentFocus' = model ^. currentFocus
 
 
-renderMenu :: Widget (Event TimelineMode)
+renderMenu :: Widget (Event 'TimelineMode)
 renderMenu = container
   MenuBar
   []
@@ -374,7 +384,7 @@ renderMenu = container
         )
       ]
 
-renderBottomBar :: TimelineViewModel -> Widget (Event TimelineMode)
+renderBottomBar :: TimelineViewModel -> Widget (Event 'TimelineMode)
 renderBottomBar model = container
   Box
   [#orientation := OrientationHorizontal, classes ["bottom-bar"]]
@@ -390,7 +400,7 @@ renderBottomBar model = container
   ]
   where toZoomEvent (RangeSliderChanged d) = ZoomLevelChanged (ZoomLevel d)
 
-timelineView :: TimelineViewModel -> Bin Window (Event TimelineMode)
+timelineView :: TimelineViewModel -> Bin Window (Event 'TimelineMode)
 timelineView model =
   bin
       Window
@@ -415,6 +425,6 @@ timelineView model =
         , BoxChild defaultBoxChildProperties $ renderBottomBar model
         ]
   where
-    focusedTimelineWithSetFoci :: Timeline (Focus SequenceFocusType, Focused)
+    focusedTimelineWithSetFoci :: Timeline (Focus 'SequenceFocusType, Focused)
     focusedTimelineWithSetFoci = withAllFoci (model ^. project . timeline)
       <&> \f -> (f, focusedState (model ^. currentFocus) f)
