@@ -34,7 +34,7 @@ import           Komposition.Composition
 import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Paste
-import           Komposition.Composition.Split
+import qualified Komposition.Composition.Split       as Split
 import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.Import.Audio
@@ -163,17 +163,13 @@ timelineMode gui state' = do
                 PasteLeftOf  -> LeftOf
                 PasteRightOf -> RightOf
       CommandKeyMappedEvent Split ->
-        continue -- TODO: Implement using runAndRecord (needs Join)
-        -- case split ( state' ^. existingProject.project.timelineFocus) (state' ^. existingProject . project . timeline) of
-        --   Just (timeline', newFocus) ->
-        --     state'
-        --       &  existingProject .  project . timeline .~ timeline'
-        --       &  existingProject.project.timelineFocus .~ newFocus
-        --       &  refreshPreviewAndContinue gui
-        --   Nothing -> do
-        --     beep gui
-        --     continueWithStatusMessage
-        --       "Can't split composition at current focus."
+        runUndoableAction gui (SplitAction currentFocus' Split.OnClipsNearFocus) state'
+          where
+            currentFocus' = state' ^. existingProject.project.timelineFocus
+      CommandKeyMappedEvent Join ->
+        runUndoableAction gui (JoinAction currentFocus') state'
+          where
+            currentFocus' = state' ^. existingProject.project.timelineFocus
       CommandKeyMappedEvent Import ->
         selectFileToImport >>>= addImportedAssetsToLibrary gui state'
       CommandKeyMappedEvent Render ->

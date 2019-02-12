@@ -57,8 +57,15 @@ data Sequence a =
            (NonEmpty (Parallel a))
   deriving (Eq, Show, Functor, Generic)
 
+instance Semigroup a => Semigroup (Sequence a) where
+  Sequence a1 p1 <> Sequence a2 p2 = Sequence (a1 <> a2) (p1 <> p2)
+
 data Parallel a = Parallel a (VideoTrack a) (AudioTrack a)
   deriving (Eq, Show, Functor, Generic)
+
+instance Semigroup a => Semigroup (Parallel a) where
+  Parallel a1 vt1 at1 <> Parallel a2 vt2 at2 =
+    Parallel (a1 <> a2) (vt1 <> vt2) (at1 <> at2)
 
 data VideoTrack a = VideoTrack a [VideoPart a]
   deriving (Eq, Show, Functor, Generic)

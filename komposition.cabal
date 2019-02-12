@@ -40,6 +40,7 @@ library
                       , Komposition.Composition.Delete
                       , Komposition.Composition.Focused
                       , Komposition.Composition.Insert
+                      , Komposition.Composition.Join
                       , Komposition.Composition.Paste
                       , Komposition.Composition.Split
                       , Komposition.Duration

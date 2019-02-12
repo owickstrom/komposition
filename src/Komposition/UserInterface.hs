@@ -75,6 +75,7 @@ data Command (mode :: Mode) where
   JumpFocus :: Focus SequenceFocusType -> Command TimelineMode
   InsertCommand :: InsertType -> Insert.InsertPosition -> Command TimelineMode
   Split :: Command TimelineMode
+  Join :: Command TimelineMode
   Delete :: Command TimelineMode
   Copy :: Command TimelineMode
   Paste :: Paste.PastePosition -> Command TimelineMode
@@ -106,6 +107,7 @@ commandName = \case
   InsertCommand insertType insertPosition -> mconcat
     [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
   Split     -> "Split"
+  Join      -> "Join"
   Delete    -> "Delete"
   Copy      -> "Copy"
   Paste pos -> case pos of

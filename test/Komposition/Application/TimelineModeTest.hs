@@ -23,10 +23,8 @@ import           Komposition.Application.Base                (Application)
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 import           Komposition.Composition                     (Timeline)
-import           Komposition.Composition.Paste
 import           Komposition.Focus
 import           Komposition.Project
-import           Komposition.Project.UndoableAction
 import qualified Komposition.UndoRedo                        as UndoRedo
 import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
                                                               project)
@@ -47,10 +45,9 @@ initializeState (timeline', focus')= do
   existingProject'    <-
     ExistingProject
     <$> (ProjectPath <$> Gen.string (Range.linear 1 10) Gen.unicode)
-    <*> Gen.projectWithTimeline (pure timeline')
+    <*> Gen.projectWithTimelineAndFocus (pure (timeline', focus'))
   pure TimelineState
     { _existingProject  = initializeHistory existingProject'
-    , _timelineFocus    = focus'
     , _statusMessage    = Nothing
     , _clipboard        = Nothing
     , _zoomLevel        = ZoomLevel 1
@@ -66,6 +63,8 @@ genUndoableTimelineEvents =
   , FocusedClipSpeedSet <$> Gen.genVideoSpeed
   , FocusedClipStartSet <$> Gen.duration' (Range.linear 0 10)
   , FocusedClipEndSet <$> Gen.duration' (Range.linear 10 20)
+  , pure (CommandKeyMappedEvent Split)
+  , pure (CommandKeyMappedEvent Join)
   ]
 
 eventsVector = Vector.fromList . map SomeEvent

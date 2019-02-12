@@ -12,7 +12,6 @@ import           Komposition.Prelude
 import qualified Prelude
 
 import           Control.Lens
-import qualified Data.List.NonEmpty                 as NonEmpty
 import           Hedgehog                           hiding (Parallel)
 import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import           Hedgehog.Range
@@ -127,7 +126,7 @@ applyTestCommand focus ep = \case
   TestInsert insertion position -> modifyTimeline $ \tl -> do
     annotateShow focus
     maybe failure pure $ insert_ focus insertion position tl
-  TestSplit -> modifyTimeline $ \tl -> maybe failure pure (split focus tl)
+  TestSplit -> modifyTimeline $ \tl -> maybe failure pure (split OnClipsNearFocus focus tl)
   TestDelete ->
     modifyTimeline $ \tl ->
       case delete focus (DeletionOf 1) tl of
@@ -156,6 +155,7 @@ initialProject :: Timeline () -> WithoutHistory Project
 initialProject tl = Project
   { _projectName   = "Test"
   , _timeline      = tl
+  , _timelineFocus = SequenceFocus 0 Nothing
   , _library       = Library [] []
   , _videoSettings = AllVideoSettings
     { _renderVideoSettings = VideoSettings

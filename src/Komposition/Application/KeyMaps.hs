@@ -59,6 +59,7 @@ keymaps = \case
     , ([KeyChar 'P']                  , Mapping (Paste PasteLeftOf))
     , ([KeyChar 'y']                  , Mapping Copy)
     , ([KeyChar 's']                  , Mapping Split)
+    , ([KeyChar 'm']                  , Mapping Join)
     , ([KeyChar 'i']                  , Mapping Import)
     , ([KeyChar 'u']                  , Mapping Undo)
     , ([KeyModifier Ctrl, KeyChar 'r'], Mapping Redo)
