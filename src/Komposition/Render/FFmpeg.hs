@@ -322,7 +322,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (Render :+: sig) (FFmpegRenderC m
 videoAssetSourcePath :: Source Video -> Asset Video -> FilePath
 videoAssetSourcePath videoSource videoAsset =
   case videoSource of
-    VideoTranscoded -> videoAsset ^. assetMetadata . path . unOriginalPath
+    VideoTranscoded -> videoAsset ^. videoAssetTranscoded . unProxyPath
     VideoProxy      -> videoAsset ^. videoAssetProxy . unProxyPath
 
 extractFrameToFile' ::

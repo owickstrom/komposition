@@ -17,19 +17,20 @@ data PastePosition
 
 -- | Pastes the clipboard 'SomeComposition' into the
 -- timeline.
-paste
-  :: Focus (ToFocusType Timeline)
-  -> SomeComposition a
-  -> PastePosition
-  -> Timeline a
-  -> Maybe (Timeline a)
-paste focus clipboard position = insert focus insertion insertPos
-  where
-    insertPos = case position of
-      PasteLeftOf  -> LeftOf
-      PasteRightOf -> RightOf
-    insertion = case clipboard of
-      SomeSequence  s -> InsertSequence s
-      SomeParallel  s -> InsertParallel s
-      SomeVideoPart s -> InsertVideoParts [s]
-      SomeAudioPart s -> InsertAudioParts [s]
+
+-- paste
+--   :: Focus (ToFocusType Timeline)
+--   -> SomeComposition a
+--   -> PastePosition
+--   -> Timeline a
+--   -> Maybe (Timeline a)
+-- paste focus clipboard position = insert focus insertion insertPos
+--   where
+--     insertPos = case position of
+--       PasteLeftOf  -> LeftOf
+--       PasteRightOf -> RightOf
+--     insertion = case clipboard of
+--       SomeSequence  s -> InsertSequence s
+--       SomeParallel  s -> InsertParallel s
+--       SomeVideoPart s -> InsertVideoParts [s]
+--       SomeAudioPart s -> InsertAudioParts [s]

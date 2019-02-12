@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+
 {-# LANGUAGE ConstraintKinds    #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
@@ -24,13 +26,11 @@ import           Motor.FSM                      hiding (Delete)
 import           Pipes
 import           Pipes.Safe                     (SafeT)
 
-import           Komposition.Composition
 import qualified Komposition.Composition.Paste  as Paste
 
 import qualified Komposition.Composition.Insert as Insert
 import           Komposition.Duration
 import           Komposition.Focus
-import           Komposition.History
 import           Komposition.KeyMap
 import           Komposition.Library
 import           Komposition.MediaType
@@ -75,6 +75,7 @@ data Command (mode :: Mode) where
   JumpFocus :: Focus SequenceFocusType -> Command TimelineMode
   InsertCommand :: InsertType -> Insert.InsertPosition -> Command TimelineMode
   Split :: Command TimelineMode
+  Join :: Command TimelineMode
   Delete :: Command TimelineMode
   Copy :: Command TimelineMode
   Paste :: Paste.PastePosition -> Command TimelineMode
@@ -91,6 +92,8 @@ deriving instance Eq (Command mode)
 
 deriving instance Ord (Command mode)
 
+deriving instance Show (Command mode)
+
 commandName :: Command mode -> Text
 commandName = \case
   Cancel           -> "Cancel"
@@ -104,6 +107,7 @@ commandName = \case
   InsertCommand insertType insertPosition -> mconcat
     [insertTypeName insertType, " (", insertPositionName insertPosition, ")"]
   Split     -> "Split"
+  Join      -> "Join"
   Delete    -> "Delete"
   Copy      -> "Copy"
   Paste pos -> case pos of
@@ -135,7 +139,7 @@ commandName = \case
       Insert.RightMost -> "Rightmost"
 
 data Event mode where
-  CommandKeyMappedEvent :: Command mode -> Event mode
+  CommandKeyMappedEvent :: Show (Command mode) => Command mode -> Event mode
   -- Welcome Screen
   CreateNewProjectClicked :: Event WelcomeScreenMode
   OpenExistingProjectClicked :: Event WelcomeScreenMode
@@ -156,9 +160,15 @@ data Event mode where
   ImportDefaultVideoSpeedChanged :: VideoSpeed -> Event ImportMode
   ImportClicked :: Event ImportMode
   -- Library
-  LibraryAssetsSelected :: SMediaType mt -> [Asset mt] -> Event LibraryMode
+  LibraryAssetsSelected
+    :: (Show (SMediaType mt), Show (Asset mt))
+    => SMediaType mt
+    -> [Asset mt]
+    -> Event LibraryMode
   LibrarySelectionConfirmed :: Event LibraryMode
   WindowClosed :: Event mode
+
+deriving instance Show (Event mode)
 
 data ModeKeyMap where
   ModeKeyMap :: forall mode. Ord (Command mode) => SMode mode -> KeyMap (Command mode) -> ModeKeyMap
@@ -174,17 +184,17 @@ data FileChooserMode
   | Save FileChooserType
 
 newtype ZoomLevel = ZoomLevel Double
+  deriving (Eq, Show)
 
-data TimelineModel = TimelineModel
-  { _existingProject  :: ExistingProject
+data TimelineViewModel = TimelineViewModel
+  { _project          :: WithHistory Project
   , _currentFocus     :: Focus SequenceFocusType
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel
-  , _clipboard        :: Maybe (SomeComposition ())
   , _previewImagePath :: Maybe FilePath
-  }
+  } deriving (Eq, Show)
 
-makeLenses ''TimelineModel
+makeLenses ''TimelineViewModel
 
 data NewProjectModel = NewProjectModel
   { _newProjectName       :: Text
@@ -194,9 +204,6 @@ data NewProjectModel = NewProjectModel
 
 makeLenses ''NewProjectModel
 
-currentProject :: TimelineModel -> Project
-currentProject = current . view (existingProject . projectHistory)
-
 data ImportFileModel = ImportFileModel
   { classifyValue         :: Bool
   , classifyAvailable     :: Bool
@@ -204,11 +211,16 @@ data ImportFileModel = ImportFileModel
   , selectedFileMediaType :: Maybe MediaType
   }
 
-data SelectAssetsModel mt = SelectAssetsModel
-  { mediaType      :: SMediaType mt
-  , allAssets      :: NonEmpty (Asset mt)
-  , selectedAssets :: [Asset mt]
-  }
+data SelectAssetsModel mt where
+  SelectAssetsModel 
+    :: ( Show (Asset mt) 
+       , Show (SMediaType mt)
+       )
+    => { mediaType      :: SMediaType mt
+       , allAssets      :: NonEmpty (Asset mt)
+       , selectedAssets :: [Asset mt]
+       }
+    -> SelectAssetsModel mt
 
 data PromptMode ret where
   PromptNumber :: (Double, Double, Double) -> PromptMode Double
@@ -217,7 +229,7 @@ data PromptMode ret where
 class UserInterfaceMarkup markup where
   welcomeView :: markup (Event WelcomeScreenMode)
   newProjectView :: NewProjectModel -> markup (Event NewProjectMode)
-  timelineView :: TimelineModel -> markup (Event TimelineMode)
+  timelineView :: TimelineViewModel -> markup (Event TimelineMode)
   libraryView :: SelectAssetsModel mediaType -> markup (Event LibraryMode)
   importView :: ImportFileModel -> markup (Event ImportMode)
 
@@ -226,31 +238,37 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   type WindowMarkup m :: Type -> Type
 
   newWindow
-    :: Name n
+    :: Typeable event
+    => Name n
     -> WindowMarkup m event
     -> KeyMap event
     -> m r (Extend n (Window m event) r) ()
 
   patchWindow
-    :: HasType n (Window m event) r
+    :: Typeable event
+    => HasType n (Window m event) r
     => Modify n (Window m event) r ~ r
     => Name n
     -> WindowMarkup m event
     -> m r r ()
 
   setTransientFor
-    :: HasType child (Window m e1) r
+    :: Typeable e1
+    => Typeable e2
+    => HasType child (Window m e1) r
     => HasType parent (Window m e2) r
     => Name child
     -> Name parent
     -> m r r ()
 
   destroyWindow
-    :: Name n
-    -> Actions m '[ n !- Window m e] r ()
+    :: Typeable event
+    => Name n
+    -> Actions m '[ n !- Window m event] r ()
 
   withNewWindow
     :: ( r' ~ (n .== Window m event)
+       , Typeable event
        )
     => Name n
     -> WindowMarkup m event
@@ -261,6 +279,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   withNewModalWindow
     :: ( HasType parent (Window m parentEvent) r
        , r' ~ (modal .== Window m event)
+       , Typeable event
        )
     => Name parent
     -> Name modal
@@ -271,17 +290,20 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   nextEvent
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> m r r e
 
   nextEventOrTimeout
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> DiffTime
     -> m r r (Maybe e)
 
   runInBackground
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> IO (Vector e)
     -> m r r ()
@@ -290,6 +312,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   prompt
     :: HasType n (Window m event) r
+    => Typeable event
     => Name n
     -> Text -- ^ Prompt window title.
     -> Text -- ^ Prompt message.
@@ -301,6 +324,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
 
   chooseFile
     :: HasType n (Window m e) r
+    => Typeable e
     => Name n
     -> FileChooserMode
     -> Text -- ^ Dialog window title.
@@ -308,6 +332,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> m r r (Maybe FilePath)
   progressBar
     :: Exception e
+    => Typeable event
     => HasType n (Window m event) r
     => Name n -- ^ Name of parent window
     -> Text -- ^ Progress window title
@@ -315,6 +340,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> m r r (Maybe (Either e a))
   previewStream
     :: HasType n (Window m event) r
+    => Typeable event
     => Name n -- ^ Name of parent window
     -> Text -- ^ URI to stream
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process

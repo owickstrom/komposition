@@ -28,11 +28,11 @@ means that if the audio parts form a longer track than the video parts, the
 video will be extended with still frames. Correspondingly, if the video track
 is longer, the audio track will be silent in the end.
 
-## Video & Audio Parts
+## Track Parts
 
 Video and audio parts added to a track are either clips from the
 [library](library.md), or *gaps*. A clip is a slice of some original media
-file. A video gap is a still frame segment, and an audio gap is simply
+file. A video gap is a still frame segment, and an audio gap is just
 silence.
 
 ## Examples

@@ -16,6 +16,7 @@
 .timeline-container {
   border-top: 1pt solid rgba(0,0,0,.2);
   border-bottom: 1pt solid rgba(0,0,0,.2);
+  background-color: rgba(0, 0, 0, 0.15);
   padding: 2pt;
 }
 .timeline .sequence {
@@ -31,6 +32,9 @@
 }
 .timeline .parallel:first-child {
   margin-left: 0;
+}
+.timeline .track {
+  border: 2pt solid rgba(0,0,0,.2);
 }
 .timeline .empty {
   min-width: 5em;
@@ -60,10 +64,13 @@
 }
 
 .timeline .sequence.focused {
-  border-color: rgba(255,255,255,.8);
+  border-color: rgb(255,255,255);
 }
 .timeline .parallel.focused {
-  border-color: rgba(255,255,255,.8);
+  border-color: rgb(255,255,255);
+}
+.timeline .track.focused {
+  border-color: rgb(255,255,255);
 }
 
 .timeline .clip button,
@@ -81,7 +88,7 @@
 }
 .timeline .clip.focused button,
 .timeline .gap.focused button {
-  border: 2pt solid rgba(255,255,255,.8);
+  border: 2pt solid rgb(255,255,255);
 }
 .timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);

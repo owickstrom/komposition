@@ -25,9 +25,9 @@ import           Data.Coerce
 import           Komposition.Project
 
 data ProjectStore (m :: * -> *) k
-  = CreateNewProject FilePath Project (Either SaveProjectError ExistingProject -> k)
-  | SaveExistingProject ExistingProject (Either SaveProjectError () -> k)
-  | OpenExistingProject FilePath (Either OpenProjectError ExistingProject -> k)
+  = CreateNewProject FilePath (WithoutHistory Project) (Either SaveProjectError (WithoutHistory ExistingProject) -> k)
+  | SaveExistingProject (WithoutHistory ExistingProject) (Either SaveProjectError () -> k)
+  | OpenExistingProject FilePath (Either OpenProjectError (WithoutHistory ExistingProject) -> k)
   -- TODO: It's a bit hacky to have these in the ProjectStore
   -- effect. Extract to some kind of user environment effect?
   | GetDefaultProjectsDirectory (FilePath -> k)
@@ -37,20 +37,20 @@ data ProjectStore (m :: * -> *) k
 createNewProject ::
      (Member ProjectStore sig, Carrier sig m)
   => FilePath
-  -> Project
-  -> m (Either SaveProjectError ExistingProject)
-createNewProject path project = send (CreateNewProject path project ret)
+  -> WithoutHistory Project
+  -> m (Either SaveProjectError (WithoutHistory ExistingProject))
+createNewProject path project' = send (CreateNewProject path project' ret)
 
 saveExistingProject ::
      (Member ProjectStore sig, Carrier sig m)
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> m (Either SaveProjectError ())
-saveExistingProject project = send (SaveExistingProject project ret)
+saveExistingProject project' = send (SaveExistingProject project' ret)
 
 openExistingProject ::
      (Member ProjectStore sig, Carrier sig m)
   => FilePath
-  -> m (Either OpenProjectError ExistingProject)
+  -> m (Either OpenProjectError (WithoutHistory ExistingProject))
 openExistingProject path = send (OpenExistingProject path ret)
 
 getDefaultProjectsDirectory ::
@@ -69,8 +69,8 @@ instance HFunctor ProjectStore where
 
 instance Effect ProjectStore where
   handle st handler = \case
-    CreateNewProject path' project k -> CreateNewProject path' project (handler . (<$ st) . k)
-    SaveExistingProject project k -> SaveExistingProject project (handler . (<$ st) . k)
+    CreateNewProject path' project' k -> CreateNewProject path' project' (handler . (<$ st) . k)
+    SaveExistingProject project' k -> SaveExistingProject project' (handler . (<$ st) . k)
     OpenExistingProject path' k -> OpenExistingProject path' (handler . (<$ st) . k)
     GetDefaultProjectsDirectory k -> GetDefaultProjectsDirectory (handler . (<$ st) . k)
     GetCacheDirectory k -> GetCacheDirectory (handler . (<$ st) . k)

@@ -88,6 +88,8 @@ newtype GtkUserInterface m i o a = GtkUserInterface
 runGtkUserInterface' :: Monad m => GtkUserInterface m Empty Empty a -> m a
 runGtkUserInterface' (GtkUserInterface a) = FSM.runFSM a
 
+-- TODO: Remove this instance and type class (only used inside this
+-- module, can just be an internal function)
 instance MonadIO m => IxMonadIO (GtkUserInterface m) where
   iliftIO = ilift . liftIO
 

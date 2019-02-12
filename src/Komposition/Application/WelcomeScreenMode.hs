@@ -29,11 +29,14 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
+import qualified Komposition.UndoRedo                 as UndoRedo
 import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
+import           Komposition.Project.UndoableAction
+import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
 
 type WelcomeScreenModeEffects sig =
@@ -96,26 +99,26 @@ toTimelineWithProject
     , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> t m ("welcome" .== Window (t m) (Event WelcomeScreenMode)) Empty ()
-toTimelineWithProject project = do
+toTimelineWithProject project' = do
   destroyWindow #welcome
-  openTimelineWindowWithProject project
+  openTimelineWindowWithProject project'
 
 openTimelineWindowWithProject
   :: ( Application t m sig
     , WelcomeScreenModeEffects sig
     , Carrier sig m
     )
-  => ExistingProject
+  => WithoutHistory ExistingProject
   -> t m Empty Empty ()
-openTimelineWindowWithProject project = do
-  let model = TimelineModel project initialFocus Nothing (ZoomLevel 1) Nothing Nothing
+openTimelineWindowWithProject project' = do
+  let state' = TimelineState (initializeHistory project') Nothing Nothing (ZoomLevel 5) Nothing
   newWindow
     #timeline
-    (timelineView model)
+    (timelineViewFromState state')
     (CommandKeyMappedEvent <$> keymaps STimelineMode)
-  runTimeline model
+  runTimeline state'
   where
     runTimeline model =
       timelineMode #timeline model >>= \case
@@ -128,11 +131,12 @@ openTimelineWindowWithProject project = do
           destroyWindow #timeline
           welcomeScreenMode
 
-initialProject :: Project
+initialProject :: WithoutHistory Project
 initialProject =
   Project
     { _projectName = "Test"
     , _timeline = emptyTimeline
+    , _timelineFocus = initialFocus
     , _library = Library [] []
     , _videoSettings = AllVideoSettings
                        { _renderVideoSettings =
@@ -142,7 +146,7 @@ initialProject =
                        }
     }
 
-initialFocus :: Focus SequenceFocusType
+initialFocus :: SequenceFocus
 initialFocus = SequenceFocus 0 Nothing
 
 initialNewProjectModel :: NewProjectModel

@@ -16,16 +16,28 @@ timeline part. For example:
 
     ![A focused parallel](parallel.png)
 
-* Focusing a video clip:
+* Focusing a video track:
 
-    ![A focused video clip](video-clip.png)
+    ![A focused video track](video-track.png)
+
+* Focusing an audio track:
+
+    ![A focused audio track](audio-track.png)
+
+* Focusing a video part:
+
+    ![A focused video part](video-part.png)
+
+* Focusing an audio part:
+
+    ![A focused audio part](audio-part.png)
 
 ## Key Bindings
 
 Navigation is mean to be keyboard-driven, in that you use your arrow keys or
 the <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> keys to move around,
 like in [Vim](https://www.vim.org/). You can also click any clip or gap in a
-parallel to move directly to it.
+track to move directly to it.
 
 !!! note
     There's currently no way to focus sequences or parallels using the mouse,

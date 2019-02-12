@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE KindSignatures   #-}
+{-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE RankNTypes       #-}
 module Komposition.Import.Video where
 
@@ -30,6 +31,17 @@ data VideoImport (m :: * -> *) k
 instance HFunctor VideoImport where
   hmap _ = coerce
   {-# INLINE hmap #-}
+
+instance Effect VideoImport where
+  handle st handler = \case
+    Transcode settings original fullLength outDir k ->
+      Transcode settings original fullLength outDir (handler . (<$ st) . k)
+    GenerateVideoThumbnail srcFile outDir k ->
+      GenerateVideoThumbnail srcFile outDir (handler . (<$ st) . k)
+    ImportVideoFile classification videoSettings videoSpeed' srcFile outDir k ->
+      ImportVideoFile classification videoSettings videoSpeed' srcFile outDir (handler . (<$ st) . k)
+    IsSupportedVideoFile path' k ->
+      IsSupportedVideoFile path' (handler . (<$ st) . k)
 
 generateVideoThumbnail
   :: (Member VideoImport sig, Carrier sig m)

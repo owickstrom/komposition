@@ -8,6 +8,11 @@
 *.hi
 *.o
 
+# nix
+/result
+
 # Profiling
 /komposition*.prof
+/komposition*.hp
+/komposition*.ps
 /komposition*.svg

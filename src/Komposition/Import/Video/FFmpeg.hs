@@ -320,16 +320,20 @@ transcode' videoSettings (view unOriginalPath -> sourceFile) fullLength outDir p
       cmd       = Command
         { output      = Command.FileOutput proxyPath
         , inputs      = pure (Command.FileSource sourceFile)
-        , filterGraph = Just . Command.FilterGraph $ pure
-          (Command.FilterChain
-            (pure
-              (Command.RoutedFilter
-                []
-                (Command.Scale 640 360 Command.ForceOriginalAspectRatioDisable)
-                []
+        , filterGraph =
+          Just . Command.FilterGraph $ pure
+            (Command.FilterChain
+              (pure
+                (Command.RoutedFilter
+                  []
+                  (Command.Scale (videoSettings ^. resolution . width)
+                                 (videoSettings ^. resolution . height)
+                                 Command.ForceOriginalAspectRatioDisable
+                  )
+                  []
+                )
               )
             )
-          )
         , frameRate   = Just (videoSettings ^. frameRate)
         , mappings    = []
         , vcodec      = Just "h264"
