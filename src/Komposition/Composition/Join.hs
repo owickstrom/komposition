@@ -1,3 +1,4 @@
+-- | Merge/join two compositions into one.
 module Komposition.Composition.Join (JoinResult (..), join) where
 
 import           Komposition.Prelude           hiding (join)
@@ -10,6 +11,9 @@ import           Komposition.Composition.Split
 import           Komposition.Focus
 import           Komposition.MediaType
 
+-- | The resulting of a successful join, including the new composition
+-- 'comp' and focus, and the focus and split mode needed to invert
+-- this join using 'Split'.
 data JoinResult comp = JoinResult
   { resultingComposition :: comp ()
   , resultingFocus       :: Focus (ToFocusType comp)

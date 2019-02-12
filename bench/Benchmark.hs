@@ -56,8 +56,6 @@ clipFocus mt i =
 
 main :: IO ()
 main = do
-  -- jimg1 <- readJuicyTestImage 1
-  -- jimg2 <- readJuicyTestImage 2
   himg1 <- readMassivTestImage 1
   himg2 <- readMassivTestImage 2
   defaultMain
