@@ -106,13 +106,13 @@ hprop_undo_actions_are_undoable = property $ do
   timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
   initialState <- forAll (initializeState timelineAndFocus)
   events <- forAll (Gen.list (Range.exponential 1 100) genUndoableTimelineEvents)
-
   -- we begin by running 'events' on the original state
   beforeUndos <- runTimelineStubbedWithExit events initialState
   annotate (drawTree (timelineToTree (beforeUndos^.currentTimeline)))
-
   -- then we run as many undo commands as undoable commands
   afterUndos <- runTimelineStubbedWithExit (CommandKeyMappedEvent Undo <$ events) beforeUndos
+  -- that should result in a timeline equal to the one we at the
+  -- beginning
   timelineToTree (initialState ^. currentTimeline) === timelineToTree (afterUndos ^. currentTimeline)
 
 hprop_undo_actions_are_redoable = property $ do
