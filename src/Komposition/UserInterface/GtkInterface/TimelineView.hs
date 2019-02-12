@@ -203,6 +203,18 @@ durationControl vs range' current = toDuration <$> numberInput NumberInputProper
   }
   where toDuration (NumberInputChanged n) = durationFromSeconds n
 
+gapDurationControl :: VideoSettings -> Duration -> BoxChild (Event TimelineMode)
+gapDurationControl vs d = container
+  Box
+  [#orientation := OrientationHorizontal]
+  [ BoxChild defaultBoxChildProperties { expand  = True
+                                       , fill    = True
+                                       , padding = 5
+                                       }
+  $   FocusedClipStartSet
+  <$> durationControl vs (0, 1000) d
+  ]
+
 clipSpanControl :: VideoSettings -> VideoAsset -> TimeSpan -> BoxChild (Event TimelineMode)
 clipSpanControl vs asset ts = container
   Box
@@ -256,7 +268,10 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
              (formatDuration (asset ^. videoAssetMetadata . duration))
            ]
       Just (SomeVideoPart (VideoGap _ d)) ->
-        [heading "Video Gap", textEntry "Duration" (formatDuration d)]
+        [ heading "Video Gap"
+        , textEntry "Duration" (formatDuration d)
+        , gapDurationControl vs d
+        ]
       Just (SomeAudioPart (AudioClip _ asset)) ->
         [ heading "Audio Clip"
         , textEntry "Duration"
@@ -267,7 +282,10 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
           (show (asset ^. audioAssetMetadata . path . unOriginalPath))
         ]
       Just (SomeAudioPart (AudioGap _ d)) ->
-        [heading "Audio Gap", textEntry "Duration" (formatDuration d)]
+        [ heading "Audio Gap"
+        , textEntry "Duration" (formatDuration d)
+        , gapDurationControl vs d
+        ]
       Nothing ->
         [ BoxChild defaultBoxChildProperties { expand  = False
                                              , fill    = False

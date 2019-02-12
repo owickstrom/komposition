@@ -55,4 +55,4 @@ The sidebar shows properties of the focused timeline part, and for
 things like video and audio clips, it allows you to adjust certain
 properties of those timeline parts. You may change the start and end
 position within the original media of a video clip, or adjust the
-playback speed.
+playback speed. The gap duration can also be adjusted in the sidebar.
