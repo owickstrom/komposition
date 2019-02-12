@@ -32,11 +32,11 @@ directory you specified when creating the project.
 
 When a project is open, and you are in the timeline mode, you can save the
 current project. Click *Save* in the *Project* menu, and it will be
-persisted. Note that [undo and redo](undo-redo.md) information is also
-available after saving and loading projects.
+persisted.
 
-!!! note
+!!! warning
     The project directory format and file selection dialogs might change
     drastically in the early versions of Komposition, as the current state
-    is not ideal. However, project conversion utilities should be added to
-    make the transitions smoother.
+    is not ideal. Changes might not be backwards-compatible for some time,
+	so be careful about upgrading if you're in the middle of editing a
+	project.

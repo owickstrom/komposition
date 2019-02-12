@@ -5,17 +5,18 @@ modify, the timeline and other views of the application. The following table
 lists some of the central commands you can issue, and their key bindings.
 Most commands can also be issued by using the top-level menu bar.
 
-| Command   | Mode                      | Key Binding                           | Description                                               |
-|-----------|---------------------------|---------------------------------------|-----------------------------------------------------------|
-| Help      | <em>All</em>              | <kbd>?</kbd>                          | Display key bindings help in the current mode             |
-| Split     | Timeline                  | <kbd>s</kbd>                          | Split the currently focused composition, if possible      |
-| Delete    | Timeline                  | <kbd>d</kbd>                          | Delete the currently focused composition                  |
-| Import    | Timeline                  | <kbd>i</kbd>                          | Start a new asset import                                  |
-| Preview   | Timeline                  | <kbd>Space</kbd>                      | Preview the currently focused composition                 |
-| Undo      | Timeline                  | <kbd>u</kbd>                          | Undo the last command                                     |
-| Redo      | Timeline                  | <kbd>Ctrl</kbd> + <kbd>r</kbd>        | Redo the last undone command                              |
-| Exit      | Timeline                  | <kbd>q</kbd>                          | Exit the Komposition application                          |
-| Cancel    | Library, Import           | <kbd>q</kbd>                          | Cancel/exit the current mode                              |
+| Command   | Mode                      | Key Binding                           | Description                                                                  |
+|-----------|---------------------------|---------------------------------------|------------------------------------------------------------------------------|
+| Help      | <em>All</em>              | <kbd>?</kbd>                          | Display key bindings help in the current mode                                |
+| Split     | Timeline                  | <kbd>s</kbd>                          | Split the currently focused composition, if possible                         |
+| Join      | Timeline                  | <kbd>m</kbd>                          | Merge the currently focused and the right-adjacent composition, if possible  |
+| Delete    | Timeline                  | <kbd>d</kbd>                          | Delete the currently focused composition                                     |
+| Import    | Timeline                  | <kbd>i</kbd>                          | Start a new asset import                                                     |
+| Preview   | Timeline                  | <kbd>Space</kbd>                      | Preview the currently focused composition                                    |
+| Undo      | Timeline                  | <kbd>u</kbd>                          | Undo the last command                                                        |
+| Redo      | Timeline                  | <kbd>Ctrl</kbd> + <kbd>r</kbd>        | Redo the last undone command                                                 |
+| Exit      | Timeline                  | <kbd>q</kbd>                          | Exit the Komposition application                                             |
+| Cancel    | Library, Import           | <kbd>q</kbd>                          | Cancel/exit the current mode                                                 |
 
 There are more commands not listed in this table. Press <kbd>?</kbd> in
 Komposition to see the full listing.
@@ -28,7 +29,8 @@ for the type of clip or gap you want to add. To add before, start with
 the <kbd>a</kbd> key. Clips are specified with the <kbd>c</kbd> key,
 and gaps with the <kbd>g</kbd> key.
 
-When a video or audio track is focused, you press two keys:
+When a video or audio track, or anything within a track is focused,
+you press two keys:
 
 1. add after (<kbd>a</kbd>) or add before (<kbd>a</kbd>)
 2. clip (<kbd>c</kbd>) or gap (<kbd>g</kbd>)
