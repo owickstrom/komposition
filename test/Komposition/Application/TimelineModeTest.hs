@@ -24,6 +24,7 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 import           Komposition.Composition                     (Timeline)
 import           Komposition.Focus
+import           Komposition.MediaType
 import           Komposition.Project
 import qualified Komposition.UndoRedo                        as UndoRedo
 import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
@@ -54,9 +55,10 @@ initializeState (timeline', focus')= do
     , _previewImagePath = Nothing
     }
 
-genUndoableTimelineEvents :: MonadGen m => m (Event 'TimelineMode)
-genUndoableTimelineEvents =
-  -- TODO: add Split, Join, Insert
+genUndoableTimelineEvent :: MonadGen m => m SomeEvent
+genUndoableTimelineEvent =
+  -- TODO: add Insert
+  SomeEvent <$>
   Gen.choice
   [ pure (CommandKeyMappedEvent Delete)
   , CommandKeyMappedEvent . Paste <$> Gen.enumBounded
@@ -67,7 +69,8 @@ genUndoableTimelineEvents =
   , pure (CommandKeyMappedEvent Join)
   ]
 
-eventsVector = Vector.fromList . map SomeEvent
+undoEvent = SomeEvent (CommandKeyMappedEvent Undo)
+redoEvent = SomeEvent (CommandKeyMappedEvent Redo)
 
 runTimelineMode
   :: (Application t m sig, TimelineEffects sig) => TimelineState -> t m Empty Empty TimelineModeResult
@@ -79,7 +82,7 @@ runTimelineMode state' =
 
 runTimelineStubbedWithExit
   :: MonadTest m
-  => [Event 'TimelineMode]
+  => [SomeEvent]
   -> TimelineState
   -> m TimelineState
 runTimelineStubbedWithExit events state' = case runPure state' of
@@ -94,7 +97,7 @@ runTimelineStubbedWithExit events state' = case runPure state' of
         . runStubAudioImport
         . runStubLogger
         . runInMemoryProjectStore
-        . runStubUserInterface (eventsVector (events <> pure (CommandKeyMappedEvent Exit)))
+        . runStubUserInterface (Vector.fromList (events <> pure (SomeEvent (CommandKeyMappedEvent Exit))))
         . runTimelineMode
 
 currentTimeline :: Getter TimelineState (Timeline ())
@@ -105,12 +108,12 @@ showTimelineAndFocus (t, f) = drawTree (timelineToTree t) <> "\n" <> show f
 hprop_undo_actions_are_undoable = property $ do
   timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
   initialState <- forAll (initializeState timelineAndFocus)
-  events <- forAll (Gen.list (Range.exponential 1 100) genUndoableTimelineEvents)
+  events <- forAll (Gen.list (Range.exponential 1 100) genUndoableTimelineEvent)
   -- we begin by running 'events' on the original state
   beforeUndos <- runTimelineStubbedWithExit events initialState
   annotate (drawTree (timelineToTree (beforeUndos^.currentTimeline)))
   -- then we run as many undo commands as undoable commands
-  afterUndos <- runTimelineStubbedWithExit (CommandKeyMappedEvent Undo <$ events) beforeUndos
+  afterUndos <- runTimelineStubbedWithExit (undoEvent <$ events) beforeUndos
   -- that should result in a timeline equal to the one we at the
   -- beginning
   timelineToTree (initialState ^. currentTimeline) === timelineToTree (afterUndos ^. currentTimeline)
@@ -118,13 +121,53 @@ hprop_undo_actions_are_undoable = property $ do
 hprop_undo_actions_are_redoable = property $ do
   timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
   initialState <- forAll (initializeState timelineAndFocus)
-  events <- forAll (Gen.list (Range.exponential 1 100) genUndoableTimelineEvents)
+  events <- forAll (Gen.list (Range.exponential 1 100) genUndoableTimelineEvent)
   -- we begin by running 'events' on the original state
   beforeUndos <- runTimelineStubbedWithExit events initialState
   -- then we undo and redo all of them
   afterRedos  <-
-    runTimelineStubbedWithExit (CommandKeyMappedEvent Undo <$ events) beforeUndos
-    >>= runTimelineStubbedWithExit (CommandKeyMappedEvent Redo <$ events)
+    runTimelineStubbedWithExit (undoEvent <$ events) beforeUndos
+    >>= runTimelineStubbedWithExit (redoEvent <$ events)
   -- that should result in a timeline equal to the one we had before
   -- starting the undos
   timelineToTree (beforeUndos ^. currentTimeline) === timelineToTree (afterRedos ^. currentTimeline)
+
+genMediaType :: MonadGen m => m MediaType
+genMediaType = Gen.choice [pure Video, pure Audio]
+
+genInsertType :: MonadGen m => m InsertType
+genInsertType =
+  Gen.choice
+  [ pure InsertComposition
+  , InsertClip <$> Gen.maybe genMediaType
+  , InsertGap <$> Gen.maybe genMediaType
+  ]
+
+genFocusChangingEvents :: MonadGen m => m [SomeEvent]
+genFocusChangingEvents =
+  Gen.choice
+  [ pure <$> genUndoableTimelineEvent
+  , genInsertEvents
+  ]
+  where
+    genInsertEvents = do
+      insertType <- genInsertType
+      insert <- InsertCommand insertType <$> Gen.enumBounded
+      libraryEvents <- case insertType of
+        InsertClip (Just Video) -> pure [LibraryAssetsSelected SVideo [], LibrarySelectionConfirmed]
+        _ -> pure []
+      pure (SomeEvent (CommandKeyMappedEvent insert) : map SomeEvent libraryEvents)
+
+hprop_focus_never_goes_unvalid = property $ do
+  timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
+  initialState <- forAll (initializeState timelineAndFocus)
+  events <- forAll (Gen.list (Range.exponential 1 500) genFocusChangingEvents)
+  foldM_ runEvent initialState (concat events)
+  where
+    runEvent state' event = do
+      state'' <- runTimelineStubbedWithExit (pure event) state'
+      assert . isJust $
+        atFocus
+        (state'^.existingProject.project.timelineFocus)
+        (state'^.existingProject.project.timeline.UndoRedo.current)
+      pure state''

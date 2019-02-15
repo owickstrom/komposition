@@ -3,21 +3,25 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 module Komposition.UserInterface.StubUserInterface where
 
 import           Komposition.Prelude              hiding (State, evalState, get,
-                                                   put, throwError)
+                                                   put, throwError, uncons)
 
 import           Control.Effect
 import           Control.Effect.Carrier           (Carrier)
 import           Control.Effect.Error             (runError, throwError)
 import           Control.Effect.State             (StateC, evalState, get, put)
+import           Control.Lens
 import           Control.Monad.Indexed.Trans
 import           Data.Functor.Indexed
 import           Data.Row.Records                 (Empty)
@@ -45,29 +49,44 @@ deriving instance Monad m => Functor (StubUserInterface m i i)
 deriving instance Monad m => Applicative (StubUserInterface m i i)
 deriving instance Monad m => Monad (StubUserInterface m i i)
 
+data StubUserInterfaceEvents = StubUserInterfaceEvents
+  { _welcomeScreenEvents :: [Event 'WelcomeScreenMode]
+  , _newProjectEvents    :: [Event 'NewProjectMode]
+  , _timelineEvents      :: [Event 'TimelineMode]
+  , _importEvents        :: [Event 'ImportMode]
+  , _libraryEvents       :: [Event 'LibraryMode]
+  }
+
+type StubState = StubUserInterfaceEvents
+
+data StubError
+  = NoMoreEvents
+  | EventModeMismatch
+  deriving (Eq, Show)
+
 runStubUserInterface
   :: (Monad m, Carrier sig m, Effect sig)
-  => Vector SomeEvent
+  => StubState
   -> StubUserInterface (Eff (StateC StubState (Eff (ErrorC StubError m)))) Empty Empty a
   -> m (Either StubError a)
 runStubUserInterface events (StubUserInterface ui) =
   runError (evalState events (runFSM ui))
 
-data SomeEvent where
-  SomeEvent :: Typeable mode => Event mode -> SomeEvent
+-- data SomeEvent where
+--   SomeEvent :: Typeable mode => Event mode -> SomeEvent
 
-type StubState = Vector SomeEvent
+-- deriving instance Show SomeEvent
+
+makeLenses ''StubUserInterfaceEvents
+
+noEvents :: StubUserInterfaceEvents
+noEvents = StubUserInterfaceEvents mempty mempty mempty mempty mempty
 
 data StubWindow event where
   StubWindow :: Typeable event => StubMarkup event -> StubWindow event
 
 data StubMarkup event where
   StubMarkup :: Typeable event => Proxy event -> StubMarkup event
-
-data StubError
-  = NoMoreEvents
-  | EventModeMismatch
-  deriving (Eq, Show)
 
 stubMarkup :: Typeable event => StubMarkup event
 stubMarkup = StubMarkup Proxy
@@ -86,13 +105,11 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   withNewModalWindow _ = withNewWindow
   nextEvent name = do
     (_ :: StubWindow event) <- FSM.get name
-    next <- ilift pop
-    case next of
-      Just (SomeEvent (firstEvent :: Event mode)) ->
-        case eqT @event @(Event mode) of
-          Just Refl -> ireturn firstEvent
-          Nothing   -> ilift (throwError EventModeMismatch)
-      Nothing -> ilift (throwError NoMoreEvents)
+    mTimelineEvent <- ilift (tryPop timelineEvents)
+    case mTimelineEvent of
+      Just event -> ireturn event
+      Nothing    -> _
+
   nextEventOrTimeout name _ = Just <$> nextEvent name
   runInBackground _ _ = ireturn ()
   beep _ = ireturn ()
@@ -108,7 +125,6 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   -- widget, rather than being in this type class
   previewStream _ _ _ _ = ireturn Nothing
 
-
 pop
   :: Monad m
   => Member (State (Vector a)) sig
@@ -116,7 +132,7 @@ pop
   => m (Maybe a)
 pop = do
   xs <- get
-  if Vector.null xs
+  if null xs
     then pure Nothing
     else put (Vector.tail xs) $> Just (Vector.head xs)
 
