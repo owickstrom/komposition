@@ -256,5 +256,5 @@ benchmark komposition-benchmark
                  , massiv
                  , massiv-io
                  , vector
-  ghc-options:     -Wall -O2
+  ghc-options:     -Wall -O2 -threaded -rtsopts -N
   default-extensions:   NoImplicitPrelude
