@@ -9,6 +9,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 module Komposition.Composition where
 
@@ -48,27 +49,13 @@ instance HasDuration (AudioPart a) where
     AudioClip _ a -> durationOf OriginalDuration a
     AudioGap _ d -> d
 
-newtype Timeline a =
-  Timeline (NonEmpty (Sequence a))
+data VideoTrack a = VideoTrack
+  { _videoTrackAnnotation :: a
+  , _videoParts           :: [VideoPart a]
+  }
   deriving (Eq, Show, Functor, Generic)
 
-data Sequence a =
-  Sequence a
-           (NonEmpty (Parallel a))
-  deriving (Eq, Show, Functor, Generic)
-
-instance Semigroup a => Semigroup (Sequence a) where
-  Sequence a1 p1 <> Sequence a2 p2 = Sequence (a1 <> a2) (p1 <> p2)
-
-data Parallel a = Parallel a (VideoTrack a) (AudioTrack a)
-  deriving (Eq, Show, Functor, Generic)
-
-instance Semigroup a => Semigroup (Parallel a) where
-  Parallel a1 vt1 at1 <> Parallel a2 vt2 at2 =
-    Parallel (a1 <> a2) (vt1 <> vt2) (at1 <> at2)
-
-data VideoTrack a = VideoTrack a [VideoPart a]
-  deriving (Eq, Show, Functor, Generic)
+makeLenses ''VideoTrack
 
 videoTrackIsEmpty :: VideoTrack a -> Bool
 videoTrackIsEmpty (VideoTrack _ parts') = null parts'
@@ -79,8 +66,13 @@ instance Semigroup a => Semigroup (VideoTrack a) where
 instance Monoid a => Monoid (VideoTrack a) where
   mempty = VideoTrack mempty mempty
 
-data AudioTrack a = AudioTrack a [AudioPart a]
+data AudioTrack a = AudioTrack
+  { _audioTrackAnnotation :: a
+  , _audioParts           :: [AudioPart a]
+  }
   deriving (Eq, Show, Functor, Generic)
+
+makeLenses ''AudioTrack
 
 audioTrackIsEmpty :: AudioTrack a -> Bool
 audioTrackIsEmpty (AudioTrack _ parts') = null parts'
@@ -90,12 +82,6 @@ instance Semigroup a => Semigroup (AudioTrack a) where
 
 instance Monoid a => Monoid (AudioTrack a) where
   mempty = AudioTrack mempty mempty
-
-instance HasDuration (Timeline a) where
-  durationOf mode (Timeline seqs) = foldMap (durationOf mode) seqs
-
-instance HasDuration (Sequence a) where
-  durationOf mode (Sequence _ pars) = foldMap (durationOf mode) pars
 
 instance HasDuration (Parallel a) where
   durationOf mode (Parallel _ vs as) =
@@ -108,6 +94,46 @@ instance HasDuration (VideoTrack a) where
 instance HasDuration (AudioTrack a) where
   durationOf mode (AudioTrack _ parts') =
     foldMap (durationOf mode) parts'
+
+-- * Parallel
+
+data Parallel a = Parallel
+  { _parallelAnnotation :: a
+  , _videoTrack         :: VideoTrack a
+  , _audioTrack         :: AudioTrack a
+  }
+  deriving (Eq, Show, Functor, Generic)
+
+makeLenses ''Parallel
+
+instance Semigroup a => Semigroup (Parallel a) where
+  Parallel a1 vt1 at1 <> Parallel a2 vt2 at2 =
+    Parallel (a1 <> a2) (vt1 <> vt2) (at1 <> at2)
+
+-- * Sequence
+
+data Sequence a =
+  Sequence { _sequenceAnnotation :: a, _parallels :: NonEmpty (Parallel a) }
+  deriving (Eq, Show, Functor, Generic)
+
+makeLenses ''Sequence
+
+instance Semigroup a => Semigroup (Sequence a) where
+  Sequence a1 p1 <> Sequence a2 p2 = Sequence (a1 <> a2) (p1 <> p2)
+
+instance HasDuration (Sequence a) where
+  durationOf mode (Sequence _ pars) = foldMap (durationOf mode) pars
+
+-- * Timeline
+
+newtype Timeline a =
+  Timeline { _sequences :: NonEmpty (Sequence a) }
+  deriving (Eq, Show, Functor, Generic)
+
+makeLenses ''Timeline
+
+instance HasDuration (Timeline a) where
+  durationOf mode (Timeline seqs) = foldMap (durationOf mode) seqs
 
 emptyTimeline :: Timeline ()
 emptyTimeline = Timeline (Sequence () (Parallel () mempty mempty:| []) :| [])
