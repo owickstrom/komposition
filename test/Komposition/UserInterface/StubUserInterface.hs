@@ -58,18 +58,18 @@ data SomeEvent where
 
 type StubState = Vector SomeEvent
 
-data StubWindow event where
-  StubWindow :: Typeable event => StubMarkup event -> StubWindow event
+data StubWindow window event where
+  StubWindow :: Typeable event => StubMarkup window event -> StubWindow window event
 
-data StubMarkup event where
-  StubMarkup :: Typeable event => Proxy event -> StubMarkup event
+data StubMarkup window event where
+  StubMarkup :: Typeable event => Proxy event -> StubMarkup window event
 
 data StubError
   = NoMoreEvents
   | EventModeMismatch
   deriving (Eq, Show)
 
-stubMarkup :: Typeable event => StubMarkup event
+stubMarkup :: Typeable event => StubMarkup window event
 stubMarkup = StubMarkup Proxy
 
 instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier sig m, Monad m)
@@ -85,7 +85,7 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
     FSM.call (FSM.new name (StubWindow markup) *>> action <<* FSM.delete name)
   withNewModalWindow _ = withNewWindow
   nextEvent name = do
-    (_ :: StubWindow event) <- FSM.get name
+    (_ :: StubWindow window event) <- FSM.get name
     next <- ilift pop
     case next of
       Just (SomeEvent (firstEvent :: Event mode)) ->
