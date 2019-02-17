@@ -3,12 +3,10 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -21,7 +19,6 @@ import           Control.Effect
 import           Control.Effect.Carrier           (Carrier)
 import           Control.Effect.Error             (runError, throwError)
 import           Control.Effect.State             (StateC, evalState, get, put)
-import           Control.Lens
 import           Control.Monad.Indexed.Trans
 import           Data.Functor.Indexed
 import           Data.Row.Records                 (Empty)
@@ -49,18 +46,10 @@ deriving instance Monad m => Functor (StubUserInterface m i i)
 deriving instance Monad m => Applicative (StubUserInterface m i i)
 deriving instance Monad m => Monad (StubUserInterface m i i)
 
-data StubUserInterfaceEvents = StubUserInterfaceEvents
-  { _welcomeScreenEvents :: [Event 'WelcomeScreenMode]
-  , _newProjectEvents    :: [Event 'NewProjectMode]
-  , _timelineEvents      :: [Event 'TimelineMode]
-  , _importEvents        :: [Event 'ImportMode]
-  , _libraryEvents       :: [Event 'LibraryMode]
-  }
-
-type StubState = StubUserInterfaceEvents
+type StubState = Vector SomeEvent
 
 data StubError
-  = NoMoreEvents
+  = NoMoreEvents TypeRep
   | EventModeMismatch
   deriving (Eq, Show)
 
@@ -72,26 +61,16 @@ runStubUserInterface
 runStubUserInterface events (StubUserInterface ui) =
   runError (evalState events (runFSM ui))
 
--- data SomeEvent where
---   SomeEvent :: Typeable mode => Event mode -> SomeEvent
+data SomeEvent where
+  SomeEvent :: Typeable mode => Event mode -> SomeEvent
 
--- deriving instance Show SomeEvent
-
-makeLenses ''StubUserInterfaceEvents
-
-noEvents :: StubUserInterfaceEvents
-noEvents = StubUserInterfaceEvents mempty mempty mempty mempty mempty
+deriving instance Show SomeEvent
 
 data StubWindow window event where
   StubWindow :: Typeable event => StubMarkup window event -> StubWindow window event
 
 data StubMarkup window event where
   StubMarkup :: Typeable event => Proxy event -> StubMarkup window event
-
-data StubError
-  = NoMoreEvents
-  | EventModeMismatch
-  deriving (Eq, Show)
 
 stubMarkup :: Typeable event => StubMarkup window event
 stubMarkup = StubMarkup Proxy
@@ -113,7 +92,7 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
     next <- ilift (getNextMatching (Proxy @event))
     case next of
       Just ev -> ireturn ev
-      Nothing -> ilift (throwError NoMoreEvents)
+      Nothing -> ilift (throwError (NoMoreEvents (typeRep (Proxy @event))))
   nextEventOrTimeout name _ = Just <$> nextEvent name
   runInBackground _ _ = ireturn ()
   beep _ = ireturn ()

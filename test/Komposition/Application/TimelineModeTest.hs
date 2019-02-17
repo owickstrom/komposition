@@ -63,8 +63,8 @@ genUndoableTimelineEvent =
   [ pure (CommandKeyMappedEvent Delete)
   , CommandKeyMappedEvent . Paste <$> Gen.enumBounded
   , FocusedClipSpeedSet <$> Gen.genVideoSpeed
-  , FocusedClipStartSet <$> Gen.duration' (Range.linear 0 10)
-  , FocusedClipEndSet <$> Gen.duration' (Range.linear 10 20)
+  , FocusedClipStartSet <$> Gen.duration' (Range.linear 0 10 :: Range Int)
+  , FocusedClipEndSet <$> Gen.duration' (Range.linear 10 20 :: Range Int)
   , pure (CommandKeyMappedEvent Split)
   , pure (CommandKeyMappedEvent Join)
   ]
@@ -144,30 +144,35 @@ genInsertType =
   ]
 
 genFocusChangingEvents :: MonadGen m => m [SomeEvent]
-genFocusChangingEvents =
-  Gen.choice
-  [ pure <$> genUndoableTimelineEvent
-  , genInsertEvents
-  ]
+genFocusChangingEvents = Gen.choice
+  [pure <$> genUndoableTimelineEvent, pure <$> genFocusEvent, genInsertEvents]
   where
+    genFocusEvent =
+      SomeEvent . CommandKeyMappedEvent . FocusCommand <$> Gen.enumBounded
     genInsertEvents = do
-      insertType <- genInsertType
-      insert <- InsertCommand insertType <$> Gen.enumBounded
-      libraryEvents <- case insertType of
-        InsertClip (Just Video) -> pure [LibraryAssetsSelected SVideo [], LibrarySelectionConfirmed]
-        _ -> pure []
-      pure (SomeEvent (CommandKeyMappedEvent insert) : map SomeEvent libraryEvents)
+      insert        <- InsertCommand <$> genInsertType <*> Gen.enumBounded
+      libraryEvents <- Gen.list (Range.linear 0 20) $ Gen.choice
+        [ pure (LibraryAssetsSelected SVideo [])
+        , pure (LibraryAssetsSelected SAudio [])
+        ]
+      exitEvent <- Gen.choice
+        [ pure LibrarySelectionConfirmed
+        , pure (CommandKeyMappedEvent Cancel)
+        , pure WindowClosed
+        ]
+      pure
+        (  [SomeEvent (CommandKeyMappedEvent insert)]
+        <> map SomeEvent libraryEvents
+        <> [SomeEvent exitEvent]
+        )
 
-hprop_focus_never_goes_unvalid = property $ do
-  timelineAndFocus <- forAllWith showTimelineAndFocus (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
+hprop_focus_never_goes_invalid = property $ do
+  timelineAndFocus <- forAllWith
+    showTimelineAndFocus
+    (Gen.timelineWithFocus (Range.linear 0 10) Gen.parallel)
   initialState <- forAll (initializeState timelineAndFocus)
   events <- forAll (Gen.list (Range.exponential 1 500) genFocusChangingEvents)
-  foldM_ runEvent initialState (concat events)
-  where
-    runEvent state' event = do
-      state'' <- runTimelineStubbedWithExit (pure event) state'
-      assert . isJust $
-        atFocus
-        (state'^.existingProject.project.timelineFocus)
-        (state'^.existingProject.project.timeline.UndoRedo.current)
-      pure state''
+  endState <- runTimelineStubbedWithExit (concat events) initialState
+  assert . isJust $ atFocus
+    (endState ^. existingProject . project . timelineFocus)
+    (endState ^. existingProject . project . timeline . UndoRedo.current)
