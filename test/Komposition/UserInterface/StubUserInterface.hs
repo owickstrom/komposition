@@ -86,12 +86,9 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   withNewModalWindow _ = withNewWindow
   nextEvent name = do
     (_ :: StubWindow window event) <- FSM.get name
-    next <- ilift pop
+    next <- ilift (getNextMatching (Proxy @event))
     case next of
-      Just (SomeEvent (firstEvent :: Event mode)) ->
-        case eqT @event @(Event mode) of
-          Just Refl -> ireturn firstEvent
-          Nothing   -> ilift (throwError EventModeMismatch)
+      Just ev -> ireturn ev
       Nothing -> ilift (throwError NoMoreEvents)
   nextEventOrTimeout name _ = Just <$> nextEvent name
   runInBackground _ _ = ireturn ()
@@ -109,16 +106,34 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   previewStream _ _ _ _ = ireturn Nothing
 
 
-pop
+getNextMatching
   :: Monad m
-  => Member (State (Vector a)) sig
+  => Member (State (Vector SomeEvent)) sig
   => Carrier sig m
-  => m (Maybe a)
-pop = do
+  => Typeable e
+  => Proxy e
+  -> m (Maybe e)
+getNextMatching p = do
   xs <- get
-  if Vector.null xs
-    then pure Nothing
-    else put (Vector.tail xs) $> Just (Vector.head xs)
+  case go p 0 xs of
+    Just (i, x) ->
+      let (before, after) = Vector.splitAt i xs
+      in put (before <> Vector.tail after) $> Just x
+    Nothing ->
+      pure Nothing
+  where
+    go
+      :: Typeable e
+      => Proxy e
+      -> Int
+      -> Vector SomeEvent
+      -> Maybe (Int, e)
+    go (Proxy :: Proxy e) i xs = do
+      SomeEvent (x :: Event a) <- xs Vector.!? i
+      case eqT @(Event a) @e of
+        Just Refl -> Just (i, x)
+        Nothing   -> go Proxy (succ i) xs
+
 
 instance UserInterfaceMarkup StubMarkup where
   welcomeView = stubMarkup
