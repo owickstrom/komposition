@@ -29,7 +29,7 @@ class DialogView markup where
     :: DialogChoice c
     => Typeable c
     => DialogProperties c
-    -> markup (DialogEvent c)
+    -> markup Modal (DialogEvent c)
 
 class Enum c => DialogChoice c where
   toButtonLabel :: c -> Text
@@ -40,7 +40,7 @@ dialog
      , DialogChoice c
      , Typeable c
      , WindowUserInterface m
-     , HasType parent (Window m parentEvent) r
+     , HasType parent (Window m TopWindow parentEvent) r
      )
   => Name parent
   -> DialogProperties c

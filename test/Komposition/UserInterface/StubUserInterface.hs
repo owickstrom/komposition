@@ -82,13 +82,18 @@ makeLenses ''StubUserInterfaceEvents
 noEvents :: StubUserInterfaceEvents
 noEvents = StubUserInterfaceEvents mempty mempty mempty mempty mempty
 
-data StubWindow event where
-  StubWindow :: Typeable event => StubMarkup event -> StubWindow event
+data StubWindow window event where
+  StubWindow :: Typeable event => StubMarkup window event -> StubWindow window event
 
-data StubMarkup event where
-  StubMarkup :: Typeable event => Proxy event -> StubMarkup event
+data StubMarkup window event where
+  StubMarkup :: Typeable event => Proxy event -> StubMarkup window event
 
-stubMarkup :: Typeable event => StubMarkup event
+data StubError
+  = NoMoreEvents
+  | EventModeMismatch
+  deriving (Eq, Show)
+
+stubMarkup :: Typeable event => StubMarkup window event
 stubMarkup = StubMarkup Proxy
 
 instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier sig m, Monad m)
@@ -104,12 +109,11 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
     FSM.call (FSM.new name (StubWindow markup) *>> action <<* FSM.delete name)
   withNewModalWindow _ = withNewWindow
   nextEvent name = do
-    (_ :: StubWindow event) <- FSM.get name
-    mTimelineEvent <- ilift (tryPop timelineEvents)
-    case mTimelineEvent of
-      Just event -> ireturn event
-      Nothing    -> _
-
+    (_ :: StubWindow window event) <- FSM.get name
+    next <- ilift (getNextMatching (Proxy @event))
+    case next of
+      Just ev -> ireturn ev
+      Nothing -> ilift (throwError NoMoreEvents)
   nextEventOrTimeout name _ = Just <$> nextEvent name
   runInBackground _ _ = ireturn ()
   beep _ = ireturn ()
@@ -125,16 +129,35 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   -- widget, rather than being in this type class
   previewStream _ _ _ _ = ireturn Nothing
 
-pop
+
+getNextMatching
   :: Monad m
-  => Member (State (Vector a)) sig
+  => Member (State (Vector SomeEvent)) sig
   => Carrier sig m
-  => m (Maybe a)
-pop = do
+  => Typeable e
+  => Proxy e
+  -> m (Maybe e)
+getNextMatching p = do
   xs <- get
-  if null xs
-    then pure Nothing
-    else put (Vector.tail xs) $> Just (Vector.head xs)
+  case go p 0 xs of
+    Just (i, x) ->
+      let (before, after) = Vector.splitAt i xs
+      in put (before <> Vector.tail after) $> Just x
+    Nothing ->
+      pure Nothing
+  where
+    go
+      :: Typeable e
+      => Proxy e
+      -> Int
+      -> Vector SomeEvent
+      -> Maybe (Int, e)
+    go (Proxy :: Proxy e) i xs = do
+      SomeEvent (x :: Event a) <- xs Vector.!? i
+      case eqT @(Event a) @e of
+        Just Refl -> Just (i, x)
+        Nothing   -> go Proxy (succ i) xs
+
 
 instance UserInterfaceMarkup StubMarkup where
   welcomeView = stubMarkup

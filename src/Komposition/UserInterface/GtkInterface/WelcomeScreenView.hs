@@ -19,7 +19,7 @@ import           GI.Gtk.Declarative
 
 import           Komposition.UserInterface (Event (..), Mode (..))
 
-welcomeScreenView :: Bin Window (Event WelcomeScreenMode)
+welcomeScreenView :: Bin Window (Event 'WelcomeScreenMode)
 welcomeScreenView =
   bin Window
       [#title := "Komposition", on #deleteEvent (const (True, WindowClosed))]
@@ -30,24 +30,27 @@ welcomeScreenView =
         , #widthRequest := 400
         , #heightRequest := 300
         ]
-        [widget Label [classes ["title"], #label := "Komposition"]
+        [ widget Label [classes ["title"], #label := "Komposition"]
         , widget
           Label
           [ classes ["subtitle"]
           , #label := "The video editor built for screencasters"
           ]
-        , container
-          Box
-          [#orientation := OrientationVertical, classes ["actions"]]
-          [ widget
-            Button
-            [ #label := "Create New Project"
-            , on #clicked CreateNewProjectClicked
-            ]
-          , widget
-            Button
-            [ #label := "Open Existing Project"
-            , on #clicked OpenExistingProjectClicked
-            ]
+        , container Box [] [BoxChild defaultBoxChildProperties { expand = True } actions]
+        ]
+  where
+    actions =
+      container
+        Box
+        [#orientation := OrientationVertical, classes ["actions"]]
+        [ widget
+          Button
+          [ #label := "Create New Project"
+          , on #clicked CreateNewProjectClicked
+          ]
+        , widget
+          Button
+          [ #label := "Open Existing Project"
+          , on #clicked OpenExistingProjectClicked
           ]
         ]

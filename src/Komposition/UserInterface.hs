@@ -227,82 +227,84 @@ data PromptMode ret where
   PromptText :: PromptMode Text
 
 class UserInterfaceMarkup markup where
-  welcomeView :: markup (Event WelcomeScreenMode)
-  newProjectView :: NewProjectModel -> markup (Event NewProjectMode)
-  timelineView :: TimelineViewModel -> markup (Event TimelineMode)
-  libraryView :: SelectAssetsModel mediaType -> markup (Event LibraryMode)
-  importView :: ImportFileModel -> markup (Event ImportMode)
+  welcomeView :: markup TopWindow (Event WelcomeScreenMode)
+  newProjectView :: NewProjectModel -> markup Modal (Event NewProjectMode)
+  timelineView :: TimelineViewModel -> markup TopWindow (Event TimelineMode)
+  libraryView :: SelectAssetsModel mediaType -> markup Modal (Event LibraryMode)
+  importView :: ImportFileModel -> markup Modal (Event ImportMode)
+
+data WindowType = TopWindow | Modal
 
 class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
-  type Window m :: Type -> Type
-  type WindowMarkup m :: Type -> Type
+  type Window m :: WindowType -> Type -> Type
+  type WindowMarkup m :: WindowType -> Type -> Type
 
   newWindow
     :: Typeable event
     => Name n
-    -> WindowMarkup m event
+    -> WindowMarkup m window event
     -> KeyMap event
-    -> m r (Extend n (Window m event) r) ()
+    -> m r (Extend n (Window m window event) r) ()
 
   patchWindow
-    :: Typeable event
-    => HasType n (Window m event) r
-    => Modify n (Window m event) r ~ r
+    :: Typeable Event
+    => HasType n (Window m window event) r
+    => Modify n (Window m window event) r ~ r
     => Name n
-    -> WindowMarkup m event
+    -> WindowMarkup m window event
     -> m r r ()
 
   setTransientFor
     :: Typeable e1
     => Typeable e2
-    => HasType child (Window m e1) r
-    => HasType parent (Window m e2) r
+    => HasType child (Window m Modal e1) r
+    => HasType parent (Window m TopWindow e2) r
     => Name child
     -> Name parent
     -> m r r ()
 
   destroyWindow
-    :: Typeable event
+    :: Typeable e
     => Name n
-    -> Actions m '[ n !- Window m event] r ()
+    -> Actions m '[ n !- Window m window e] r ()
 
   withNewWindow
-    :: ( r' ~ (n .== Window m event)
+    :: ( r' ~ (n .== Window m window event)
        , Typeable event
        )
     => Name n
-    -> WindowMarkup m event
+    -> WindowMarkup m window event
     -> KeyMap event
     -> m r' r' a
     -> m r r a
 
   withNewModalWindow
-    :: ( HasType parent (Window m parentEvent) r
-       , r' ~ (modal .== Window m event)
+    :: ( HasType parent (Window m window parentEvent) r
+       , r' ~ (modal .== Window m Modal event)
        , Typeable event
        )
     => Name parent
     -> Name modal
-    -> WindowMarkup m event
+    -> WindowMarkup m Modal event
     -> KeyMap event
     -> m r' r' a
     -> m r r a
 
   nextEvent
-    :: HasType n (Window m e) r
+    :: HasType n (Window m window e) r
     => Typeable e
     => Name n
     -> m r r e
 
   nextEventOrTimeout
-    :: HasType n (Window m e) r
+    :: HasType n (Window m window e) r
     => Typeable e
     => Name n
     -> DiffTime
     -> m r r (Maybe e)
 
   runInBackground
-    :: HasType n (Window m e) r
+    :: HasType n (Window m window e) r
     => Typeable e
     => Name n
     -> IO (Vector e)
@@ -311,7 +313,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   beep :: Name n -> m r r ()
 
   prompt
-    :: HasType n (Window m event) r
+    :: HasType n (Window m TopWindow event) r
     => Typeable event
     => Name n
     -> Text -- ^ Prompt window title.
@@ -323,8 +325,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   -- TODO: Move these to separate functions or widgets
 
   chooseFile
-    :: HasType n (Window m e) r
-    => Typeable e
+    :: HasType n (Window m TopWindow e) r
     => Name n
     -> FileChooserMode
     -> Text -- ^ Dialog window title.
@@ -332,15 +333,13 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> m r r (Maybe FilePath)
   progressBar
     :: Exception e
-    => Typeable event
-    => HasType n (Window m event) r
+    => HasType n (Window m TopWindow event) r
     => Name n -- ^ Name of parent window
     -> Text -- ^ Progress window title
     -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer
     -> m r r (Maybe (Either e a))
   previewStream
-    :: HasType n (Window m event) r
-    => Typeable event
+    :: HasType n (Window m TopWindow event) r
     => Name n -- ^ Name of parent window
     -> Text -- ^ URI to stream
     -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process

@@ -97,15 +97,15 @@ deriving instance Monad m => Functor (GtkUserInterface m i i)
 deriving instance Monad m => Applicative (GtkUserInterface m i i)
 deriving instance Monad m => Monad (GtkUserInterface m i i)
 
-data GtkWindow event = GtkWindow
-  { markup       :: GtkWindowMarkup event
+data GtkWindow window event = GtkWindow
+  { markup       :: GtkWindowMarkup window event
   , widgetState  :: Declarative.SomeState
   , windowEvents :: EventListener event
   , viewEvents   :: EventListener event
   , windowKeyMap :: KeyMap event
   }
 
-asGtkWindow :: GtkWindow event -> IO Gtk.Window
+asGtkWindow :: GtkWindow window event -> IO Gtk.Window
 asGtkWindow w =
   Declarative.someStateWidget (widgetState w) >>= Gtk.unsafeCastTo Gtk.Window
 
@@ -113,36 +113,36 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
   type Window (GtkUserInterface m) = GtkWindow
   type WindowMarkup (GtkUserInterface m) = GtkWindowMarkup
 
-  newWindow name markup'@(GtkWindowMarkup decl) keyMap =
+  newWindow name markup' keyMap =
     ilift ask >>>= \env ->
       (FSM.new name =<<< irunUI (do
-        s <- Declarative.create decl
+        s <- Declarative.create markup'
         win <- Gtk.unsafeCastTo Gtk.Window =<< Declarative.someStateWidget s
         -- Set up CSS provider
         loadCss env win
         -- Set up event listeners
         windowEvents <- applyKeyMap keyMap =<< subscribeKeyEvents =<< Gtk.toWidget win
-        viewEvents <- subscribeToDeclarativeWidget decl s
+        viewEvents <- subscribeToDeclarativeWidget markup' s
         -- And show recursively as this is a new widget tree
         #showAll win
         return (GtkWindow markup' s windowEvents viewEvents keyMap)))
 
-  patchWindow name (GtkWindowMarkup decl) =
+  patchWindow name markup' =
     FSM.get name >>>= \w ->
       FSM.enter name =<<<
-        case Declarative.patch (widgetState w) (unGtkWindowMarkup (markup w)) decl of
+        case Declarative.patch (widgetState w) (markup w) markup' of
           Declarative.Modify f -> irunUI $ do
             s' <- f
             unsubscribe (viewEvents w)
-            viewEvents' <- subscribeToDeclarativeWidget decl s'
-            return w { markup = GtkWindowMarkup decl, widgetState = s', viewEvents = viewEvents' }
+            viewEvents' <- subscribeToDeclarativeWidget markup' s'
+            return w { markup = markup', widgetState = s', viewEvents = viewEvents' }
           Declarative.Replace create' -> irunUI $ do
             Gtk.widgetDestroy =<< asGtkWindow w
             s' <- create'
             win <- Gtk.unsafeCastTo Gtk.Window =<< Declarative.someStateWidget s'
-            viewEvents <- subscribeToDeclarativeWidget decl s'
+            viewEvents <- subscribeToDeclarativeWidget markup' s'
             #showAll win
-            return (GtkWindow (GtkWindowMarkup decl) s' (windowEvents w) viewEvents (windowKeyMap w))
+            return (GtkWindow markup' s' (windowEvents w) viewEvents (windowKeyMap w))
           Declarative.Keep -> ireturn w
 
   destroyWindow name =
@@ -358,11 +358,11 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
   beep _ = irunUI Gdk.beep
 
 instance UserInterfaceMarkup GtkWindowMarkup where
-  welcomeView = GtkWindowMarkup View.welcomeScreenView
-  newProjectView = GtkWindowMarkup . View.newProjectView
-  timelineView = GtkWindowMarkup . View.timelineView
-  libraryView = GtkWindowMarkup . View.libraryView
-  importView = GtkWindowMarkup . View.importView
+  welcomeView = GtkTopWindowMarkup View.welcomeScreenView
+  newProjectView = GtkModalMarkup . View.newProjectView
+  timelineView = GtkTopWindowMarkup . View.timelineView
+  libraryView = GtkModalMarkup . View.libraryView
+  importView = GtkModalMarkup . View.importView
 
 runGtkUserInterface
   :: (Monad m, Carrier sig m)
@@ -430,10 +430,9 @@ data ModalDialog ctx t = ModalDialog
   , toResponse :: Gtk.Dialog -> ctx -> Int32 -> IO (Maybe t)
   , tearDown   :: Gtk.Dialog -> ctx -> IO ()
   }
-
 inNewModalDialog
   :: (IxMonadIO m, MonadFSM m)
-  => HasType n (GtkWindow event) r
+  => HasType n (GtkWindow TopWindow event) r
   => Name n
   -> ModalDialog ctx t
   -> m r r (Maybe t)
