@@ -361,8 +361,8 @@ instance UserInterfaceMarkup GtkWindowMarkup where
   welcomeView = GtkTopWindowMarkup View.welcomeScreenView
   newProjectView = GtkModalMarkup . View.newProjectView
   timelineView = GtkTopWindowMarkup . View.timelineView
-  libraryView = GtkTopWindowMarkup . View.libraryView
-  importView = GtkTopWindowMarkup . View.importView
+  libraryView = GtkModalMarkup . View.libraryView
+  importView = GtkModalMarkup . View.importView
 
 runGtkUserInterface
   :: (Monad m, Carrier sig m)

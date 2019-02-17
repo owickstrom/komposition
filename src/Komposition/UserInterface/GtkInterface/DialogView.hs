@@ -12,9 +12,9 @@ import           GI.Gtk                                                 (Align (
                                                                          Box (..),
                                                                          Button (..),
                                                                          Dialog (..),
+                                                                         Dialog (..),
                                                                          Label (..),
-                                                                         Orientation (..),
-                                                                         Window (..))
+                                                                         Orientation (..))
 import           GI.Gtk.Declarative
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
@@ -22,7 +22,7 @@ import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 instance DialogView GtkWindowMarkup where
   dialogView props =
     GtkModalMarkup $
-      bin Window [ #title := dialogTitle props
+      bin Dialog [ #title := dialogTitle props
                  , on #deleteEvent (const (True, DialogClosed))
                  ] $
         container Box [ #orientation := OrientationVertical, classes ["dialog"] ]

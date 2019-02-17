@@ -19,10 +19,10 @@ import           GI.Gtk                                                   (Align
                                                                            Box (..),
                                                                            Button (..),
                                                                            CheckButton (..),
+                                                                           Dialog (..),
                                                                            FileChooserButton (..),
                                                                            Label (..),
                                                                            Orientation (..),
-                                                                           Window (..),
                                                                            fileChooserGetFilename,
                                                                            toggleButtonGetActive)
 import           GI.Gtk.Declarative                                       as Gtk
@@ -32,10 +32,10 @@ import           Komposition.UserInterface                                hiding
                                                                            importView)
 import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
 
-importView :: ImportFileModel -> Bin Window (Event ImportMode)
+importView :: ImportFileModel -> Bin Dialog (Event 'ImportMode)
 importView ImportFileModel {..} =
   bin
-    Window
+    Dialog
     [ #title := "Import File"
     , on #deleteEvent (const (True, WindowClosed))
     , #defaultWidth := 300
@@ -55,7 +55,7 @@ importView ImportFileModel {..} =
         widget Button [#label := "Import", on #clicked ImportClicked]]
     ]
   where
-    mediaTypeSpecificSettings :: Vector (BoxChild (Event ImportMode))
+    mediaTypeSpecificSettings :: Vector (BoxChild (Event 'ImportMode))
     mediaTypeSpecificSettings =
       case selectedFileMediaType of
         Just Video -> [classifyCheckBox, defaultVideoSpeedControl]

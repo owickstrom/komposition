@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs            #-}
-{-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE TypeFamilies     #-}
 module Komposition.UserInterface.GtkInterface.GtkWindowMarkup where
 
@@ -12,15 +11,15 @@ import           Komposition.UserInterface
 
 data GtkWindowMarkup window event where
   GtkTopWindowMarkup
-    :: Declarative.Bin (GtkWindowType TopWindow) event
-    -> GtkWindowMarkup TopWindow event
+    :: Declarative.Bin (GtkWindowType 'TopWindow) event
+    -> GtkWindowMarkup 'TopWindow event
   GtkModalMarkup
-    :: Declarative.Bin (GtkWindowType Modal) event
-    -> GtkWindowMarkup Modal event
+    :: Declarative.Bin (GtkWindowType 'Modal) event
+    -> GtkWindowMarkup 'Modal event
 
 type family GtkWindowType window where
-  GtkWindowType TopWindow = Gtk.Window
-  GtkWindowType Modal = Gtk.Window
+  GtkWindowType 'TopWindow = Gtk.Window
+  GtkWindowType 'Modal = Gtk.Dialog
 
 unGtkWindowMarkup
   :: GtkWindowMarkup window event

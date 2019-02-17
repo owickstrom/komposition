@@ -77,7 +77,7 @@ selectFileToImport =
     fillForm
       :: ( Application t m sig
       , ImportEffects sig
-      , r ~ ("import" .== Window (t m) TopWindow (Event ImportMode))
+      , r ~ ("import" .== Window (t m) 'Modal (Event 'ImportMode))
       )
       => ImportFileModel -> ImportFileForm Maybe -> t m r r (Maybe (ImportFileForm Valid))
     fillForm model mf = do
@@ -110,7 +110,7 @@ selectFileToImport =
 
 importSelectedFile
   :: ( Application t m sig
-     , r ~ (n .== Window (t m) TopWindow e)
+     , r ~ (n .== Window (t m) 'TopWindow e)
      , DialogView (WindowMarkup (t m))
      , ImportEffects sig
      , Typeable e

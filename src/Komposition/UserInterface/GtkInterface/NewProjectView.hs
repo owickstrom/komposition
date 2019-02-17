@@ -17,23 +17,21 @@ import           GI.Gtk                                             (Align (..),
                                                                      Box (..),
                                                                      Button (..),
                                                                      Dialog (..),
+                                                                     Dialog (..),
                                                                      Entry (..),
                                                                      Label (..),
                                                                      Orientation (..),
-                                                                     Window (..),
                                                                      entryGetText)
 import           GI.Gtk.Declarative                                 as Gtk
 
-import           Komposition.UserInterface                          hiding
-                                                                     (Window,
-                                                                     newProjectView)
+import           Komposition.UserInterface                          hiding (newProjectView)
 import           Komposition.UserInterface.GtkInterface.NumberInput
 import           Komposition.UserInterface.GtkInterface.SelectBox
 import           Komposition.VideoSettings
 
-newProjectView :: NewProjectModel -> Bin Window (Event NewProjectMode)
+newProjectView :: NewProjectModel -> Bin Dialog (Event 'NewProjectMode)
 newProjectView model =
-  bin Window
+  bin Dialog
       [#title := "New Project", on #deleteEvent (const (True, WindowClosed))]
     $ container
         Box
@@ -58,7 +56,7 @@ newProjectView model =
           ]
         ]
 
-nameControl :: NewProjectModel -> Widget (Event NewProjectMode)
+nameControl :: NewProjectModel -> Widget (Event 'NewProjectMode)
 nameControl model = container
   Box
   [#orientation := OrientationVertical, #halign := AlignStart]
@@ -75,7 +73,7 @@ nameControl model = container
         ]
   ]
 
-frameRateControl :: NewProjectModel -> Widget (Event NewProjectMode)
+frameRateControl :: NewProjectModel -> Widget (Event 'NewProjectMode)
 frameRateControl model = container
   Box
   [#orientation := OrientationVertical, #halign := AlignStart]
@@ -93,7 +91,7 @@ frameRateControl model = container
   ]
   where toFrameRateChanged (NumberInputChanged v) = FrameRateChanged v
 
-resolutionControl :: NewProjectModel -> Widget (Event NewProjectMode)
+resolutionControl :: NewProjectModel -> Widget (Event 'NewProjectMode)
 resolutionControl model = container
   Box
   [#orientation := OrientationVertical, #halign := AlignStart]

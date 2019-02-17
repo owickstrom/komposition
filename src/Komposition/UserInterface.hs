@@ -230,8 +230,8 @@ class UserInterfaceMarkup markup where
   welcomeView :: markup TopWindow (Event WelcomeScreenMode)
   newProjectView :: NewProjectModel -> markup Modal (Event NewProjectMode)
   timelineView :: TimelineViewModel -> markup TopWindow (Event TimelineMode)
-  libraryView :: SelectAssetsModel mediaType -> markup TopWindow (Event LibraryMode)
-  importView :: ImportFileModel -> markup TopWindow (Event ImportMode)
+  libraryView :: SelectAssetsModel mediaType -> markup Modal (Event LibraryMode)
+  importView :: ImportFileModel -> markup Modal (Event ImportMode)
 
 data WindowType = TopWindow | Modal
 

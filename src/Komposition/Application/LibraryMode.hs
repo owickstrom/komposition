@@ -22,7 +22,7 @@ import           Komposition.UserInterface.Help
 
 selectAssetFromList
   :: ( Application t m sig
-     , r ~ ("library" .== Window (t m) TopWindow (Event LibraryMode))
+     , r ~ ("library" .== Window (t m) 'Modal (Event 'LibraryMode))
      )
   => SelectAssetsModel mt
   -> t m r r (Maybe [Asset mt])
