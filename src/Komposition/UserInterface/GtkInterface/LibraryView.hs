@@ -16,11 +16,12 @@ import qualified Prelude
 import           Control.Lens
 import           Data.Text                 (Text)
 import qualified Data.Vector               as Vector
-import           GI.Gtk                    (Box (..), Button (..), Label (..),
-                                            ListBox (..), ListBoxRow (..),
-                                            Orientation (..), PolicyType (..),
+import           GI.Gtk                    (Box (..), Button (..), Dialog (..),
+                                            Label (..), ListBox (..),
+                                            ListBoxRow (..), Orientation (..),
+                                            PolicyType (..),
                                             ScrolledWindow (..),
-                                            SelectionMode (..), Window (..))
+                                            SelectionMode (..))
 import           GI.Gtk.Declarative
 import           System.FilePath
 import           Text.Printf
@@ -45,7 +46,7 @@ printTimestamp d =
     toS (printf "%02d:%02d:%s" hours minutes secondsStr :: Prelude.String)
 
 renderVideoAsset ::
-     VideoAsset -> Bin ListBoxRow (Event LibraryMode)
+     VideoAsset -> Bin ListBoxRow (Event 'LibraryMode)
 renderVideoAsset asset' =
   bin ListBoxRow [on #activate LibrarySelectionConfirmed]
     $ case asset' ^. videoClassifiedScene of
@@ -88,7 +89,7 @@ renderVideoAsset asset' =
           ]
 
 renderAudioAsset ::
-     AudioAsset -> Bin ListBoxRow (Event LibraryMode)
+     AudioAsset -> Bin ListBoxRow (Event 'LibraryMode)
 renderAudioAsset asset' =
   bin ListBoxRow [on #activate LibrarySelectionConfirmed] $ container
     Box
@@ -111,10 +112,10 @@ renderAudioAsset asset' =
           [#label := printTimestamp (asset' ^. assetMetadata . duration)]
     ]
 
-libraryView ::  SelectAssetsModel mt -> Bin Window (Event LibraryMode)
+libraryView ::  SelectAssetsModel mt -> Bin Dialog (Event 'LibraryMode)
 libraryView SelectAssetsModel {..} =
   bin
-      Window
+      Dialog
       [ #title := "Library"
       , on #deleteEvent (const (True, WindowClosed))
       , #defaultWidth := 300

@@ -88,7 +88,7 @@ data TimelineModeResult
 timelineViewFromState
   :: UserInterfaceMarkup markup
   => TimelineState
-  -> markup (Event 'TimelineMode)
+  -> markup 'TopWindow (Event 'TimelineMode)
 timelineViewFromState state' =
   timelineView $
   UI.TimelineViewModel
@@ -102,7 +102,7 @@ timelineMode
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -246,7 +246,7 @@ insertIntoTimeline
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -328,7 +328,7 @@ insertIntoTimeline gui state' type' position =
 
 insertGap
   :: ( Application t m sig
-     , HasType parent (Window (t m) parentEvent) r
+     , HasType parent (Window (t m) 'TopWindow parentEvent) r
      , Typeable parentEvent
      )
   => Name parent
@@ -373,7 +373,7 @@ prettyFocusedAt = \case
 
 previewFocusedComposition
   :: ( Application t m sig
-     , HasType n (Window (t m) e) r
+     , HasType n (Window (t m) 'TopWindow e) r
      , Carrier sig m
      , TimelineEffects sig
      , Typeable e
@@ -432,7 +432,7 @@ selectAssetAndInsert
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -461,7 +461,7 @@ selectAssetAndInsert gui state' mediaType' position = case mediaType' of
       :: ( Application t m sig
          , TimelineEffects sig
          , Carrier sig m
-         , r ~ (n .== Window (t m) (Event 'TimelineMode))
+         , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
          , IxPointed (t m)
          )
       => Name n
@@ -475,7 +475,7 @@ insertSelectedAssets
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -516,7 +516,7 @@ addImportedAssetsToLibrary
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -551,7 +551,7 @@ refreshPreview
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -575,7 +575,7 @@ refreshPreviewAndContinue
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> TimelineState
@@ -588,7 +588,7 @@ runUndoableAction
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) (Event 'TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
   -> UndoableAction

@@ -20,13 +20,13 @@ data HelpEvent
   = HelpClosed
 
 class HelpView markup where
-  helpView :: [ModeKeyMap] -> markup HelpEvent
+  helpView :: [ModeKeyMap] -> markup Modal HelpEvent
 
 help
   :: ( IxMonad m
      , HelpView (WindowMarkup m)
      , WindowUserInterface m
-     , HasType parent (Window m parentEvent) r
+     , HasType parent (Window m parentWindow parentEvent) r
      )
   => Name parent
   -> [ModeKeyMap]
