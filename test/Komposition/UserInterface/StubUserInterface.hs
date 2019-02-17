@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
@@ -12,7 +13,7 @@
 module Komposition.UserInterface.StubUserInterface where
 
 import           Komposition.Prelude              hiding (State, evalState, get,
-                                                   put, throwError)
+                                                   put, throwError, uncons)
 
 import           Control.Effect
 import           Control.Effect.Carrier           (Carrier)
@@ -45,9 +46,16 @@ deriving instance Monad m => Functor (StubUserInterface m i i)
 deriving instance Monad m => Applicative (StubUserInterface m i i)
 deriving instance Monad m => Monad (StubUserInterface m i i)
 
+type StubState = Vector SomeEvent
+
+data StubError
+  = NoMoreEvents TypeRep
+  | EventModeMismatch
+  deriving (Eq, Show)
+
 runStubUserInterface
   :: (Monad m, Carrier sig m, Effect sig)
-  => Vector SomeEvent
+  => StubState
   -> StubUserInterface (Eff (StateC StubState (Eff (ErrorC StubError m)))) Empty Empty a
   -> m (Either StubError a)
 runStubUserInterface events (StubUserInterface ui) =
@@ -56,18 +64,13 @@ runStubUserInterface events (StubUserInterface ui) =
 data SomeEvent where
   SomeEvent :: Typeable mode => Event mode -> SomeEvent
 
-type StubState = Vector SomeEvent
+deriving instance Show SomeEvent
 
 data StubWindow window event where
   StubWindow :: Typeable event => StubMarkup window event -> StubWindow window event
 
 data StubMarkup window event where
   StubMarkup :: Typeable event => Proxy event -> StubMarkup window event
-
-data StubError
-  = NoMoreEvents
-  | EventModeMismatch
-  deriving (Eq, Show)
 
 stubMarkup :: Typeable event => StubMarkup window event
 stubMarkup = StubMarkup Proxy
@@ -86,13 +89,10 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   withNewModalWindow _ = withNewWindow
   nextEvent name = do
     (_ :: StubWindow window event) <- FSM.get name
-    next <- ilift pop
+    next <- ilift (getNextMatching (Proxy @event))
     case next of
-      Just (SomeEvent (firstEvent :: Event mode)) ->
-        case eqT @event @(Event mode) of
-          Just Refl -> ireturn firstEvent
-          Nothing   -> ilift (throwError EventModeMismatch)
-      Nothing -> ilift (throwError NoMoreEvents)
+      Just ev -> ireturn ev
+      Nothing -> ilift (throwError (NoMoreEvents (typeRep (Proxy @event))))
   nextEventOrTimeout name _ = Just <$> nextEvent name
   runInBackground _ _ = ireturn ()
   beep _ = ireturn ()
@@ -109,16 +109,34 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   previewStream _ _ _ _ = ireturn Nothing
 
 
-pop
+getNextMatching
   :: Monad m
-  => Member (State (Vector a)) sig
+  => Member (State (Vector SomeEvent)) sig
   => Carrier sig m
-  => m (Maybe a)
-pop = do
+  => Typeable e
+  => Proxy e
+  -> m (Maybe e)
+getNextMatching p = do
   xs <- get
-  if Vector.null xs
-    then pure Nothing
-    else put (Vector.tail xs) $> Just (Vector.head xs)
+  case go p 0 xs of
+    Just (i, x) ->
+      let (before, after) = Vector.splitAt i xs
+      in put (before <> Vector.tail after) $> Just x
+    Nothing ->
+      pure Nothing
+  where
+    go
+      :: Typeable e
+      => Proxy e
+      -> Int
+      -> Vector SomeEvent
+      -> Maybe (Int, e)
+    go (Proxy :: Proxy e) i xs = do
+      SomeEvent (x :: Event a) <- xs Vector.!? i
+      case eqT @(Event a) @e of
+        Just Refl -> Just (i, x)
+        Nothing   -> go Proxy (succ i) xs
+
 
 instance UserInterfaceMarkup StubMarkup where
   welcomeView = stubMarkup

@@ -197,7 +197,6 @@ test-suite komposition-tests
                  , Komposition.Composition.Generators
                  , Komposition.Composition.InsertTest
                  , Komposition.Composition.ToTree
-                 , Komposition.Composition.ValidFocusTest
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
                  , Komposition.Import.Video.FFmpegTest
