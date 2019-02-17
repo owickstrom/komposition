@@ -123,28 +123,28 @@ let
 
 
     "MarkupSafe" = python.mkDerivation {
-      name = "MarkupSafe-1.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/4d/de/32d741db316d8fdb7680822dd37001ef7a448255de9699ab4bfcbdf4172b/MarkupSafe-1.0.tar.gz"; sha256 = "a6be69091dac236ea9c6bc7d012beab42010fa914c459791d627dad4910eb665"; };
+      name = "MarkupSafe-1.1.0";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/ac/7e/1b4c2e05809a4414ebce0892fe1e32c14ace86ca7d50c70f00979ca9b3a3/MarkupSafe-1.1.0.tar.gz"; sha256 = "4e97332c9ce444b0c2c38dd22ddc61c743eb208d916e4265a2a3b575bdccb1d3"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
-        homepage = "http://github.com/pallets/markupsafe";
+        homepage = "https://www.palletsprojects.com/p/markupsafe/";
         license = licenses.bsdOriginal;
-        description = "Implements a XML/HTML/XHTML Markup safe string for Python";
+        description = "Safely add untrusted strings to HTML/XML markup.";
       };
     };
 
 
 
     "PyYAML" = python.mkDerivation {
-      name = "PyYAML-3.13";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/9e/a3/1d13970c3f36777c583f136c136f804d70f500168edc1edea6daa7200769/PyYAML-3.13.tar.gz"; sha256 = "3ef3092145e9b70e3ddd2c7ad59bdd0252a94dfe3949721633e41344de00a6bf"; };
+      name = "PyYAML-4.2b4";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/a8/c6/a8d1555e795dbd0375c3c93b576ca13bbf139db51ea604afa19a2c35fc03/PyYAML-4.2b4.tar.gz"; sha256 = "3c17fb92c8ba2f525e4b5f7941d850e7a48c3a59b32d331e2502a3cdc6648e76"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
-        homepage = "http://pyyaml.org/wiki/PyYAML";
+        homepage = "https://github.com/yaml/pyyaml";
         license = licenses.mit;
         description = "YAML parser and emitter for Python";
       };
@@ -153,8 +153,8 @@ let
 
 
     "Pygments" = python.mkDerivation {
-      name = "Pygments-2.2.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/71/2a/2e4e77803a8bd6408a2903340ac498cb0a2181811af7c9ec92cb70b0308a/Pygments-2.2.0.tar.gz"; sha256 = "dbae1046def0efb574852fab9e90209b23f556367b5a320c0bcb871c77c3e8cc"; };
+      name = "Pygments-2.3.1";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/64/69/413708eaf3a64a6abb8972644e0f20891a55e621c6759e2c3f3891e05d63/Pygments-2.3.1.tar.gz"; sha256 = "5ffada19f6203563680669ee7f53b64dabbeb100eb51b61996085e99c03b284a"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [ ];
@@ -198,8 +198,8 @@ let
 
 
     "livereload" = python.mkDerivation {
-      name = "livereload-2.5.2";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/f7/1b/aa5fb8c59fc683bbabdfdcfd4455673d07ac05f391d6b1244ad204b33ebc/livereload-2.5.2.tar.gz"; sha256 = "dd4469a8f5a6833576e9f5433f1439c306de15dbbfeceabd32479b1123380fa5"; };
+      name = "livereload-2.6.0";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/45/1b/8a8d59d6c20807cdb4c581a958a7ae7ceaee9e3b1714e64575382571bca5/livereload-2.6.0.tar.gz"; sha256 = "e632a6cd1d349155c1d7f13a65be873b38f43ef02961804a1bba8d817fa649a7"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [
@@ -238,8 +238,8 @@ let
 
 
     "mkdocs-material" = python.mkDerivation {
-      name = "mkdocs-material-3.0.4";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/9e/79/b35b1119d0536a048bf303e901adbf9679838b597f5bd429144bb07171f0/mkdocs-material-3.0.4.tar.gz"; sha256 = "3905942fc8e659bd690420f5fd56bc1f31505067b574377aa8508011389696f0"; };
+      name = "mkdocs-material-4.0.1";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/f3/45/d8bce60c031adaaf83fdf04fa5796f172c617cfaa57045eaa968bdf5865f/mkdocs-material-4.0.1.tar.gz"; sha256 = "63c49a7020e5d187d5adcd441b259e0b81ad418599b22e2c2574b419ed833851"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [
@@ -257,8 +257,8 @@ let
 
 
     "pymdown-extensions" = python.mkDerivation {
-      name = "pymdown-extensions-5.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/55/2a/94bed77b8f78df0afec019eb0a822609e4f404366efbdc9507c5d460d0bb/pymdown-extensions-5.0.tar.gz"; sha256 = "2e1d8f4a4c351cfa6c5ad88a0f2f4a3a30af481a942fdf8f9db0936e12ff37c2"; };
+      name = "pymdown-extensions-6.0";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/a7/f3/115bc808dbf6952877519dc91cde3fc204103070145b114a45977b1f17f9/pymdown-extensions-6.0.tar.gz"; sha256 = "6cf0cf36b5a03b291ace22dc2f320f4789ce56fbdb6635a3be5fadbf5d7694dd"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [
@@ -291,13 +291,13 @@ let
 
 
     "six" = python.mkDerivation {
-      name = "six-1.11.0";
-      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/16/d8/bc6316cf98419719bd59c91742194c111b6f2e85abac88e496adefaf7afe/six-1.11.0.tar.gz"; sha256 = "70e8a77beed4562e7f14fe23a786b54f6296e34344c23bc42f07b15018ff98e9"; };
+      name = "six-1.12.0";
+      src = pkgs.fetchurl { url = "https://files.pythonhosted.org/packages/dd/bf/4138e7bfb757de47d1f4b6994648ec67a51efe58fa907c1e11e350cddfca/six-1.12.0.tar.gz"; sha256 = "d16a0141ec1a18405cd4ce8b4613101da75da0e9a7aec5bdd4fa804d0e0eba73"; };
       doCheck = commonDoCheck;
       buildInputs = commonBuildInputs;
       propagatedBuildInputs = [ ];
       meta = with pkgs.stdenv.lib; {
-        homepage = "http://pypi.python.org/pypi/six/";
+        homepage = "https://github.com/benjaminp/six";
         license = licenses.mit;
         description = "Python 2 and 3 compatibility utilities";
       };
