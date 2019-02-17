@@ -22,20 +22,15 @@ import qualified Komposition.Composition.Generators as Gen
 
 hprop_flat_timeline_has_same_duration_as_hierarchical =
   property $ do
-    s <- forAll $ Gen.timeline (Range.linear 1 10) Gen.parallelWithClips
+    s <- forAll $ Gen.timeline (Range.exponential 0 20) Gen.parallelWithClips
     let Just flat = Render.flattenTimeline s
     durationOf AdjustedDuration s === durationOf AdjustedDuration flat
 
-hprop_flat_timeline_has_same_video_clips_as_hierarchical =
+hprop_flat_timeline_has_same_clips_as_hierarchical =
   property $ do
-    s <- forAll $ Gen.timeline (Range.linear 1 10) Gen.parallelWithClips
+    s <- forAll $ Gen.timeline (Range.exponential 0 20) Gen.parallelWithClips
     let Just flat = Render.flattenTimeline s
     timelineVideoClips s === flatVideoClips flat
-
-hprop_flat_timeline_has_same_audio_clips_as_hierarchical =
-  property $ do
-    s <- forAll $ Gen.timeline (Range.linear 1 10) Gen.parallelWithClips
-    let Just flat = Render.flattenTimeline s
     timelineAudioClips s === flatAudioClips flat
 
 ----------------------------------------------------------------------
