@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
@@ -27,8 +28,9 @@ import           Data.Time.Clock           (diffTimeToPicoseconds,
                                             picosecondsToDiffTime)
 import           Komposition.Composition
 import           Komposition.Duration
-import           Komposition.History
+import           Komposition.Focus
 import           Komposition.Library
+import           Komposition.MediaType
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.VideoSettings
@@ -50,6 +52,8 @@ instance Binary TimeSpan
 
 instance Binary a => Binary (VideoPart a)
 instance Binary a => Binary (AudioPart a)
+instance Binary a => Binary (VideoTrack a)
+instance Binary a => Binary (AudioTrack a)
 instance Binary a => Binary (Parallel a)
 instance Binary a => Binary (Sequence a)
 instance Binary a => Binary (Timeline a)
@@ -58,29 +62,32 @@ instance Binary Resolution
 instance Binary VideoSettings
 instance Binary AllVideoSettings
 instance Binary VideoSpeed
-instance Binary Project
-
-instance Binary a => Binary (History a)
+instance Binary SequenceFocus
+instance Binary ParallelFocus
+instance Binary TrackFocus
+instance Binary ClipFocus
+instance Binary (WithoutHistory Project)
+instance Binary MediaType
 
 -- * File-Based Project Store
 
 projectDataFilePath :: ProjectPath -> FilePath
 projectDataFilePath p = p ^. unProjectPath </> "project-history.bin"
 
-writeProject :: ExistingProject -> IO (Either SaveProjectError ())
+writeProject :: WithoutHistory ExistingProject -> IO (Either SaveProjectError ())
 writeProject existingProject =
   runExceptT
     $          liftIO
                  (writeProjectDataFile
                    (projectDataFilePath (existingProject ^. projectPath))
-                   (existingProject ^. projectHistory)
+                   (existingProject ^. project)
                  )
     `catchAny` (\(e :: SomeException) ->
                  throwError (UnexpectedSaveError (show e))
                )
 
 readProjectDataFile
-  :: FilePath -> IO (Either OpenProjectError (History Project))
+  :: FilePath -> IO (Either OpenProjectError (WithoutHistory Project))
 readProjectDataFile p =
   runExceptT
     $          liftIO (Binary.decodeFile p)
@@ -88,7 +95,7 @@ readProjectDataFile p =
                  throwError (InvalidProjectDataFile p (show e))
                )
 
-writeProjectDataFile :: FilePath -> History Project -> IO ()
+writeProjectDataFile :: FilePath -> WithoutHistory Project -> IO ()
 writeProjectDataFile = Binary.encodeFile
 
 newtype FileProjectStoreIOC m a = FileProjectStoreIOC { runFileProjectStoreIOC :: m a }
@@ -101,7 +108,7 @@ instance (MonadIO m, Carrier sig m) => Carrier (ProjectStore :+: sig) (FileProje
       whenM (liftIO (not . null <$> listDirectory targetPath)) $
         throwError (ProjectDirectoryNotEmpty targetPath)
       liftIO (createDirectoryIfMissing False targetPath)
-      let existingProject =  ExistingProject (ProjectPath targetPath) (initialise newProject)
+      let existingProject =  ExistingProject (ProjectPath targetPath) newProject
       ExceptT (liftIO (writeProject existingProject))
       return existingProject)
 

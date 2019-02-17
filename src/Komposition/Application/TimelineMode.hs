@@ -1,18 +1,24 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedLabels    #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE PolyKinds           #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RebindableSyntax    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedLabels      #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE RebindableSyntax      #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
+{-# LANGUAGE TypeOperators         #-}
 module Komposition.Application.TimelineMode where
 
 import           Komposition.Application.Base
+import qualified Prelude
 
 import           Control.Effect                      (Member)
 import           Control.Effect.Carrier              (Carrier)
@@ -28,10 +34,9 @@ import           Komposition.Composition
 import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Paste
-import           Komposition.Composition.Split
+import qualified Komposition.Composition.Split       as Split
 import           Komposition.Duration
 import           Komposition.Focus
-import           Komposition.History
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
 import           Komposition.Library
@@ -39,9 +44,17 @@ import           Komposition.MediaType
 import           Komposition.Progress
 import           Komposition.Project
 import           Komposition.Project.Store
+import           Komposition.Project.UndoableAction
 import           Komposition.Render
 import qualified Komposition.Render.Composition      as Render
 import qualified Komposition.Render.FFmpeg           as FFmpeg
+import           Komposition.UndoRedo                (current, redo,
+                                                      runAndRecord, undo)
+import           Komposition.UserInterface           hiding
+                                                      (TimelineViewModel (..),
+                                                      previewImagePath, project,
+                                                      statusMessage, zoomLevel)
+import qualified Komposition.UserInterface           as UI
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Komposition.VideoSettings
@@ -50,10 +63,6 @@ import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.LibraryMode
 
-data TimelineModeResult
-  = TimelineExit TimelineModel
-  | TimelineClose
-
 type TimelineEffects sig =
   ( Member ProjectStore sig
   , Member VideoImport sig
@@ -61,92 +70,116 @@ type TimelineEffects sig =
   , Member Render sig
   )
 
+data TimelineState = TimelineState
+  { _existingProject  :: WithHistory ExistingProject
+  , _clipboard        :: Maybe (Insertion ())
+  , _statusMessage    :: Maybe Text
+  , _zoomLevel        :: ZoomLevel
+  , _previewImagePath :: Maybe FilePath
+  }
+  deriving (Eq, Show)
+
+makeLenses ''TimelineState
+
+data TimelineModeResult
+  = TimelineExit TimelineState
+  | TimelineClose
+
+timelineViewFromState
+  :: UserInterfaceMarkup markup
+  => TimelineState
+  -> markup 'TopWindow (Event 'TimelineMode)
+timelineViewFromState state' =
+  timelineView $
+  UI.TimelineViewModel
+  (state' ^. existingProject.project)
+  (state' ^. existingProject.project.timelineFocus)
+  (state' ^. statusMessage)
+  (state' ^. zoomLevel)
+  (state' ^. previewImagePath)
+
 timelineMode
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> t m r r TimelineModeResult
-timelineMode gui model = do
-  patchWindow gui (timelineView model)
+timelineMode gui state' = do
+  patchWindow gui (timelineViewFromState state')
   nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
-    continue = timelineMode gui model
+    continue = timelineMode gui state'
     continueWithStatusMessage msg =
-      model & statusMessage ?~ msg & timelineMode gui
-    resetStatusMessage = model & statusMessage .~ Nothing & timelineMode gui
+      state' & statusMessage ?~ msg & timelineMode gui
+    resetStatusMessage = state' & statusMessage .~ Nothing & timelineMode gui
     onNextEvent        = \case
       CommandKeyMappedEvent (FocusCommand cmd) ->
         case
-            modifyFocus (currentProject model ^. timeline)
+            modifyFocus (state' ^. existingProject.project.timeline.current)
                         cmd
-                        (model ^. currentFocus)
+                        (state' ^. existingProject.project.timelineFocus)
           of
             Left err -> do
               beep gui
               printUnexpectedFocusError err cmd
               continue
             Right newFocus ->
-              model
-                & currentFocus .~ newFocus
+              state'
+                & existingProject.project.timelineFocus .~ newFocus
                 & refreshPreviewAndContinue gui
       CommandKeyMappedEvent (JumpFocus newFocus) ->
-        case atFocus newFocus (currentProject model ^. timeline) of
-          Just _ -> refreshPreviewAndContinue gui (model & currentFocus .~ newFocus)
+        case atFocus newFocus (state' ^. existingProject.project.timeline.current) of
+          Just _ -> refreshPreviewAndContinue gui (state' & existingProject.project.timelineFocus .~ newFocus)
           Nothing ->
             beep gui >>> continueWithStatusMessage "Couldn't set focus."
       CommandKeyMappedEvent (InsertCommand type' position) ->
-        insertIntoTimeline gui model type' position
-      CommandKeyMappedEvent Delete -> deleteFocused gui model
+        insertIntoTimeline gui state' type' position
+      CommandKeyMappedEvent Delete ->
+        state'
+          & clipboard .~ clipboardInsertion
+          & runUndoableAction gui (DeleteAction currentFocus' (DeletionOf 1))
+        where
+          currentFocus' = state' ^. existingProject.project.timelineFocus
+          currentTimeline = state' ^. existingProject.project.timeline.current
+          clipboardInsertion = insertionFromSomeComposition =<< atFocus currentFocus' currentTimeline
       CommandKeyMappedEvent Copy ->
-        model
-          &  clipboard
-          .~ atFocus (model ^. currentFocus) (currentProject model ^. timeline)
+        state'
+          &  clipboard .~ (insertionFromSomeComposition =<< atFocus currentFocus' currentTimeline)
           &  timelineMode gui
-      CommandKeyMappedEvent (Paste pos) -> case model ^. clipboard of
-        Nothing -> beep gui >>> continue
-        Just cb ->
-          case
-              paste (model ^. currentFocus)
-                    cb
-                    pos
-                    (currentProject model ^. timeline)
-            of
-              Just timeline' ->
-                model
-                  &  existingProject
-                  .  projectHistory
-                  %~ edit (timeline .~ timeline')
-                  &  refreshPreviewAndContinue gui
-              Nothing ->
-                beep gui >> continueWithStatusMessage "Couldn't paste."
+        where
+          currentFocus' = state' ^. existingProject.project.timelineFocus
+          currentTimeline = state' ^. existingProject.project.timeline.current
+      CommandKeyMappedEvent (Paste pos) ->  -- trace ("Paste" :: Text) $
+        case state' ^. clipboard of
+          Nothing -> beep gui >>> continue
+          Just clipboardInsertion ->
+            runUndoableAction gui (InsertAction currentFocus' insertPos clipboardInsertion) state'
+            where
+              currentFocus' = state' ^. existingProject.project.timelineFocus
+              insertPos = case pos of
+                PasteLeftOf  -> LeftOf
+                PasteRightOf -> RightOf
       CommandKeyMappedEvent Split ->
-        case split (model ^. currentFocus) (currentProject model ^. timeline) of
-          Just (timeline', newFocus) ->
-            model
-              &  existingProject
-              .  projectHistory
-              %~ edit (timeline .~ timeline')
-              &  currentFocus
-              .~ newFocus
-              &  refreshPreviewAndContinue gui
-          Nothing -> do
-            beep gui
-            continueWithStatusMessage
-              "Can't split composition at current focus."
+        runUndoableAction gui (SplitAction currentFocus' Split.OnClipsNearFocus) state'
+          where
+            currentFocus' = state' ^. existingProject.project.timelineFocus
+      CommandKeyMappedEvent Join ->
+        runUndoableAction gui (JoinAction currentFocus') state'
+          where
+            currentFocus' = state' ^. existingProject.project.timelineFocus
       CommandKeyMappedEvent Import ->
-        selectFileToImport >>>= addImportedAssetsToLibrary gui model
+        selectFileToImport >>>= addImportedAssetsToLibrary gui state'
       CommandKeyMappedEvent Render ->
-        case Render.flattenTimeline (currentProject model ^. timeline) of
+        case Render.flattenTimeline (state' ^. existingProject.project.timeline.current) of
           Just flat -> do
             outDir <- ilift getDefaultProjectsDirectory
             chooseFile gui (Save File) "Render To File" outDir >>>= \case
               Just outFile -> do
                 stream <- ilift $ renderComposition
-                  (currentProject model ^. videoSettings . renderVideoSettings)
+                  (state' ^. existingProject . project . videoSettings . renderVideoSettings)
                   VideoTranscoded
                   (FileOutput outFile)
                   flat
@@ -161,48 +194,45 @@ timelineMode gui model = do
             continueWithStatusMessage
               "Cannot render a composition without video clips."
       CommandKeyMappedEvent Preview ->
-        previewFocusedComposition gui model >>> continue
+        previewFocusedComposition gui state' >>> continue
       CommandKeyMappedEvent Undo ->
-        case model & existingProject . projectHistory %%~ undo of
-          Just m  -> refreshPreviewAndContinue gui m
-          Nothing -> beep gui >> timelineMode gui model
+        case undo (state' ^. existingProject.project.timeline) of
+          Just (Left err) -> beep gui >> continueWithStatusMessage err
+          Just (Right (newHistory, newFocus)) ->
+            state'
+              & existingProject.project.timeline .~ newHistory
+              & existingProject.project.timelineFocus .~ newFocus
+              & refreshPreviewAndContinue gui
+          Nothing ->
+            beep gui >> timelineMode gui state'
       CommandKeyMappedEvent Redo ->
-        case model & existingProject . projectHistory %%~ redo of
-          Just m  -> refreshPreviewAndContinue gui m
-          Nothing -> beep gui >> timelineMode gui model
+        case redo (state' ^. existingProject.project.timeline) of
+          Just (Left err) -> beep gui >> continueWithStatusMessage err
+          Just (Right (newHistory, newFocus)) ->
+            state'
+              & existingProject.project.timeline .~ newHistory
+              & existingProject.project.timelineFocus .~ newFocus
+              & refreshPreviewAndContinue gui
+          Nothing -> beep gui >> timelineMode gui state'
       CommandKeyMappedEvent SaveProject ->
-        ilift (saveExistingProject (model ^. existingProject)) >>= \case
-          _ -> continue
+        state' ^. existingProject
+          & dropHistory
+          & saveExistingProject
+          & ilift
+          & (>> continue)
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
       CommandKeyMappedEvent Cancel       -> continue
       CommandKeyMappedEvent Help ->
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
           Just HelpClosed -> continue
           Nothing         -> continue
-      CommandKeyMappedEvent Exit -> ireturn (TimelineExit model)
-      ZoomLevelChanged      zl   -> model & zoomLevel .~ zl & timelineMode gui
-      PreviewImageRefreshed p -> model & previewImagePath .~ p & timelineMode gui
-      FocusedClipSpeedSet speed ->
-        model
-        & modifyFocusedVideoPart (\case
-          VideoClip ann asset ts _ -> VideoClip ann asset ts speed
-          vg@VideoGap{} -> vg)
-        & refreshPreviewAndContinue gui
-      FocusedClipStartSet start ->
-        model
-        & modifyFocusedVideoPart (\case
-          VideoClip ann asset ts speed ->
-                VideoClip ann asset ts { spanStart = start } speed
-          vg@VideoGap{} -> vg)
-        & refreshPreviewAndContinue gui
-      FocusedClipEndSet end ->
-        model
-        & modifyFocusedVideoPart (\case
-          VideoClip ann asset ts speed ->
-                VideoClip ann asset ts { spanEnd = end } speed
-          vg@VideoGap{} -> vg)
-        & refreshPreviewAndContinue gui
-      WindowClosed               -> ireturn (TimelineExit model)
+      CommandKeyMappedEvent Exit -> ireturn (TimelineExit state')
+      ZoomLevelChanged      zl   -> state' & zoomLevel .~ zl & timelineMode gui
+      PreviewImageRefreshed p -> state' & previewImagePath .~ p & timelineMode gui
+      FocusedClipSpeedSet speed -> runUndoableAction gui (SetClipSpeed (state' ^. existingProject.project.timelineFocus) speed) state'
+      FocusedClipStartSet start -> runUndoableAction gui (SetClipStart (state' ^. existingProject.project.timelineFocus)start) state'
+      FocusedClipEndSet end -> runUndoableAction gui (SetClipEnd (state' ^. existingProject.project.timelineFocus)end) state'
+      WindowClosed               -> ireturn (TimelineExit state')
 
     printUnexpectedFocusError err cmd = case err of
       UnhandledFocusModification{} ->
@@ -216,107 +246,147 @@ insertIntoTimeline
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> InsertType
   -> InsertPosition
   -> t m r r TimelineModeResult
-insertIntoTimeline gui model type' position =
+insertIntoTimeline gui state' type' position =
   case
       ( type'
-      , atFocus (model ^. currentFocus) (currentProject model ^. timeline)
+      , atFocus ( state' ^. existingProject.project.timelineFocus)
+                (state' ^. existingProject.project.timeline.current)
       )
     of
-      (InsertComposition, Just (SomeSequence _)) ->
-        model
-          &  existingProject
-          .  projectHistory
-          %~ edit
-               (  timeline
-               %~ insert_ (model ^. currentFocus)
-                          (InsertParallel (Parallel () [] []))
-                          RightOf
-               )
-          &  refreshPreviewAndContinue gui
+      (InsertComposition, Just (SomeSequence _)) -> insertComposition (InsertSequence emptySequence)
+      (InsertComposition, Just (SomeParallel _)) -> insertComposition (InsertParallel emptyParallel)
       (InsertClip (Just mt), Just SomeParallel{}) -> case mt of
-        Video -> selectAssetAndInsert gui model SVideo position
-        Audio -> selectAssetAndInsert gui model SAudio position
-      (InsertClip Nothing, Just SomeVideoPart{}) ->
-        selectAssetAndInsert gui model SVideo position
-      (InsertClip Nothing, Just SomeAudioPart{}) ->
-        selectAssetAndInsert gui model SAudio position
+        Video -> selectAssetAndInsert gui state' SVideo position
+        Audio -> selectAssetAndInsert gui state' SAudio position
+      (InsertClip Nothing, Just SomeVideoTrack{}) -> insertVideoClip
+      (InsertClip (Just Video), Just SomeVideoTrack{}) -> insertVideoClip
+      (InsertClip Nothing, Just SomeAudioTrack{}) -> insertAudioClip
+      (InsertClip (Just Audio), Just SomeAudioTrack{}) -> insertAudioClip
+      (InsertClip Nothing, Just SomeVideoPart{}) -> insertVideoClip
+      (InsertClip (Just Video), Just SomeVideoPart{}) -> insertVideoClip
+      (InsertClip Nothing, Just SomeAudioPart{}) -> insertAudioClip
+      (InsertClip (Just Audio), Just SomeAudioPart{}) -> insertAudioClip
       (InsertGap (Just mt), Just SomeParallel{}) -> case mt of
-        Video -> insertGap gui model SVideo position >>>= refreshPreviewAndContinue gui
-        Audio -> insertGap gui model SAudio position >>>= refreshPreviewAndContinue gui
-      (InsertGap Nothing, Just SomeVideoPart{}) ->
-        insertGap gui model SVideo position >>>= refreshPreviewAndContinue gui
-      (InsertGap Nothing, Just SomeAudioPart{}) ->
-        insertGap gui model SAudio position >>>= refreshPreviewAndContinue gui
-      (c, Just f) -> do
+        Video -> insertVideoGap
+        Audio -> insertAudioGap
+      (InsertGap Nothing, Just SomeVideoTrack{}) -> insertVideoGap
+      (InsertGap (Just Video), Just SomeVideoTrack{}) -> insertVideoGap
+      (InsertGap Nothing, Just SomeAudioTrack{}) -> insertAudioGap
+      (InsertGap (Just Audio), Just SomeAudioTrack{}) -> insertAudioGap
+      (InsertGap Nothing, Just SomeVideoPart{}) -> insertVideoGap
+      (InsertGap (Just Video), Just SomeVideoPart{}) -> insertVideoGap
+      (InsertGap Nothing, Just SomeAudioPart{}) -> insertAudioGap
+      (InsertGap (Just Audio), Just SomeAudioPart{}) -> insertAudioGap
+      (insertType, Just f) -> do
         let
+          insertTypePretty = \case
+            InsertComposition -> "insert composition"
+            InsertClip mt -> "insert" <> mediaTypePretty mt <> " clip"
+            InsertGap mt -> "insert" <> mediaTypePretty mt <> " gap"
+          mediaTypePretty = \case
+            Just Video -> " video"
+            Just Audio -> " audio"
+            Nothing -> mempty
           msg =
-            "Cannot perform "
-              <> show c
+            "Cannot "
+              <> insertTypePretty insertType
               <> " when focused at "
               <> prettyFocusedAt f
-        timelineMode gui (model & statusMessage ?~ msg)
+        timelineMode gui (state' & statusMessage ?~ msg)
       (_, Nothing) -> do
         ilift (logLnText Warning "Focus is invalid.")
         continue
-  where continue = timelineMode gui model
+  where
+    continue = timelineMode gui state'
+    insertVideoClip = selectAssetAndInsert gui state' SVideo position
+    insertAudioClip = selectAssetAndInsert gui state' SAudio position
+    insertVideoGap = insertGap gui state' SVideo position >>>= refreshPreviewAndContinue gui
+    insertAudioGap = insertGap gui state' SAudio position >>>= refreshPreviewAndContinue gui
+    insertComposition insertion =
+         case runAndRecord (InsertAction currentFocus' position insertion) (state' ^. existingProject.project.timeline) of
+           Left err      -> do
+             beep gui
+             state'
+               & statusMessage ?~ err
+               & timelineMode gui
+           Right (newHistory, newFocus) ->
+             state'
+               & existingProject.project.timeline .~ newHistory
+               & existingProject.project.timelineFocus .~ newFocus
+               & refreshPreviewAndContinue gui
+         where
+           currentFocus' = state' ^. existingProject.project.timelineFocus
+    emptySequence = Sequence () (pure emptyParallel)
+    emptyParallel = Parallel () mempty mempty
 
 insertGap
-  :: (Application t m sig, HasType parent (Window (t m) TopWindow parentEvent) r)
+  :: ( Application t m sig
+     , HasType parent (Window (t m) 'TopWindow parentEvent) r
+     , Typeable parentEvent
+     )
   => Name parent
-  -> TimelineModel
+  -> TimelineState
   -> SMediaType mt
   -> InsertPosition
-  -> t m r r TimelineModel
-insertGap parent model mediaType' position = do
+  -> t m r r TimelineState
+insertGap parent state' mediaType' position = do
   gapDuration <- prompt parent
                         "Insert Gap"
                         "Please specify a gap duration in seconds."
                         "Insert Gap"
                         (PromptNumber (0.1, 10e10, 0.1))
   let gapInsertion seconds = case mediaType' of
-        SVideo -> InsertVideoParts [VideoGap () (durationFromSeconds seconds)]
-        SAudio -> InsertAudioParts [AudioGap () (durationFromSeconds seconds)]
+        SVideo -> InsertVideoParts (pure (VideoGap () (durationFromSeconds seconds)))
+        SAudio -> InsertAudioParts (pure (AudioGap () (durationFromSeconds seconds)))
   case gapDuration of
     Just seconds ->
-      model
-        &  existingProject
-        .  projectHistory
-        %~ edit
-             (  timeline
-             %~ insert_ (model ^. currentFocus)
-                        (gapInsertion seconds)
-                        position
-             )
-        &  ireturn
-    Nothing -> ireturn model
+      case runAndRecord (InsertAction currentFocus' position (gapInsertion seconds)) (state' ^. existingProject.project.timeline) of
+        Left err      -> do
+          beep parent
+          state'
+            & statusMessage ?~ err
+            & ireturn
+        Right (newHistory, newFocus) ->
+          state'
+            & existingProject.project.timeline .~ newHistory
+            & existingProject.project.timelineFocus .~ newFocus
+            & ireturn
+      where
+        currentFocus' = state' ^. existingProject.project.timelineFocus
+    Nothing -> ireturn state'
 
 prettyFocusedAt :: FocusedAt a -> Text
 prettyFocusedAt = \case
   SomeSequence{}  -> "sequence"
   SomeParallel{}  -> "parallel"
-  SomeVideoPart{} -> "video track"
-  SomeAudioPart{} -> "audio track"
+  SomeVideoTrack{} -> "video track"
+  SomeAudioTrack{} -> "audio track"
+  SomeVideoPart{} -> "video part"
+  SomeAudioPart{} -> "audio part"
 
 previewFocusedComposition
   :: ( Application t m sig
-     , HasType n (Window (t m) TopWindow e) r
+     , HasType n (Window (t m) 'TopWindow e) r
      , Carrier sig m
      , TimelineEffects sig
+     , Typeable e
      )
   => Name n
-  -> TimelineModel
-  -> t m r r TimelineModel
-previewFocusedComposition gui model =
-  case atFocus (model ^. currentFocus) (currentProject model ^. timeline) of
+  -> TimelineState
+  -> t m r r TimelineState
+previewFocusedComposition gui state' =
+  case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
     Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
     Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
+    Just (SomeVideoTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () t mempty))
+    Just (SomeAudioTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () mempty t))
     Just (SomeVideoPart p) -> renderFlatComposition (Render.singleVideoPart p)
     Just (SomeAudioPart (AudioClip _ asset)) ->
       previewFile (asset ^. assetMetadata . path . unOriginalPath)
@@ -326,7 +396,7 @@ previewFocusedComposition gui model =
     renderFlatComposition = \case
       Just flat -> do
         streamingProcess <- ilift $ renderComposition
-          (currentProject model ^. videoSettings . proxyVideoSettings)
+          (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
           VideoProxy
           (HttpStreamingOutput "localhost" 12345)
           flat
@@ -334,19 +404,19 @@ previewFocusedComposition gui model =
           gui
           "http://localhost:12345"
           streamingProcess
-          (currentProject model ^. videoSettings . proxyVideoSettings)
-        ireturn model
+          (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
+        ireturn state'
       Nothing -> beepWith "Cannot preview a composition without video clips."
     previewFile fp = do
       _ <- previewStream
         gui
         ("file://" <> toS fp)
         (Pipes.yield (ProgressUpdate "Loading clip" 1))
-        (currentProject model ^. videoSettings . proxyVideoSettings)
-      ireturn model
+        (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
+      ireturn state'
     beepWith msg = do
       beep gui
-      model & statusMessage ?~ msg & ireturn
+      state' & statusMessage ?~ msg & ireturn
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =
@@ -362,32 +432,36 @@ selectAssetAndInsert
   :: ( Application t m sig
      , TimelineEffects sig
      , Carrier sig m
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> SMediaType mt
   -> InsertPosition
   -> t m r r TimelineModeResult
-selectAssetAndInsert gui model mediaType' position = case mediaType' of
+selectAssetAndInsert gui state' mediaType' position = case mediaType' of
   SVideo ->
-    case NonEmpty.nonEmpty (currentProject model ^. library . videoAssets) of
-      Just vs ->
-        selectAsset (SelectAssetsModel SVideo vs [])
-          >>>= insertSelectedAssets gui model SVideo position
+    case NonEmpty.nonEmpty (state' ^. existingProject . project . library . videoAssets) of
+      Just vs -> do
+        selected <- selectAsset (SelectAssetsModel SVideo vs [])
+        case NonEmpty.nonEmpty Prelude.=<< selected of
+          Just assets -> insertSelectedAssets gui state' SVideo position assets
+          Nothing -> beep gui >>> timelineMode gui state'
       Nothing -> onNoAssets gui SVideo
   SAudio ->
-    case NonEmpty.nonEmpty (currentProject model ^. library . audioAssets) of
-      Just as ->
-        selectAsset (SelectAssetsModel SAudio as [])
-          >>>= insertSelectedAssets gui model SAudio position
+    case NonEmpty.nonEmpty (state' ^. existingProject . project . library . audioAssets) of
+      Just as -> do
+        selected <- selectAsset (SelectAssetsModel SAudio as [])
+        case NonEmpty.nonEmpty Prelude.=<< selected of
+          Just assets -> insertSelectedAssets gui state' SAudio position assets
+          Nothing -> beep gui >>> timelineMode gui state'
       Nothing -> onNoAssets gui SAudio
   where
     onNoAssets
       :: ( Application t m sig
          , TimelineEffects sig
          , Carrier sig m
-         , r ~ (n .== Window (t m) TopWindow (Event 'TimelineMode))
+         , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
          , IxPointed (t m)
          )
       => Name n
@@ -395,37 +469,38 @@ selectAssetAndInsert gui model mediaType' position = case mediaType' of
       -> t m r r TimelineModeResult
     onNoAssets gui' mt = do
       beep gui'
-      model & statusMessage ?~ noAssetsMessage mt & timelineMode gui'
+      state' & statusMessage ?~ noAssetsMessage mt & timelineMode gui'
 
 insertSelectedAssets
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> SMediaType mt
   -> InsertPosition
-  -> Maybe [Asset mt]
+  -> NonEmpty (Asset mt)
   -> t m r r TimelineModeResult
-insertSelectedAssets gui model mediaType' position result = do
-  model' <- case result of
-    Just assets ->
-      model
-        &  existingProject
-        .  projectHistory
-        %~ edit
-             (\p -> p & timeline %~ insert_ (model ^. currentFocus) (insertionOf mediaType' assets) position)
-        &  ireturn
-    Nothing -> do
+insertSelectedAssets gui state' mediaType' position assets =
+  case runAndRecord (InsertAction currentFocus' position (insertionOf mediaType' assets)) (state' ^. existingProject.project.timeline) of
+    Left err      -> do
       beep gui
-      model & statusMessage ?~ noAssetsMessage mediaType' & ireturn
-  refreshPreviewAndContinue gui model'
+      state'
+        & statusMessage ?~ err
+        & refreshPreviewAndContinue gui
+    Right (newHistory, newFocus) ->
+      state'
+        & existingProject.project.timeline .~ newHistory
+        & existingProject.project.timelineFocus .~ newFocus
+        & timelineMode gui
+  where
+    currentFocus' = state'^.existingProject.project.timelineFocus
 
 insertionOf
   :: SMediaType mt
-  -> [Asset mt]
+  -> NonEmpty (Asset mt)
   -> Insertion ()
 insertionOf SVideo a = InsertVideoParts (toVideoClip <$> a)
   where
@@ -441,15 +516,15 @@ addImportedAssetsToLibrary
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> Maybe (ImportFileForm Valid)
   -> t m r r TimelineModeResult
-addImportedAssetsToLibrary gui model (Just selected) = do
-  model' <-
-    importSelectedFile gui (model ^. existingProject) selected >>>= \case
+addImportedAssetsToLibrary gui state' (Just selected) = do
+  state'' <-
+    importSelectedFile gui (state' ^. existingProject) selected >>>= \case
       Just (Left err) -> do
         ilift (logLnShow Error err)
         _ <- dialog
@@ -459,84 +534,36 @@ addImportedAssetsToLibrary gui model (Just selected) = do
             , dialogMessage = show err
             , dialogChoices = [Ok]
             }
-        ireturn model
+        ireturn state'
       Just (Right (Left vs)) ->
-        model
-          &  existingProject
-          .  projectHistory
-          %~ edit (library . videoAssets %~ (<> vs))
+        state'
+          &  existingProject . project . library . videoAssets %~ (<> vs)
           &  ireturn
       Just (Right (Right as)) ->
-        model
-          &  existingProject
-          .  projectHistory
-          %~ edit (library . audioAssets %~ (<> as))
+        state'
+          &  existingProject . project . library . audioAssets %~ (<> as)
           &  ireturn
-      Nothing -> ireturn model
-  timelineMode gui model'
-addImportedAssetsToLibrary gui model Nothing = timelineMode gui model
-
-deleteFocused
-  :: ( Application t m sig
-     , Carrier sig m
-     , TimelineEffects sig
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
-     )
-  => Name n
-  -> TimelineModel
-  -> t m r r TimelineModeResult
-deleteFocused gui model =
-  case delete (model ^. currentFocus) (currentProject model ^. timeline) of
-    Nothing -> beep gui >> continueWithStatusMessage "Delete failed."
-    Just (DeletionResult timeline' deleted (Just cmd)) ->
-      case
-          modifyFocus (currentProject model ^. timeline)
-                      cmd
-                      (model ^. currentFocus)
-        of
-          Left err -> do
-            beep gui
-            ilift (logLnText Error ("Deleting failed: " <> show err))
-            continueWithStatusMessage "Delete failed."
-          Right newFocus ->
-            model
-              &  existingProject
-              .  projectHistory
-              %~ edit (timeline .~ timeline')
-              &  currentFocus
-              .~ newFocus
-              &  clipboard
-              ?~ deleted
-              &  refreshPreviewAndContinue gui
-    Just (DeletionResult timeline' deleted Nothing) ->
-      model
-        &  existingProject
-        .  projectHistory
-        %~ edit (timeline .~ timeline')
-        &  clipboard
-        ?~ deleted
-        &  refreshPreviewAndContinue gui
-  where
-    continueWithStatusMessage msg =
-      model & statusMessage ?~ msg & timelineMode gui
+      Nothing -> ireturn state'
+  timelineMode gui state''
+addImportedAssetsToLibrary gui state' Nothing = timelineMode gui state'
 
 refreshPreview
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> t m r r ()
-refreshPreview gui model = do
+refreshPreview gui state' = do
   cacheDir <- ilift getCacheDirectory
-  case atFocus (model ^. currentFocus) (currentProject model ^. timeline) of
+  case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
     Just (SomeVideoPart (VideoClip _ videoAsset ts _)) ->
       runInBackground gui $
         pure . PreviewImageRefreshed . Just <$>
         FFmpeg.extractFrameToFile'
-          (currentProject model ^. videoSettings . proxyVideoSettings)
+          (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
           Render.FirstFrame
           VideoProxy
           videoAsset
@@ -548,19 +575,32 @@ refreshPreviewAndContinue
   :: ( Application t m sig
      , Carrier sig m
      , TimelineEffects sig
-     , r ~ (n .== Window (t m) TopWindow (Event TimelineMode))
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      )
   => Name n
-  -> TimelineModel
+  -> TimelineState
   -> t m r r TimelineModeResult
-refreshPreviewAndContinue gui model = do
-  refreshPreview gui model
-  timelineMode gui model
+refreshPreviewAndContinue gui state' = do
+  refreshPreview gui state'
+  timelineMode gui state'
 
-modifyFocusedVideoPart
-  :: (VideoPart () -> VideoPart ()) -> TimelineModel -> TimelineModel
-modifyFocusedVideoPart f model =
-  model
-    &  existingProject
-    .  projectHistory
-    %~ edit (timeline . focusing (model ^. currentFocus) %~ f)
+runUndoableAction
+  :: ( Application t m sig
+     , Carrier sig m
+     , TimelineEffects sig
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
+     )
+  => Name n
+  -> UndoableAction
+  -> TimelineState
+  -> t m r r TimelineModeResult
+runUndoableAction gui action state' =
+  case runAndRecord action (state' ^. existingProject . project . timeline) of
+    Left err -> do
+      beep gui
+      state' & statusMessage ?~ err & timelineMode gui
+    Right (newHistory, newFocus) ->
+      state'
+        & existingProject.project.timeline .~ newHistory
+        & existingProject.project.timelineFocus .~ newFocus
+        & refreshPreviewAndContinue gui

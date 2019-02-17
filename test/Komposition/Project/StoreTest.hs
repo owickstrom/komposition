@@ -3,7 +3,6 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Komposition.Project.StoreTest where
@@ -16,7 +15,6 @@ import           Control.Lens
 import           Hedgehog                       hiding (Parallel)
 import           System.IO.Temp
 
-import           Komposition.History
 import           Komposition.Project
 import qualified Komposition.Project.Generators as Gen
 import           Komposition.Project.Store
@@ -37,13 +35,10 @@ hprop_createAndSaveNewProject =
     tmpRoot <- liftIO getCanonicalTemporaryDirectory
     path <- liftIO $ createTempDirectory tmpRoot "project-store-test"
     initialExisting <- create path newProject
-    let existingModified = initialExisting & projectHistory %~ edit (const modifiedProject)
+    let existingModified = initialExisting & project .~ modifiedProject
     _ <- save existingModified
     loaded <- open path
     loaded === existingModified
-    undoneExisting <-
-      maybe failure pure (existingModified & projectHistory %%~ undo)
-    current (undoneExisting ^. projectHistory) === current (initialExisting ^. projectHistory)
 
 runStore = liftIO . runM . runFileProjectStoreIO
 

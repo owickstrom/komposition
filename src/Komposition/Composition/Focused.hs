@@ -7,8 +7,8 @@ module Komposition.Composition.Focused where
 
 import           Komposition.Prelude
 
-import           Data.List.NonEmpty  (NonEmpty (..))
-import qualified Data.List.NonEmpty  as NonEmpty
+import           Data.List.NonEmpty      (NonEmpty (..))
+import qualified Data.List.NonEmpty      as NonEmpty
 
 import           Komposition.Composition
 import           Komposition.Focus
@@ -24,40 +24,42 @@ data Focused
 -- (the same as the first), transitively focused (a sub-path of the
 -- current focus), or not focused at all.
 focusedState
-  :: Focus ft -- ^ Current focus
-  -> Focus ft -- ^ A focus to check
+  :: SequenceFocus -- ^ Current focus
+  -> SequenceFocus -- ^ A focus to check
   -> Focused
-focusedState f1 f2 =
-  case (f1, f2) of
-    (SequenceFocus i1 mf1, SequenceFocus i2 mf2)
-      | i1 == i2 -> subFocusState (mf1, mf2)
-    (ParallelFocus i1 mf1, ParallelFocus i2 mf2)
-      | i1 == i2 -> subFocusState (mf1, mf2)
-    (ClipFocus mt1 i1, ClipFocus mt2 i2) ->
-      if mt1 == mt2 && i1 == i2
-      then Focused
-      else Blurred
-    _ -> Blurred
+focusedState f1 f2 = onSequenceFocus (f1, f2)
   where
-    subFocusState =
+    onSequenceFocus (SequenceFocus i1 mf1, SequenceFocus i2 mf2)
+      | i1 == i2 = subFocusState onParallelFocus (mf1, mf2)
+      | otherwise = Blurred
+    onParallelFocus (ParallelFocus i1 mf1, ParallelFocus i2 mf2)
+      | i1 == i2 = subFocusState onTrackFocus (mf1, mf2)
+      | otherwise = Blurred
+    onTrackFocus (TrackFocus mt1 cf1, TrackFocus mt2 cf2)
+      | mt1 == mt2 = subFocusState onClipFocus (cf1, cf2)
+      | otherwise = Blurred
+    onClipFocus (ClipFocus i1, ClipFocus i2)
+      | i1 == i2 = Focused
+      | otherwise = Blurred
+    subFocusState f =
       \case
         (Nothing, Nothing) -> Focused
         (Just _, Nothing) -> TransitivelyFocused
-        (Just f1', Just f2') -> focusedState f1' f2'
+        (Just f1', Just f2') -> f (f1', f2')
         (Nothing, Just _) -> Blurred
 
 numsFromZero :: (Enum n, Num n) => NonEmpty n
 numsFromZero = 0 :| [1 ..]
 
-withAllFoci :: Timeline a -> Timeline (Focus SequenceFocusType)
+withAllFoci :: Timeline a -> Timeline (Focus 'SequenceFocusType)
 withAllFoci (Timeline sub) =
   Timeline
-    (NonEmpty.zipWith (\i -> onSequence (SequenceFocus i)) numsFromZero sub)
+    (NonEmpty.zipWith (onSequence . SequenceFocus) numsFromZero sub)
   where
     onSequence ::
-         (Maybe (Focus ParallelFocusType) -> Focus SequenceFocusType)
+         (Maybe (Focus 'ParallelFocusType) -> Focus 'SequenceFocusType)
       -> Sequence a
-      -> Sequence (Focus SequenceFocusType)
+      -> Sequence (Focus 'SequenceFocusType)
     onSequence wrap (Sequence _ pars) =
       Sequence
         (wrap Nothing)
@@ -66,12 +68,16 @@ withAllFoci (Timeline sub) =
            numsFromZero
            pars)
     onParallel ::
-         (Maybe (Focus ClipFocusType) -> Focus SequenceFocusType)
+         (Maybe (Focus 'TrackFocusType) -> Focus 'SequenceFocusType)
       -> Parallel a
-      -> Parallel (Focus SequenceFocusType)
-    onParallel wrap (Parallel _ vs as) =
+      -> Parallel (Focus 'SequenceFocusType)
+    onParallel wrap (Parallel _ videoTrack audioTrack) =
         Parallel
         (wrap Nothing)
-        (zipWith (onCompositionPart . wrap . Just . ClipFocus Video) [0 ..] vs)
-        (zipWith (onCompositionPart . wrap . Just . ClipFocus Audio) [0 ..] as)
-    onCompositionPart focus = ($> focus)
+        (onVideoTrack (wrap . Just . TrackFocus Video) videoTrack)
+        (onAudioTrack (wrap . Just . TrackFocus Audio) audioTrack)
+    onVideoTrack wrap (VideoTrack _ parts') =
+      VideoTrack (wrap Nothing) (zipWith (onTrackPart . wrap . Just . ClipFocus) [0 ..] parts')
+    onAudioTrack wrap (AudioTrack _ parts') =
+      AudioTrack (wrap Nothing) (zipWith (onTrackPart . wrap . Just . ClipFocus) [0 ..] parts')
+    onTrackPart focus = ($> focus)

@@ -8,32 +8,33 @@
   margin: .25em 0;
 }
 .preview-pane {
-  background-color: #000;
-  color: #eee;
   min-width: 25em;
   min-height: 20em;
+  background: #000;
+  color: #eee;
 }
 .timeline-container {
-  background-color: #ccc;
-  border-top: 1pt solid #aaa;
-  border-bottom: 1pt solid #aaa;
+  border-top: 1pt solid rgba(0,0,0,.2);
+  border-bottom: 1pt solid rgba(0,0,0,.2);
+  background-color: rgba(0, 0, 0, 0.15);
   padding: 2pt;
 }
 .timeline .sequence {
-  border: 2pt solid #aaa;
+  border: 2pt solid rgba(0,0,0,.2);
   margin-left: 5pt;
-  background-color: #aaa;
 }
 .timeline .sequence:first-child {
   margin-left: 0;
 }
 .timeline .parallel {
-  border: 2pt solid #888;
-  background-color: #bbb;
+  border: 2pt solid rgba(0,0,0,.2);
   margin-left: 2pt;
 }
 .timeline .parallel:first-child {
   margin-left: 0;
+}
+.timeline .track {
+  border: 2pt solid rgba(0,0,0,.2);
 }
 .timeline .empty {
   min-width: 5em;
@@ -41,7 +42,6 @@
 
 .timeline .empty .audio,
 .timeline .empty .video {
-  background-color: #d99;
 }
 
 .timeline .sequence .video,
@@ -49,7 +49,7 @@
   min-height: 25pt;
 }
 .timeline .sequence .video {
-  border-bottom: 2pt solid #888;
+  border-bottom: 2pt solid rgba(0,0,0,.2);
 }
 .timeline .sequence .video .clip button {
   background-image: none;
@@ -60,14 +60,17 @@
   background-color: #cdad00;
 }
 .timeline .composition.transitively-focused {
-  background: #bbb;
+  background: rgba(255,255,255,.05);
 }
 
 .timeline .sequence.focused {
-  border-color: #fff;
+  border-color: rgb(255,255,255);
 }
 .timeline .parallel.focused {
-  border-color: #fff;
+  border-color: rgb(255,255,255);
+}
+.timeline .track.focused {
+  border-color: rgb(255,255,255);
 }
 
 .timeline .clip button,
@@ -85,7 +88,7 @@
 }
 .timeline .clip.focused button,
 .timeline .gap.focused button {
-  border: 2pt solid #eee;
+  border: 2pt solid rgb(255,255,255);
 }
 .timeline .clip.focused button {
   background-color: rgba(255, 255, 255, 0.25);
@@ -95,12 +98,11 @@
 }
 
 .sidebar {
-  background-color: #ddd;
   padding: 1em;
 }
 .sidebar-heading {
   font-weight: bold;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid rgba(0,0,0,.2);
   padding-bottom: 5pt;
   margin-bottom: 5pt;
 }

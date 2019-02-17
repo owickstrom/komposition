@@ -35,7 +35,7 @@ readMassivTestImage = Massiv.readImage . testImageName
 
 singleParallelTimelineWithClips :: Int -> Timeline ()
 singleParallelTimelineWithClips n = Timeline
-  (pure (Sequence () (pure (Parallel () (replicate n videoClip) []))))
+  (pure (Sequence () (pure (Parallel () (VideoTrack () (replicate n videoClip)) mempty))))
 
 videoClip :: VideoPart ()
 videoClip = VideoClip
@@ -49,15 +49,13 @@ videoClip = VideoClip
     (TimeSpan 0 4)
     (VideoSpeed 1)
 
-clipFocus :: MediaType -> Int -> Focus SequenceFocusType
+clipFocus :: MediaType -> Int -> Focus 'SequenceFocusType
 clipFocus mt i =
-  SequenceFocus 0 (Just (ParallelFocus 0 (Just (ClipFocus mt i))))
+  SequenceFocus 0 (Just (ParallelFocus 0 (Just (TrackFocus mt (Just (ClipFocus i))))))
 
 
 main :: IO ()
 main = do
-  -- jimg1 <- readJuicyTestImage 1
-  -- jimg2 <- readJuicyTestImage 2
   himg1 <- readMassivTestImage 1
   himg2 <- readMassivTestImage 2
   defaultMain
@@ -71,10 +69,10 @@ main = do
     , bgroup
       "timeline insertion"
       [ bench "at beginning" $ whnf
-        (insert_ (clipFocus Video 0) (InsertVideoParts [videoClip]) LeftOf)
+        (insert_ (clipFocus Video 0) (InsertVideoParts (pure videoClip)) LeftOf)
         (singleParallelTimelineWithClips 10000)
       , bench "at end" $ whnf
-        (insert_ (clipFocus Video 9999) (InsertVideoParts [videoClip]) RightOf)
+        (insert_ (clipFocus Video 9999) (InsertVideoParts (pure videoClip)) RightOf)
         (singleParallelTimelineWithClips 10000)
       ]
     , bgroup

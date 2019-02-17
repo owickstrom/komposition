@@ -17,6 +17,7 @@ import           Komposition.Library
 import           Komposition.MediaType
 
 import           Komposition.Application.KeyMaps
+import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
 
 selectAssetFromList

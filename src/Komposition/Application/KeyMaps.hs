@@ -1,8 +1,8 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedLists  #-}
 module Komposition.Application.KeyMaps where
 
 import           Komposition.Application.Base
@@ -12,6 +12,7 @@ import           Komposition.Composition.Paste
 import           Komposition.Focus
 import           Komposition.KeyMap
 import           Komposition.MediaType
+import           Komposition.UserInterface
 
 addBindings :: InsertPosition -> KeyMapEntry (Command 'TimelineMode)
 addBindings position = SequencedMappings
@@ -19,7 +20,7 @@ addBindings position = SequencedMappings
   , ([KeyChar 'a'], mediaTypeBindings (Just Audio))
   , ([KeyChar 'c'], Mapping (InsertCommand (InsertClip Nothing) position))
   , ([KeyChar 'g'], Mapping (InsertCommand (InsertGap Nothing) position))
-  , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition LeftMost))
+  , ([KeyChar 'p'], Mapping (InsertCommand InsertComposition position))
   ]
   where
     mediaTypeBindings mediaType' = SequencedMappings
@@ -58,6 +59,7 @@ keymaps = \case
     , ([KeyChar 'P']                  , Mapping (Paste PasteLeftOf))
     , ([KeyChar 'y']                  , Mapping Copy)
     , ([KeyChar 's']                  , Mapping Split)
+    , ([KeyChar 'm']                  , Mapping Join)
     , ([KeyChar 'i']                  , Mapping Import)
     , ([KeyChar 'u']                  , Mapping Undo)
     , ([KeyModifier Ctrl, KeyChar 'r'], Mapping Redo)

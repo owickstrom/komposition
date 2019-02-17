@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs         #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns  #-}
@@ -9,72 +10,94 @@ module Komposition.Composition.Delete where
 import           Komposition.Prelude
 
 import           Control.Lens
-import qualified Data.List                     as List
-import qualified Data.List.NonEmpty            as NonEmpty
+import qualified Data.List.NonEmpty             as NonEmpty
 
 import           Komposition.Composition
+import           Komposition.Composition.Insert
 import           Komposition.Focus
 import           Komposition.Focus.Parent
+import           Komposition.MediaType
+
+-- | Specifies the number of video or audio parts to delete. Not used
+-- for other composition parts.
+newtype DeletionOf = DeletionOf Int
+  deriving (Eq, Show, Generic)
 
 -- | Delete a composition or part in the 'Timeline', at the 'Focus',
--- returning a new 'Timeline' if the focus is valid, and possibly a
--- 'FocusCommand' required to obtain a new valid focus into the new
--- 'Timeline'.
-delete :: Focus (ToFocusType Timeline) -> Timeline a -> Maybe (DeletionResult a)
-delete focus comp = do
-  (tl, st ) <- runStateT (withParentOf traversal focus comp) Nothing
-  (sc, cmd) <- st
-  pure (DeletionResult tl sc cmd)
+-- returning a new 'Timeline' if the focus is valid.
+delete :: Focus (ToFocusType Timeline) -> DeletionOf -> Timeline a -> Maybe (DeletionResult a)
+delete oldFocus deletionOf timeline' = do
+  (tl, st ) <- runStateT (withParentOf traversal oldFocus timeline') Nothing
+  (inverseInsertion', newFocus) <- st
+  pure (DeletionResult tl inverseInsertion' newFocus)
   where
     traversal = ParentTraversal
       { onTimeline   = \i (Timeline children') -> do
-        (deleted, remaining) <- lift (deleteAt NonEmpty.splitAt i children')
-        put (Just (SomeSequence deleted, commandIfAtEnd children' i))
+        (deleted, remaining) <- lift (deleteAtNonEmpty i children')
+        newFocus <- lift (changeFocusOnDelete oldFocus i children')
+        put (Just ((InsertSequence deleted, insertPositionOnDelete i children'), newFocus))
         maybe mzero (pure . Timeline) (NonEmpty.nonEmpty remaining)
       , onSequence   = \i (Sequence ann children') -> do
-        (deleted, remaining) <- lift (deleteAt NonEmpty.splitAt i children')
-        put (Just (SomeParallel deleted, commandIfAtEnd children' i))
+        (deleted, remaining) <- lift (deleteAtNonEmpty i children')
+        newFocus <- lift (changeFocusOnDelete oldFocus i children')
+        put (Just ((InsertParallel deleted, insertPositionOnDelete i children'), newFocus))
         maybe mzero (pure . Sequence ann) (NonEmpty.nonEmpty remaining)
-      , onVideoParts = \i vs -> do
-        (deleted, remaining) <- lift (deleteAt List.splitAt i vs)
-        put (Just (SomeVideoPart deleted, commandIfAtEnd vs i))
-        pure remaining
-      , onAudioParts = \i as -> do
-        (deleted, remaining) <- lift (deleteAt List.splitAt i as)
-        put (Just (SomeAudioPart deleted, commandIfAtEnd as i))
-        pure remaining
+      , onParallel   = \mt (Parallel ann (VideoTrack vAnn vs) (AudioTrack aAnn as)) ->
+          case mt of
+            Video -> do
+              deleted <- lift (NonEmpty.nonEmpty vs)
+              put (Just ((InsertVideoParts deleted, LeftMost), oldFocus))
+              pure (Parallel ann (VideoTrack vAnn mempty) (AudioTrack aAnn as))
+            Audio -> do
+              deleted <- lift (NonEmpty.nonEmpty as)
+              put (Just ((InsertAudioParts deleted, LeftMost), oldFocus))
+              pure (Parallel ann (VideoTrack vAnn vs) (AudioTrack aAnn mempty))
+      , onVideoTrack = \i (VideoTrack ann vs) -> do
+        (deleted, remaining) <- lift (deleteManyAt i deletionOf vs)
+        newFocus <- lift (changeFocusOnDelete oldFocus i vs)
+        put (Just ((InsertVideoParts deleted, insertPositionOnDelete i vs), newFocus))
+        pure (VideoTrack ann remaining)
+      , onAudioTrack = \i (AudioTrack ann as) -> do
+        (deleted, remaining) <- lift (deleteManyAt i deletionOf as)
+        newFocus <- lift (changeFocusOnDelete oldFocus i as)
+        put (Just ((InsertAudioParts deleted, insertPositionOnDelete i as), newFocus))
+        pure (AudioTrack ann remaining)
       }
-    commandIfAtEnd :: Foldable t => t a -> Int -> Maybe FocusCommand
-    commandIfAtEnd (length -> 1) _ = pure FocusUp
-    commandIfAtEnd (pred . length -> maxIndex) idx
-      | idx >= maxIndex = pure FocusLeft
-      | otherwise       = mzero
 
--- | Same as 'delete', but trying to apply the returned focus command.
-delete_
-  :: ft ~ ToFocusType Timeline
-  => Focus ft
-  -> Timeline a
-  -> Either (FocusCommand, FocusError) (Timeline a, Focus ft)
-delete_ f s = case delete f s of
-  Nothing -> pure (s, f)
-  Just r  -> case adjustingFocusCommand r of
-    Nothing -> pure (resultingTimeline r, f)
-    Just cmd ->
-      modifyFocus s cmd f & _Left %~ (cmd, ) <&> (resultingTimeline r, )
+onlyOne :: [a] -> Maybe a
+onlyOne [a] = Just a
+onlyOne _   = Nothing
 
--- | In case a deletion was successful, this data type describes what
--- the resulting timeline is, what in the composition was deleted, and
--- a possible focus command that needs to be applied in order to keep
--- the focus consistent with regards to the new timeline.
+changeFocusOnDelete
+  :: (ChangeFocusUp focus, HasLeafFocusIndexLens focus)
+  => Foldable t => focus -> Int -> t a -> Maybe focus
+changeFocusOnDelete oldFocus i (length -> len)
+  | len == 1 = changeFocusUp oldFocus
+  | succ i == len = oldFocus & leafFocusIndex %~ pred & pure
+  | otherwise = pure oldFocus
+
+insertPositionOnDelete :: Foldable t => Int -> t a -> InsertPosition
+insertPositionOnDelete i xs
+  | i == pred (length xs) = RightOf
+  | otherwise = LeftOf
+
 data DeletionResult a =
   DeletionResult
   { resultingTimeline :: Timeline a
-  , deletedComposition :: SomeComposition a
-  , adjustingFocusCommand :: Maybe FocusCommand
+  , inverseInsertion  :: (Insertion a, InsertPosition)
+  , resultingFocus    :: Focus 'SequenceFocusType
   }
+  deriving (Eq, Show)
 
-deleteAt :: (Int -> t a -> ([a], [a])) -> Int -> t a -> Maybe (a, [a])
-deleteAt splitAt' i xs = case splitAt' i xs of
-  (before, a : as) -> pure (a, before <> as)
-  (_     , []    ) -> mzero
+deleteAtNonEmpty :: Int -> NonEmpty a -> Maybe (a, [a])
+deleteAtNonEmpty i xs = case NonEmpty.splitAt i xs of
+  (_, [])        -> mzero
+  (before, a:as) -> pure (a, before <> as)
+
+deleteManyAt :: Int -> DeletionOf -> [a] -> Maybe (NonEmpty a, [a])
+deleteManyAt i (DeletionOf n) xs = case splitAt i xs of
+  (before, after)
+    | null after -> mzero
+    | otherwise ->
+      let (deleted, after') = splitAt n after
+      in (, before <> after') <$> NonEmpty.nonEmpty deleted

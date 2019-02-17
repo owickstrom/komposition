@@ -40,6 +40,7 @@ library
                       , Komposition.Composition.Delete
                       , Komposition.Composition.Focused
                       , Komposition.Composition.Insert
+                      , Komposition.Composition.Join
                       , Komposition.Composition.Paste
                       , Komposition.Composition.Split
                       , Komposition.Duration
@@ -47,7 +48,6 @@ library
                       , Komposition.FFmpeg.Process
                       , Komposition.Focus
                       , Komposition.Focus.Parent
-                      , Komposition.History
                       , Komposition.Import.Audio
                       , Komposition.Import.Audio.Sox
                       , Komposition.Import.Video
@@ -60,11 +60,13 @@ library
                       , Komposition.Project
                       , Komposition.Project.Store
                       , Komposition.Project.Store.File
+                      , Komposition.Project.UndoableAction
                       , Komposition.Library
                       , Komposition.MediaType
                       , Komposition.Render
                       , Komposition.Render.Composition
                       , Komposition.Render.FFmpeg
+                      , Komposition.UndoRedo
                       , Komposition.UserInterface
                       , Komposition.UserInterface.Dialog
                       , Komposition.UserInterface.GtkInterface
@@ -154,7 +156,7 @@ executable komposition
                       , time
   hs-source-dirs:       exe
   default-language:     Haskell2010
-  ghc-options:        -Wall -threaded -O -with-rtsopts=-N
+  ghc-options:        -Wall -threaded -O2 -rtsopts -with-rtsopts=-N
   default-extensions: NoImplicitPrelude
 
 executable komposition-split
@@ -189,40 +191,54 @@ test-suite komposition-tests
   type:            exitcode-stdio-1.0
   hs-source-dirs:  test
   main-is:         Main.hs
-  other-modules:   Komposition.Composition.FocusedTest
+  other-modules:   Komposition.Application.TimelineModeTest
+                 , Komposition.Composition.FocusedTest
                  , Komposition.Composition.DeleteTest
                  , Komposition.Composition.Generators
                  , Komposition.Composition.InsertTest
+                 , Komposition.Composition.ToTree
                  , Komposition.Composition.ValidFocusTest
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
                  , Komposition.Import.Video.FFmpegTest
+                 , Komposition.Import.Video.StubVideoImport
+                 , Komposition.Import.Audio.StubAudioImport
+                 , Komposition.Logging.StubLogger
                  , Komposition.Project.Generators
                  , Komposition.Project.StoreTest
+                 , Komposition.Project.InMemoryProjectStore
                  , Komposition.Render.CompositionTest
                  , Komposition.Render.FFmpegTest
+                 , Komposition.Render.StubRender
                  , Komposition.TestLibrary
                  , Komposition.TimestampTest
+                 , Komposition.UndoRedoTest
+                 , Komposition.UserInterface.StubUserInterface
   build-depends:   base                 >= 4        && < 5
+                 , containers
                  , extra
-                 , komposition
                  , filepath
-                 , hedgehog
-                 , JuicyPixels
                  , fused-effects
+                 , hedgehog
+                 , indexed
+                 , JuicyPixels
+                 , komposition
                  , lens
+                 , massiv
+                 , massiv-io
+                 , motor
                  , pipes
                  , pipes-parse
                  , pipes-safe
-                 , massiv
-                 , massiv-io
+                 , row-types
                  , tasty
-                 , tasty-hunit
-                 , tasty-hspec
-                 , tasty-hedgehog
                  , tasty-discover
+                 , tasty-hedgehog
+                 , tasty-hspec
+                 , tasty-hunit
                  , temporary
                  , unordered-containers >= 0.2      && < 0.3
+                 , vector
   default-language:     Haskell2010
   default-extensions:   NoImplicitPrelude
   ghc-options:     -Wall -fno-warn-unticked-promoted-constructors
@@ -240,5 +256,5 @@ benchmark komposition-benchmark
                  , massiv
                  , massiv-io
                  , vector
-  ghc-options:     -Wall -O2
+  ghc-options:     -Wall -O2 -threaded -rtsopts -N
   default-extensions:   NoImplicitPrelude

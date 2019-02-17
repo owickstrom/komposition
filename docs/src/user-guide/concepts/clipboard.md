@@ -6,9 +6,9 @@ audio part.
 
 To copy the focused part of the timeline to the clipboard, press the
 <kbd>y</kbd> key. To paste the part stored in the clipboard, press the
-<kbd>p<kbd> key. This adds the clipboard part *after* your currently
+<kbd>p</kbd> key. This adds the clipboard part *after* your currently
 focused timeline part. If you want to add it *before*, use the
-uppercase <kbd>P<kbd> version of paste.
+uppercase <kbd>P</kbd> version of paste.
 
 Like in Vim, deleting something from the timeline also puts the
 deleted part in the clipboard. Mainstream software call this operation

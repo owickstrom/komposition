@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE ExplicitForAll        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -27,55 +28,86 @@ import           Komposition.MediaType
 data FocusType
   = SequenceFocusType
   | ParallelFocusType
+  | TrackFocusType
   | ClipFocusType
 
 type family ToFocusType (ct :: * -> *) :: FocusType where
-  ToFocusType Timeline = SequenceFocusType
-  ToFocusType Sequence = ParallelFocusType
-  ToFocusType Parallel = ClipFocusType
+  ToFocusType Timeline = 'SequenceFocusType
+  ToFocusType Sequence = 'ParallelFocusType
+  ToFocusType Parallel = 'TrackFocusType
+  ToFocusType VideoTrack = 'ClipFocusType
+  ToFocusType AudioTrack = 'ClipFocusType
 
-data Focus (t :: FocusType) where
-  SequenceFocus
-    :: Int -> Maybe (Focus ParallelFocusType) -> Focus SequenceFocusType
-  ParallelFocus :: Int -> Maybe (Focus ClipFocusType) -> Focus ParallelFocusType
-  ClipFocus :: MediaType -> Int -> Focus ClipFocusType
+data SequenceFocus = SequenceFocus Int (Maybe ParallelFocus)
+  deriving (Eq, Show, Ord, Generic)
 
-deriving instance Eq (Focus t)
-deriving instance Show (Focus t)
+data ParallelFocus = ParallelFocus Int (Maybe TrackFocus)
+  deriving (Eq, Show, Ord, Generic)
 
-instance Ord (Focus SequenceFocusType) where
-  compare (SequenceFocus i1 f1) (SequenceFocus i2 f2) =
-    case compare i1 i2 of
-      EQ -> compare f1 f2
-      o  -> o
+data TrackFocus = TrackFocus MediaType (Maybe ClipFocus)
+  deriving (Eq, Show, Ord, Generic)
 
-instance Ord (Focus ParallelFocusType) where
-  compare (ParallelFocus i1 f1) (ParallelFocus i2 f2) =
-    case compare i1 i2 of
-      EQ -> compare f1 f2
-      o  -> o
+newtype ClipFocus = ClipFocus Int
+  deriving (Eq, Show, Ord, Generic)
 
-instance Ord (Focus ClipFocusType) where
-  compare (ClipFocus Video i1) (ClipFocus Video i2) = compare i1 i2
-  compare (ClipFocus Audio i1) (ClipFocus Audio i2) = compare i1 i2
-  compare (ClipFocus mt1 _) (ClipFocus mt2 _)       = compare mt1 mt2
+type family Focus (t :: FocusType) where
+  Focus 'SequenceFocusType = SequenceFocus
+  Focus 'ParallelFocusType = ParallelFocus
+  Focus 'TrackFocusType = TrackFocus
+  Focus 'ClipFocusType = ClipFocus
 
+class HasLeafFocusIndexLens focus where
+  leafFocusIndex :: Applicative f => (Int -> f Int) -> focus -> f focus
 
-focusType :: Focus t -> FocusType
+instance HasLeafFocusIndexLens SequenceFocus where
+  leafFocusIndex f (SequenceFocus i Nothing) = flip SequenceFocus Nothing <$> f i
+  leafFocusIndex f (SequenceFocus i (Just pf)) = SequenceFocus i . Just <$> leafFocusIndex f pf
+
+instance HasLeafFocusIndexLens ParallelFocus where
+  leafFocusIndex f (ParallelFocus i Nothing) =   flip ParallelFocus Nothing <$> f i
+  leafFocusIndex f (ParallelFocus i (Just tf)) = ParallelFocus i . Just <$> leafFocusIndex f tf
+
+instance HasLeafFocusIndexLens TrackFocus where
+  leafFocusIndex f (TrackFocus mt cf) =   TrackFocus mt <$> maybe (pure Nothing) (fmap Just <$> leafFocusIndex f) cf
+
+instance HasLeafFocusIndexLens ClipFocus where
+  leafFocusIndex f (ClipFocus i ) = ClipFocus <$> f i
+
+class ChangeFocusUp focus where
+  changeFocusUp :: focus -> Maybe focus
+
+instance ChangeFocusUp SequenceFocus where
+  changeFocusUp (SequenceFocus _  Nothing)   = mzero
+  changeFocusUp (SequenceFocus i  (Just pf)) = pure (SequenceFocus i (changeFocusUp pf))
+
+instance ChangeFocusUp ParallelFocus where
+  changeFocusUp (ParallelFocus _  Nothing)   = mzero
+  changeFocusUp (ParallelFocus i  (Just tf)) = pure (ParallelFocus i (changeFocusUp tf))
+
+instance ChangeFocusUp TrackFocus where
+  changeFocusUp (TrackFocus    _  Nothing)   = mzero
+  changeFocusUp (TrackFocus    mt (Just cf)) = pure (TrackFocus mt (changeFocusUp cf))
+
+instance ChangeFocusUp ClipFocus where
+  changeFocusUp (ClipFocus _)                = mzero
+
+focusType :: SequenceFocus -> FocusType
 focusType = \case
   SequenceFocus _ Nothing  -> SequenceFocusType
-  SequenceFocus _ (Just f) -> focusType f
-  ParallelFocus _ Nothing  -> ParallelFocusType
-  ParallelFocus _ (Just f) -> focusType f
-  ClipFocus{}              -> ClipFocusType
+  SequenceFocus _ (Just pf) ->
+    case pf of
+      ParallelFocus _ Nothing  -> ParallelFocusType
+      ParallelFocus _ (Just tf) ->
+        case tf of
+          TrackFocus _ Nothing  -> TrackFocusType
+          TrackFocus _ (Just _) -> ClipFocusType
 
 data FocusCommand = FocusUp | FocusDown | FocusLeft | FocusRight
   deriving (Eq, Show, Ord, Enum, Bounded)
 
 data FocusError
   = OutOfBounds
-  | CannotMoveUp
-  | CannotMoveDown
+  | CannotMove FocusCommand
   | UnhandledFocusModification FocusCommand
   deriving (Show, Eq)
 
@@ -97,6 +129,8 @@ nearestPartIndexLeftOf focusedParts i blurredParts
 compositionAt :: NonEmpty (t a) -> Int -> Either FocusError (t a)
 compositionAt ss i = maybe (throwError OutOfBounds) pure (toList ss `atMay` i)
 
+-- | Changes a focus with respect to a composition (timeline,
+-- sequence, parallel, or track).
 class ModifyFocus (t :: * -> *) where
   modifyFocus ::
        (ft ~ ToFocusType t)
@@ -108,13 +142,13 @@ class ModifyFocus (t :: * -> *) where
 instance ModifyFocus Timeline where
   modifyFocus s e f = case (s, e, f) of
     -- Up
-    (Timeline{}, FocusUp, SequenceFocus _ Nothing) -> throwError CannotMoveUp
+    (Timeline{}, FocusUp, SequenceFocus _ Nothing) -> throwError (CannotMove FocusUp)
     (Timeline seqs, FocusUp, SequenceFocus idx (Just parallelFocus)) -> do
       sequence' <- seqs `compositionAt` idx
       case modifyFocus sequence' FocusUp parallelFocus of
-        Left  CannotMoveUp -> pure (SequenceFocus idx Nothing)
-        Left  err          -> throwError err
-        Right f'           -> pure (SequenceFocus idx (Just f'))
+        Left  (CannotMove FocusUp) -> pure (SequenceFocus idx Nothing)
+        Left  err                  -> throwError err
+        Right f'                   -> pure (SequenceFocus idx (Just f'))
 
     -- Left
     (Timeline{}, FocusLeft, SequenceFocus idx Nothing)
@@ -137,7 +171,7 @@ instance ModifyFocus Timeline where
             <$> modifyFocus sequence' FocusDown parallelFocus
         -- Down from sequence into parallel.
         Nothing
-          | null parallels -> throwError CannotMoveDown
+          | null parallels -> throwError (CannotMove FocusDown)
           | otherwise -> pure (SequenceFocus idx (Just (ParallelFocus 0 Nothing)))
 
     (Timeline seqs, _, SequenceFocus idx (Just parallelFocus)) -> do
@@ -147,15 +181,15 @@ instance ModifyFocus Timeline where
 instance ModifyFocus Sequence where
   modifyFocus s e f = case (s, e, f) of
     -- Up
-    (Sequence{}, FocusUp, ParallelFocus _ Nothing) -> throwError CannotMoveUp
+    (Sequence{}, FocusUp, ParallelFocus _ Nothing) -> throwError (CannotMove FocusUp)
     -- In case we have a parent, we try to move up within the child, or
     -- fall back to focus this parent.
     (Sequence _ sub, FocusUp, ParallelFocus i (Just subFocus)) -> do
       sub' <- sub `compositionAt` i
       case modifyFocus sub' FocusUp subFocus of
-        Left  CannotMoveUp -> pure (ParallelFocus i Nothing)
-        Left  err          -> throwError err
-        Right f'           -> pure (ParallelFocus i (Just f'))
+        Left  (CannotMove FocusUp) -> pure (ParallelFocus i Nothing)
+        Left  err                  -> throwError err
+        Right f'                   -> pure (ParallelFocus i (Just f'))
 
     -- Right
     (Sequence _ sub, FocusRight, ParallelFocus idx Nothing)
@@ -168,68 +202,89 @@ instance ModifyFocus Sequence where
       | otherwise -> throwError OutOfBounds
 
     -- Down further within a focused parallel.
-    (Sequence _ parallels, FocusDown, ParallelFocus idx (Just clipFocus)) -> do
+    (Sequence _ parallels, FocusDown, ParallelFocus idx (Just trackFocus)) -> do
       parallel <- parallels `compositionAt` idx
-      ParallelFocus idx . Just <$> modifyFocus parallel FocusDown clipFocus
+      ParallelFocus idx . Just <$> modifyFocus parallel FocusDown trackFocus
 
-    (Sequence _ parallels, FocusDown, ParallelFocus idx Nothing) -> do
-      Parallel _ vs as <- parallels `compositionAt` idx
-      case (vs, as) of
-        -- Down into video track of focused parallel.
-        (_ : _, _    ) -> pure (ParallelFocus idx (Just (ClipFocus Video 0)))
-        -- Down into audio track, past empty video track, of focused parallel.
-        ([]   , _ : _) -> pure (ParallelFocus idx (Just (ClipFocus Audio 0)))
-        _              -> throwError CannotMoveDown
+    (Sequence{}, FocusDown, ParallelFocus idx Nothing) ->
+      pure (ParallelFocus idx (Just (TrackFocus Video Nothing)))
 
     -- Left or right further down within sequence.
-    (Sequence _ pars, _, ParallelFocus idx (Just clipFocus)) -> do
+    (Sequence _ pars, _, ParallelFocus idx (Just trackFocus)) -> do
       par <- pars `compositionAt` idx
-      ParallelFocus idx . Just <$> modifyFocus par e clipFocus
+      ParallelFocus idx . Just <$> modifyFocus par e trackFocus
 
 instance ModifyFocus Parallel where
   modifyFocus s e f = case (s, e, f) of
     -- Up
-    (Parallel _ videoParts audioParts, FocusUp, ClipFocus Audio i)
-      -- We can move up from audio to video within a parallel if there are video parts.
-      | not (null videoParts) ->
-        case nearestPartIndexLeftOf audioParts i videoParts of
-          Just i' -> pure (ClipFocus Video i')
-          Nothing -> throwError OutOfBounds
-      -- Otherwise we'll move further up.
-      | otherwise -> throwError CannotMoveUp
+    (Parallel{}, FocusUp, TrackFocus Video subFocus) ->
+      case subFocus of
+        Just _  -> pure (TrackFocus Video Nothing)
+        Nothing -> throwError (CannotMove FocusUp)
+    (Parallel{}, FocusUp, TrackFocus Audio subFocus) ->
+      case subFocus of
+        Just _  -> pure (TrackFocus Audio Nothing)
+        Nothing -> pure (TrackFocus Video Nothing)
 
-    --  Here we've hit a focus "leaf" and cannot move up.
-    (Parallel{}     , FocusUp  , ClipFocus Video _       ) -> throwError CannotMoveUp
+    -- We can move down from video to audio.
+    (Parallel{}, FocusDown, TrackFocus Video subFocus) ->
+      case subFocus of
+        Just _  -> throwError (CannotMove FocusDown)
+        Nothing -> pure (TrackFocus Audio Nothing)
 
-    -- We can move down from video to audio within a composition.
-    (Parallel _ videoParts audioParts, FocusDown, ClipFocus Video i) ->
-      case nearestPartIndexLeftOf videoParts i audioParts of
-        Just i' -> pure (ClipFocus Audio i')
-        Nothing -> throwError OutOfBounds
-
-    -- We cannot move down any further when focusing an audio clip.
-    (Parallel{}, FocusDown, ClipFocus Audio _) -> throwError CannotMoveDown
+    -- We cannot move down any further when focusing an audio track or clip.
+    (Parallel{}, FocusDown, TrackFocus Audio _) -> throwError (CannotMove FocusDown)
 
     -- Left
-    (Parallel _ videoParts audioParts, FocusLeft, ClipFocus type' idx)
-      | type' == Video && idx > 0 && idx < length videoParts -> pure
-        (ClipFocus Video (pred idx))
-      | type' == Audio && idx > 0 && idx < length audioParts -> pure
-        (ClipFocus Audio (pred idx))
-      | otherwise -> throwError OutOfBounds
+    (Parallel{}, FocusLeft, TrackFocus _ Nothing) -> throwError (CannotMove FocusLeft)
+    (Parallel{}, FocusLeft, TrackFocus type' (Just (ClipFocus 0))) -> pure (TrackFocus type' Nothing)
+    (Parallel _ videoTrack audioTrack, FocusLeft, TrackFocus type' (Just subFocus)) ->
+      case type' of
+        Video -> TrackFocus type' . Just <$> modifyFocus videoTrack FocusLeft subFocus
+        Audio -> TrackFocus type' . Just <$> modifyFocus audioTrack FocusLeft subFocus
 
     -- Right
-    (Parallel _ videoParts audioParts, FocusRight, ClipFocus type' idx)
-      | type' == Video && idx >= 0 && idx < (length videoParts - 1) -> pure
-        (ClipFocus Video (succ idx))
-      | type' == Audio && idx >= 0 && idx < (length audioParts - 1) -> pure
-        (ClipFocus Audio (succ idx))
+    (Parallel _ (VideoTrack _ vs) _, FocusRight, TrackFocus Video Nothing)
+      | not (null vs) -> pure (TrackFocus Video (Just (ClipFocus 0)))
+      | otherwise -> throwError (CannotMove FocusRight)
+    (Parallel _ _ (AudioTrack _ as), FocusRight, TrackFocus Audio Nothing)
+      | not (null as) -> pure (TrackFocus Audio (Just (ClipFocus 0)))
+      | otherwise -> throwError (CannotMove FocusRight)
+    (Parallel _ videoTrack audioTrack, FocusRight, TrackFocus type' (Just subFocus)) ->
+      case type' of
+        Video -> TrackFocus type' . Just <$> modifyFocus videoTrack FocusRight subFocus
+        Audio -> TrackFocus type' . Just <$> modifyFocus audioTrack FocusRight subFocus
+
+instance ModifyFocus VideoTrack where
+  modifyFocus s e f = case (s, e, f) of
+    -- Left
+    (VideoTrack _ parts, FocusLeft, ClipFocus idx)
+      | idx > 0 && idx < length parts -> pure (ClipFocus (pred idx))
       | otherwise -> throwError OutOfBounds
+    -- Right
+    (VideoTrack _ parts, FocusRight, ClipFocus idx)
+      | idx >= 0 && idx < (length parts - 1) -> pure (ClipFocus (succ idx))
+      | otherwise -> throwError OutOfBounds
+    (VideoTrack{}, cmd, _) -> throwError (CannotMove cmd)
+
+instance ModifyFocus AudioTrack where
+  modifyFocus s e f = case (s, e, f) of
+    -- Left
+    (AudioTrack _ parts, FocusLeft, ClipFocus idx)
+      | idx > 0 && idx < length parts -> pure (ClipFocus (pred idx))
+      | otherwise -> throwError OutOfBounds
+    -- Right
+    (AudioTrack _ parts, FocusRight, ClipFocus idx)
+      | idx >= 0 && idx < (length parts - 1) -> pure (ClipFocus (succ idx))
+      | otherwise -> throwError OutOfBounds
+    (AudioTrack{}, cmd, _) -> throwError (CannotMove cmd)
 
 data FocusedTraversal (f :: * -> *) a = FocusedTraversal
   { mapSequence   :: Sequence a -> f (Sequence a)
   , mapParallel   :: Parallel a -> f (Parallel a)
-  , mapCompositionPart :: forall mt. SMediaType mt -> CompositionPart mt a -> f (CompositionPart mt a)
+  , mapVideoTrack :: VideoTrack a -> f (VideoTrack a)
+  , mapAudioTrack :: AudioTrack a -> f (AudioTrack a)
+  , mapTrackPart  :: forall mt. SMediaType mt -> TrackPart mt a -> f (TrackPart mt a)
   }
 
 class MapAtFocus (t :: * -> *) where
@@ -256,21 +311,33 @@ instance MapAtFocus Sequence where
         Sequence ann <$> mapAt idx (mapAtFocus subFocus t) sub
 
 instance MapAtFocus Parallel where
-  mapAtFocus (ClipFocus clipType idx) FocusedTraversal {..} (Parallel ann videoParts audioParts) =
+  mapAtFocus (TrackFocus clipType (Just clipFocus)) traversal (Parallel ann videoTrack audioTrack) =
     case clipType of
       Video ->
-        Parallel ann <$> (videoParts & ix idx %%~ mapCompositionPart SVideo) <*>
-        pure audioParts
+        Parallel ann <$> mapAtFocus clipFocus traversal videoTrack <*> pure audioTrack
       Audio ->
-        Parallel ann videoParts <$>
-        (audioParts & ix idx %%~ mapCompositionPart SAudio)
+        Parallel ann <$> pure videoTrack <*> mapAtFocus clipFocus traversal audioTrack
+  mapAtFocus (TrackFocus clipType Nothing) FocusedTraversal {..} (Parallel ann videoTrack audioTrack) =
+    case clipType of
+      Video ->
+        Parallel ann <$> mapVideoTrack videoTrack <*> pure audioTrack
+      Audio ->
+        Parallel ann <$> pure videoTrack <*> mapAudioTrack audioTrack
+
+instance MapAtFocus VideoTrack where
+  mapAtFocus (ClipFocus idx) FocusedTraversal {..} (VideoTrack ann videoParts) =
+    VideoTrack ann <$> (videoParts & ix idx %%~ mapTrackPart SVideo)
+
+instance MapAtFocus AudioTrack where
+  mapAtFocus (ClipFocus idx) FocusedTraversal {..} (AudioTrack ann audioParts) =
+    AudioTrack ann <$> (audioParts & ix idx %%~ mapTrackPart SAudio)
 
 mapAt :: Applicative f => Int -> (a -> f a) -> NonEmpty a -> f (NonEmpty a)
 mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList
 
 type FocusedAt = SomeComposition
 
-atFocus :: Focus SequenceFocusType -> Timeline a -> Maybe (FocusedAt a)
+atFocus :: Focus 'SequenceFocusType -> Timeline a -> Maybe (FocusedAt a)
 atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
   where
     remember
@@ -282,51 +349,58 @@ atFocus focus comp = execState (mapAtFocus focus traversal comp) Nothing
     traversal = FocusedTraversal
       { mapSequence        = remember SomeSequence
       , mapParallel        = remember SomeParallel
-      , mapCompositionPart = \case
+      , mapVideoTrack      = remember SomeVideoTrack
+      , mapAudioTrack      = remember SomeAudioTrack
+      , mapTrackPart = \case
         SVideo -> remember SomeVideoPart
         SAudio -> remember SomeAudioPart
       }
 
-data FirstCompositionPart a
-  = FirstVideoPart (CompositionPart Video a)
-  | FirstAudioPart (CompositionPart Audio a)
+data FirstTrackPart a
+  = FirstVideoPart (TrackPart Video a)
+  | FirstAudioPart (TrackPart Audio a)
 
-firstCompositionPart
-  :: Focus SequenceFocusType -> Timeline a -> Maybe (FirstCompositionPart a)
-firstCompositionPart f s = atFocus f s >>= \case
+firstTrackPart
+  :: Focus 'SequenceFocusType -> Timeline a -> Maybe (FirstTrackPart a)
+firstTrackPart f s = atFocus f s >>= \case
   SomeSequence  s' -> firstInSequence s'
   SomeParallel  p  -> firstInParallel p
   SomeVideoPart v  -> Just (FirstVideoPart v)
   SomeAudioPart a  -> Just (FirstAudioPart a)
   where
-    firstInSequence :: Sequence a -> Maybe (FirstCompositionPart a)
+    firstInSequence :: Sequence a -> Maybe (FirstTrackPart a)
     firstInSequence (Sequence _ ps) = firstInParallel (NonEmpty.head ps)
-    firstInParallel :: Parallel a -> Maybe (FirstCompositionPart a)
+    firstInParallel :: Parallel a -> Maybe (FirstTrackPart a)
     firstInParallel = \case
-      Parallel _ (v : _) _       -> Just (FirstVideoPart v)
-      Parallel _ []      (a : _) -> Just (FirstAudioPart a)
-      _                          -> Nothing
+      Parallel _ (VideoTrack _ (v : _)) _ -> Just (FirstVideoPart v)
+      Parallel _ (VideoTrack _ []) (AudioTrack _ (a : _)) ->
+        Just (FirstAudioPart a)
+      _ -> Nothing
 
 -- * Lenses
 
 
 someCompositionAt
   :: Applicative f
-  => Focus SequenceFocusType
+  => Focus 'SequenceFocusType
   -> (Sequence a -> f (Sequence a))
   -> (Parallel a -> f (Parallel a))
+  -> (VideoTrack a -> f (VideoTrack a))
+  -> (AudioTrack a -> f (AudioTrack a))
   -> (VideoPart a -> f (VideoPart a))
   -> (AudioPart a -> f (AudioPart a))
   -> Timeline a
   -> f (Timeline a)
-someCompositionAt focus sl pl vl al = mapAtFocus
+someCompositionAt focus sl pl vtl atl vpl apl = mapAtFocus
   focus
   FocusedTraversal
-    { mapSequence        = sl
-    , mapParallel        = pl
-    , mapCompositionPart = \case
-                             SVideo -> vl
-                             SAudio -> al
+    { mapSequence  = sl
+    , mapParallel  = pl
+    , mapVideoTrack  = vtl
+    , mapAudioTrack  = atl
+    , mapTrackPart = \case
+                       SVideo -> vpl
+                       SAudio -> apl
     }
 
 class CompositionTraversal parent child where
@@ -376,19 +450,33 @@ instance CompositionTraversal Sequence AudioPart where
       ps & ix idx . focusing subFocus %%~ f & fmap (Sequence ann)
 
 instance CompositionTraversal Parallel VideoPart where
-  focusing (ClipFocus clipType idx) f (Parallel ann videoParts audioParts) =
+  focusing (TrackFocus _ Nothing) _ p = pure p
+  focusing (TrackFocus clipType (Just clipFocus)) f (Parallel ann videoTrack audioTrack) =
     case clipType of
       Video ->
-        videoParts
-        & ix idx %%~ f
-        & fmap (\vs -> Parallel ann vs audioParts)
-      Audio -> pure (Parallel ann videoParts audioParts)
+        videoTrack
+        & focusing clipFocus %%~ f
+        & fmap (\vs -> Parallel ann vs audioTrack)
+      Audio -> pure (Parallel ann videoTrack audioTrack)
 
 instance CompositionTraversal Parallel AudioPart where
-  focusing (ClipFocus clipType idx) f (Parallel ann videoParts audioParts) =
+  focusing (TrackFocus _ Nothing) _ p = pure p
+  focusing (TrackFocus clipType (Just clipFocus)) f (Parallel ann videoTrack audioTrack) =
     case clipType of
-      Video -> pure (Parallel ann videoParts audioParts)
+      Video -> pure (Parallel ann videoTrack audioTrack)
       Audio ->
-        audioParts
-        & ix idx %%~ f
-        & fmap (Parallel ann videoParts)
+        audioTrack
+        & focusing clipFocus %%~ f
+        & fmap (Parallel ann videoTrack)
+
+instance CompositionTraversal VideoTrack VideoPart where
+  focusing (ClipFocus idx) f (VideoTrack ann parts') =
+    parts'
+    & ix idx %%~ f
+    & fmap (VideoTrack ann)
+
+instance CompositionTraversal AudioTrack AudioPart where
+  focusing (ClipFocus idx) f (AudioTrack ann parts') =
+    parts'
+    & ix idx %%~ f
+    & fmap (AudioTrack ann)

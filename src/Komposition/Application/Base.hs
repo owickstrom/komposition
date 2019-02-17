@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds  #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PolyKinds        #-}
+{-# LANGUAGE RankNTypes       #-}
 module Komposition.Application.Base ((>>), (>>=), Application, module X) where
 
 import           Komposition.Prelude              as X hiding (State, get, (>>),
@@ -9,7 +10,7 @@ import           Komposition.Prelude              as X hiding (State, get, (>>),
 import           Control.Effect
 import           Control.Monad.Indexed.Trans      as X
 import           Komposition.Logging              as X
-import           Komposition.UserInterface        as X
+import           Komposition.UserInterface
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Motor.FSM                        as X hiding (Delete, delete)
