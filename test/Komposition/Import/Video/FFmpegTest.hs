@@ -187,14 +187,15 @@ assertStillLengthAtLeast t = \case
 testSegmentsToPixelFrames :: [TestSegment] -> [Timed MassivFrame]
 testSegmentsToPixelFrames = map (fmap toFrame) . addTimed . foldMap unwrapSegment
 
-hprop_classifiesStillSegmentsOfMinLength = withTests 100 . property $ do
+hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
   -- Generate test segments
   segments <- forAll $ genSegments (Range.linear 1 (frameRate * 2)) resolution
   -- Convert test segments to actual pixel frames
   let pixelFrames = testSegmentsToPixelFrames segments
       -- Run classifier on pixel frames
-      classified = Pipes.toList (classifyMovement 2.0 (Pipes.each pixelFrames))
-      counted = countSegments classified
+      counted = classifyMovement 2.0 (Pipes.each pixelFrames)
+                & Pipes.toList
+                & countSegments
   -- Sanity check: same number of frames
   countTestSegmentFrames segments === totalClassifiedFrames counted
   -- Then ignore first and last segment, and verify all other segments
@@ -208,15 +209,20 @@ hprop_classifies_same_scenes_as_input = withTests 100 . property $ do
   -- Generate test segments
   segments <- forAll $ genSegments (Range.linear (frameRate * 1) (frameRate * 5)) resolution
   -- Convert test segments to timespanned ones, and actual pixel frames
-  let segmentsWithTimespans = segmentTimeSpans (map segmentWithDuration segments)
+  let segmentsWithTimespans = segments
+                              & map segmentWithDuration
+                              & segmentTimeSpans
       pixelFrames = testSegmentsToPixelFrames segments
-      fullDuration = foldMap (durationOf AdjustedDuration . unwrapSegment) segmentsWithTimespans
+      fullDuration = foldMap
+                     (durationOf AdjustedDuration . unwrapSegment)
+                     segmentsWithTimespans
   -- Run classifier on pixel frames
-  classified <- Pipes.runEffect
-    (   classifyMovingScenes fullDuration
-                             (classifyMovement 2.0 (Pipes.each pixelFrames))
+  classified <-
+    (Pipes.each pixelFrames
+     & classifyMovement 2.0
+     & classifyMovingScenes fullDuration)
     >-> Pipes.drain
-    )
+    & Pipes.runEffect
   -- Check classified timespan equivalence
   unwrapScenes segmentsWithTimespans === classified
 
