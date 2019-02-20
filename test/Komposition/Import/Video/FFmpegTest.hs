@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE DeriveFunctor     #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Komposition.Import.Video.FFmpegTest where
@@ -16,10 +16,12 @@ import           Graphics.ColorSpace
 import           Hedgehog
 import qualified Hedgehog.Gen                    as Gen
 import qualified Hedgehog.Range                  as Range
+import           Pipes                           ((>->))
 import qualified Pipes
 import qualified Pipes.Prelude                   as Pipes
 import           Test.Tasty.Hspec
 
+import           Komposition.Duration
 import           Komposition.Import.Video.FFmpeg
 
 colorImage :: Pixel RGB Word8 -> Timed MassivFrame
@@ -77,17 +79,40 @@ genFrame s@(width :. height) genPixel =
     genColumns = Gen.list (Range.singleton width) genRow
     genRow = Gen.list (Range.singleton height) genPixel
 
-data Segment = Scene [TestFrame] | Pause [TestFrame]
+data Segment a = Scene a | Pause a
+  deriving (Eq, Functor)
 
-instance Show Segment where
+type TestSegment = Segment [TestFrame]
+
+instance Show (Segment [TestFrame]) where
   show (Scene frames) = "Scene (" <> show (length frames) <> ")"
   show (Pause frames) = "Pause (" <> show (length frames) <> ")"
 
-segmentFrames :: Segment -> [TestFrame]
-segmentFrames (Scene frames) = frames
-segmentFrames (Pause frames) = frames
+instance Show (Segment TimeSpan) where
+  show (Scene ts) = "Scene (" <> show ts <> ")"
+  show (Pause ts) = "Pause (" <> show ts <> ")"
 
-genScene :: MonadGen m => Range Int -> Ix2 -> m Segment
+unwrapSegment :: Segment a -> a
+unwrapSegment (Scene x) = x
+unwrapSegment (Pause x) = x
+
+unwrapScenes :: [Segment a] -> [a]
+unwrapScenes = foldMap $ \case
+  Scene x -> pure x
+  Pause _ -> mempty
+
+segmentWithDuration :: TestSegment -> Segment Duration
+segmentWithDuration =
+  fmap (durationFromSeconds . fromIntegral . (`div` frameRate) . length)
+
+segmentTimeSpans :: [Segment Duration] -> [Segment TimeSpan]
+segmentTimeSpans = snd . foldl' go (Duration 0, [])
+  where
+    go (t, xs) x =
+      let next = t <> unwrapSegment x
+      in (next, xs <> [x $> TimeSpan t next])
+
+genScene :: MonadGen m => Range Int -> Ix2 -> m TestSegment
 genScene range resolution@(width :. height) =
   Scene <$>
   Gen.list
@@ -95,18 +120,20 @@ genScene range resolution@(width :. height) =
     (genFrame
        resolution
        (Gen.frequency
-          [ (round @Double (fromIntegral pixelCount * 0.98), TestPixel <$> Gen.word8 (Range.linear 1 255))
-          , (round @Double (fromIntegral pixelCount * 0.02), pure (TestPixel 0))
+          [ (fraction 0.98, TestPixel <$> Gen.word8 (Range.linear 1 255))
+          , (fraction 0.02, pure (TestPixel 0))
           ]))
   where
+    fraction :: Double -> Int
+    fraction f = round (fromIntegral pixelCount * f)
     pixelCount = width * height
 
-genPause :: MonadGen m => Range Int -> Ix2 -> m Segment
+genPause :: MonadGen m => Range Int -> Ix2 -> m TestSegment
 genPause range resolution = do
   p <- TestPixel <$> Gen.word8 (Range.linear 1 255)
   Pause <$> Gen.list range (genFrame resolution (pure p))
 
-genSegments :: MonadGen m => Range Int -> Ix2 -> m [Segment]
+genSegments :: MonadGen m => Range Int -> Ix2 -> m [TestSegment]
 genSegments segmentRange resolution =
   Gen.list
     (Range.linear 1 10)
@@ -156,7 +183,7 @@ hprop_classifiesStillSegmentsOfMinLength =
         (genSegments
            (Range.linear 1 (frameRate * 2))
            resolution)
-    let timedFrames = addTimed (foldMap segmentFrames segments)
+    let timedFrames = addTimed (foldMap unwrapSegment segments)
         counted = classifyAndCount 2.0 timedFrames
     annotateShow counted
     length timedFrames === totalClassifiedFrames counted
@@ -168,3 +195,24 @@ hprop_classifiesStillSegmentsOfMinLength =
           Just (middle, _last) -> mapM_ (assertStillLengthAtLeast 2.0) middle
   where
     resolution = 20 :. 20
+
+testSegmentsToPixelFrames :: [TestSegment] -> [Timed MassivFrame]
+testSegmentsToPixelFrames = map (fmap toFrame) . addTimed . foldMap unwrapSegment
+
+hprop_classifies_same_scenes_as_input = withTests 100 . property $ do
+  -- Generate test segments
+  segments <- forAll $ genSegments (Range.linear (frameRate * 1) (frameRate * 5)) resolution
+  -- Convert test segments to timespanned ones, and actual pixel frames
+  let segmentsWithTimespans = segmentTimeSpans (map segmentWithDuration segments)
+      pixelFrames = testSegmentsToPixelFrames segments
+      fullDuration = foldMap (durationOf AdjustedDuration . unwrapSegment) segmentsWithTimespans
+  -- Run classifier on pixel frames
+  classified <- Pipes.runEffect
+    (   classifyMovingScenes fullDuration
+                             (classifyMovement 2.0 (Pipes.each pixelFrames))
+    >-> Pipes.drain
+    )
+  -- Check classified timespan equivalence
+  unwrapScenes segmentsWithTimespans === classified
+
+  where resolution = 20 :. 20

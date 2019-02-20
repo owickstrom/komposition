@@ -21,6 +21,7 @@ module Komposition.Import.Video.FFmpeg
   , readVideoFile
   , toMassiv
   , classifyMovement
+  , classifyMovingScenes
   , getVideoFileDuration
   , Classified(..)
   , unClassified
