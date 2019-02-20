@@ -92,9 +92,17 @@ instance Show (Segment TimeSpan) where
   show (Scene ts) = "Scene (" <> show ts <> ")"
   show (Pause ts) = "Pause (" <> show ts <> ")"
 
+dropFirstAndLast :: [a] -> Maybe [a]
+dropFirstAndLast xs
+  | length xs >= 2 = pure (List.init ( List.tail xs))
+  | otherwise = mzero
+
 unwrapSegment :: Segment a -> a
 unwrapSegment (Scene x) = x
 unwrapSegment (Pause x) = x
+
+countTestSegmentFrames :: [TestSegment] -> Int
+countTestSegmentFrames = getSum . foldMap (pure . length . unwrapSegment)
 
 unwrapScenes :: [Segment a] -> [a]
 unwrapScenes = foldMap $ \case
@@ -176,28 +184,25 @@ assertStillLengthAtLeast t = \case
   where
     minFrames = round (t * fromIntegral frameRate)
 
-hprop_classifiesStillSegmentsOfMinLength =
-  withTests 100 . property $ do
-    segments <-
-      forAll
-        (genSegments
-           (Range.linear 1 (frameRate * 2))
-           resolution)
-    let timedFrames = addTimed (foldMap unwrapSegment segments)
-        counted = classifyAndCount 2.0 timedFrames
-    annotateShow counted
-    length timedFrames === totalClassifiedFrames counted
-    case List.uncons counted of
-      Nothing -> failure
-      Just (_first, rest) ->
-        case List.unsnoc rest of
-          Nothing              -> success
-          Just (middle, _last) -> mapM_ (assertStillLengthAtLeast 2.0) middle
-  where
-    resolution = 20 :. 20
-
 testSegmentsToPixelFrames :: [TestSegment] -> [Timed MassivFrame]
 testSegmentsToPixelFrames = map (fmap toFrame) . addTimed . foldMap unwrapSegment
+
+hprop_classifiesStillSegmentsOfMinLength = withTests 100 . property $ do
+  -- Generate test segments
+  segments <- forAll $ genSegments (Range.linear 1 (frameRate * 2)) resolution
+  -- Convert test segments to actual pixel frames
+  let pixelFrames = testSegmentsToPixelFrames segments
+      -- Run classifier on pixel frames
+      classified = Pipes.toList (classifyMovement 2.0 (Pipes.each pixelFrames))
+      counted = countSegments classified
+  -- Sanity check: same number of frames
+  countTestSegmentFrames segments === totalClassifiedFrames counted
+  -- Then ignore first and last segment, and verify all other segments
+  case dropFirstAndLast counted of
+    Just middle -> traverse_ (assertStillLengthAtLeast 2.0) middle
+    Nothing     -> success
+  where
+    resolution = 20 :. 20
 
 hprop_classifies_same_scenes_as_input = withTests 100 . property $ do
   -- Generate test segments
