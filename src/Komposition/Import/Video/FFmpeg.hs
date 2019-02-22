@@ -179,7 +179,6 @@ classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
   Just frame -> go (InMoving (VG.singleton frame))
   Nothing    -> pure ()
   where
-    minEqualTimeForStill = 0.5
     go
       :: Monad m
       => ClassifierState
@@ -189,12 +188,8 @@ classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
            ()
     go state' = (state', ) <$> draw' >>= \case
       (InMoving {..}, Just frame)
-        | equalFrame 1 0.999 (untimed frame) (untimed (VG.head equalFrames))
-        -> if time frame - time (VG.head equalFrames) > minEqualTimeForStill
-          then do
-            VG.mapM_ (yield' . Moving) equalFrames
-            go (InStill (VG.singleton frame))
-          else go (InMoving (VG.snoc equalFrames frame))
+        | equalFrame 1 0.99 (untimed frame) (untimed (VG.head equalFrames))
+        -> go (InStill (VG.snoc equalFrames frame))
         | otherwise
         -> do
           VG.mapM_ (yield' . Moving) equalFrames
@@ -204,10 +199,9 @@ classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
         | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> go
           (InStill (VG.snoc stillFrames frame))
         | otherwise -> do
-          let yieldFrame =
-                if time (VG.last stillFrames)
-                     -  time (VG.head stillFrames)
-                     >= minStillSegmentTime
+          let diff' = time (VG.last stillFrames) -  time (VG.head stillFrames)
+              yieldFrame =
+                if diff' >= minStillSegmentTime
                   then yield' . Still
                   else yield' . Moving
           VG.mapM_ yieldFrame stillFrames
