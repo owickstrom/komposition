@@ -143,9 +143,9 @@ genScene range resolution@(width :. height) = do
       )
 
 genPause :: MonadGen m => Range Int -> Ix2 -> m TestSegment
-genPause range resolution = do
-  p <- TestPixel <$> Gen.word8 (Range.linear 1 255)
-  Pause <$> Gen.list range (genFrame resolution (pure p))
+genPause range resolution = Pause
+  <$> Gen.list range (genFrame resolution (pure (TestPixel dark)))
+  where dark = 0x00
 
 genSegment :: MonadGen m => Range Int -> Ix2 -> m TestSegment
 genSegment segmentRange resolution =

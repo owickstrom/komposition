@@ -161,8 +161,8 @@ unClassified = \case
   Still  f -> f
 
 data ClassifierState
-  = InMoving { equalFrames :: !(V.Vector (Timed MassivFrame)) }
-  | InStill { stillFrames     :: !(V.Vector (Timed MassivFrame)) }
+  = InMoving { lastFrame :: !(Timed MassivFrame) }
+  | InStill { stillFrames :: !(V.Vector (Timed MassivFrame)) }
 
 yield' :: Monad m => b -> Pipes.StateT (Producer a m x) (Producer b m) ()
 yield' = lift . Pipes.yield
@@ -176,7 +176,7 @@ classifyMovement
   -> Producer (Timed MassivFrame) m ()
   -> Producer (Classified (Timed MassivFrame)) m ()
 classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
-  Just frame -> go (InMoving (VG.singleton frame))
+  Just frame -> go (InMoving frame)
   Nothing    -> pure ()
   where
     go
@@ -188,24 +188,22 @@ classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
            ()
     go state' = (state', ) <$> draw' >>= \case
       (InMoving {..}, Just frame)
-        | equalFrame 1 0.99 (untimed frame) (untimed (VG.head equalFrames))
-        -> go (InStill (VG.snoc equalFrames frame))
-        | otherwise
-        -> do
-          VG.mapM_ (yield' . Moving) equalFrames
-          go (InMoving (VG.singleton frame))
-      (InMoving {..}, Nothing) -> VG.mapM_ (yield' . Moving) equalFrames
+        | equalFrame 1 0.99 (untimed frame) (untimed lastFrame) -> go
+          (InStill (VG.fromList [lastFrame, frame]))
+        | otherwise -> do
+          yield' (Moving lastFrame)
+          go (InMoving frame)
+      (InMoving {..}, Nothing) -> yield' (Moving lastFrame)
       (InStill {..}, Just frame)
         | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> go
           (InStill (VG.snoc stillFrames frame))
         | otherwise -> do
-          let diff' = time (VG.last stillFrames) -  time (VG.head stillFrames)
-              yieldFrame =
-                if diff' >= minStillSegmentTime
-                  then yield' . Still
-                  else yield' . Moving
+          let diff' = time (VG.last stillFrames) - time (VG.head stillFrames)
+              yieldFrame = if diff' >= minStillSegmentTime
+                then yield' . Still
+                else yield' . Moving
           VG.mapM_ yieldFrame stillFrames
-          go (InMoving (VG.singleton frame))
+          go (InMoving frame)
       (InStill {..}, Nothing) -> VG.mapM_ (yield' . Still) stillFrames
 
 data SplitSegment a = SplitSegment
