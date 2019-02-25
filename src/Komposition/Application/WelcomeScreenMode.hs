@@ -29,13 +29,11 @@ import           Komposition.Library
 import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Render
-import qualified Komposition.UndoRedo                 as UndoRedo
 import           Komposition.UserInterface.Dialog
 import           Komposition.VideoSettings
 
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
-import           Komposition.Project.UndoableAction
 import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
 
@@ -100,7 +98,7 @@ toTimelineWithProject
     , Carrier sig m
     )
   => WithoutHistory ExistingProject
-  -> t m ("welcome" .== Window (t m) TopWindow (Event WelcomeScreenMode)) Empty ()
+  -> t m ("welcome" .== Window (t m) 'TopWindow (Event 'WelcomeScreenMode)) Empty ()
 toTimelineWithProject project' = do
   destroyWindow #welcome
   openTimelineWindowWithProject project'
@@ -155,7 +153,7 @@ initialNewProjectModel =
 
 editNewProject
   :: ( Application t m sig
-    , HasType "welcome" (Window (t m) TopWindow (Event WelcomeScreenMode)) r
+    , HasType "welcome" (Window (t m) 'TopWindow (Event 'WelcomeScreenMode)) r
     )
   => NewProjectModel -> t m r r (Maybe NewProjectModel)
 editNewProject initialModel =
@@ -168,7 +166,7 @@ editNewProject initialModel =
   where
     go
       :: ( Application t m sig
-        , r ~ ("newProject" .== Window (t m) Modal (Event NewProjectMode))
+        , r ~ ("newProject" .== Window (t m) 'Modal (Event 'NewProjectMode))
         )
       => NewProjectModel
       -> t m r r (Maybe NewProjectModel)

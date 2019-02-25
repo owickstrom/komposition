@@ -21,6 +21,7 @@ module Komposition.Import.Video.FFmpeg
   , readVideoFile
   , toMassiv
   , classifyMovement
+  , classifyMovingScenes
   , getVideoFileDuration
   , Classified(..)
   , unClassified
@@ -160,8 +161,8 @@ unClassified = \case
   Still  f -> f
 
 data ClassifierState
-  = InMoving { equalFrames :: !(V.Vector (Timed MassivFrame)) }
-  | InStill { stillFrames     :: !(V.Vector (Timed MassivFrame)) }
+  = InMoving { lastFrame :: !(Timed MassivFrame) }
+  | InStill { stillFrames :: !(V.Vector (Timed MassivFrame)) }
 
 yield' :: Monad m => b -> Pipes.StateT (Producer a m x) (Producer b m) ()
 yield' = lift . Pipes.yield
@@ -175,10 +176,9 @@ classifyMovement
   -> Producer (Timed MassivFrame) m ()
   -> Producer (Classified (Timed MassivFrame)) m ()
 classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
-  Just frame -> go (InMoving (VG.singleton frame))
+  Just frame -> go (InMoving frame)
   Nothing    -> pure ()
   where
-    minEqualTimeForStill = 0.5
     go
       :: Monad m
       => ClassifierState
@@ -188,29 +188,26 @@ classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
            ()
     go state' = (state', ) <$> draw' >>= \case
       (InMoving {..}, Just frame)
-        | equalFrame 1 0.999 (untimed frame) (untimed (VG.head equalFrames))
-        -> if time frame - time (VG.head equalFrames) > minEqualTimeForStill
-          then do
-            VG.mapM_ (yield' . Moving) equalFrames
-            go (InStill (VG.singleton frame))
-          else go (InMoving (VG.snoc equalFrames frame))
-        | otherwise
-        -> do
-          VG.mapM_ (yield' . Moving) equalFrames
-          go (InMoving (VG.singleton frame))
-      (InMoving {..}, Nothing) -> VG.mapM_ (yield' . Moving) equalFrames
+        | equalFrame 1 0.99 (untimed frame) (untimed lastFrame) -> go
+          (InStill (VG.fromList [lastFrame, frame]))
+        | otherwise -> do
+          yield' (Moving lastFrame)
+          go (InMoving frame)
+      (InMoving {..}, Nothing) -> yield' (Moving lastFrame)
       (InStill {..}, Just frame)
         | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> go
           (InStill (VG.snoc stillFrames frame))
         | otherwise -> do
-          let yieldFrame =
-                if time (VG.last stillFrames)
-                     -  time (VG.head stillFrames)
-                     >= minStillSegmentTime
-                  then yield' . Still
-                  else yield' . Moving
+          let diff'      = time frame - time (VG.head stillFrames)
+              -- TODO: Rewrite this code to compare by frame rate (integer) rather
+              -- than floating-point timestamps.
+              epsilon    = 0.001 -- NOTE: magic number! Unlikely that any uses 1000 FPS, so
+                                 -- using 1ms as tolerance for comparison.
+              yieldFrame = if diff' >= (minStillSegmentTime - epsilon)
+                then yield' . Still
+                else yield' . Moving
           VG.mapM_ yieldFrame stillFrames
-          go (InMoving (VG.singleton frame))
+          go (InMoving frame)
       (InStill {..}, Nothing) -> VG.mapM_ (yield' . Still) stillFrames
 
 data SplitSegment a = SplitSegment
@@ -224,7 +221,7 @@ classifyMovingScenes
   -> Producer (Classified (Timed MassivFrame)) m ()
   -> Producer ProgressUpdate m [TimeSpan]
 classifyMovingScenes fullLength = Pipes.evalStateT $ draw' >>= \case
-  Just (Still  _) -> go (Left (), [])
+  Just (Still  _) -> go (Left 0, [])
   Just (Moving _) -> go (Right (0, 0), [])
   Nothing         -> return []
   where
@@ -232,10 +229,10 @@ classifyMovingScenes fullLength = Pipes.evalStateT $ draw' >>= \case
       Just frame -> do
         yield' (toProgress (time (unClassified frame)))
         case (state', frame) of
-          ((Left (), spans), Still _) -> go (Left (), spans)
-          ((Left (), spans), Moving f) -> go (Right (time f, time f), spans)
+          ((Left _lastTime, spans), Still f) -> go (Left (time f), spans)
+          ((Left lastTime, spans), Moving f) -> go (Right (lastTime, time f), spans)
           ((Right (firstTime, _), spans), Still f) -> go
-            ( Left ()
+            ( Left (time f)
             , spans
               <> [ TimeSpan (durationFromSeconds firstTime)
                             (durationFromSeconds (time f))
@@ -244,7 +241,7 @@ classifyMovingScenes fullLength = Pipes.evalStateT $ draw' >>= \case
           ((Right (firstTime, _), spans), Moving f) ->
             go (Right (firstTime, time f), spans)
       Nothing -> case state' of
-        (Left (), spans) -> return spans
+        (Left _, spans) -> return spans
         (Right (startTime, _), spans) ->
           return
             $  spans
