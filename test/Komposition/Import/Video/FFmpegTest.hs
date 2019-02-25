@@ -235,6 +235,7 @@ hprop_classifies_same_scenes_as_input = withShrinks 50 . withTests 100 . propert
   let classifiedFrames =
         Pipes.each pixelFrames
         & classifyMovement 0.8
+        & classifyMovement 1.0
         & Pipes.toList
 
   annotateShow (map (map time) classifiedFrames)

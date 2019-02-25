@@ -198,8 +198,12 @@ classifyMovement minStillSegmentTime = Pipes.evalStateT $ draw' >>= \case
         | equalFrame 1 0.999 (untimed (VG.head stillFrames)) (untimed frame) -> go
           (InStill (VG.snoc stillFrames frame))
         | otherwise -> do
-          let diff' = time (VG.last stillFrames) - time (VG.head stillFrames)
-              yieldFrame = if diff' >= minStillSegmentTime
+          let diff'      = time frame - time (VG.head stillFrames)
+              -- TODO: Rewrite this code to compare by frame rate (integer) rather
+              -- than floating-point timestamps.
+              epsilon    = 0.001 -- NOTE: magic number! Unlikely that any uses 1000 FPS, so
+                                 -- using 1ms as tolerance for comparison.
+              yieldFrame = if diff' >= (minStillSegmentTime - epsilon)
                 then yield' . Still
                 else yield' . Moving
           VG.mapM_ yieldFrame stillFrames
