@@ -221,7 +221,7 @@ classifyMovingScenes
   -> Producer (Classified (Timed MassivFrame)) m ()
   -> Producer ProgressUpdate m [TimeSpan]
 classifyMovingScenes fullLength = Pipes.evalStateT $ draw' >>= \case
-  Just (Still  _) -> go (Left (), [])
+  Just (Still  _) -> go (Left 0, [])
   Just (Moving _) -> go (Right (0, 0), [])
   Nothing         -> return []
   where
@@ -229,10 +229,10 @@ classifyMovingScenes fullLength = Pipes.evalStateT $ draw' >>= \case
       Just frame -> do
         yield' (toProgress (time (unClassified frame)))
         case (state', frame) of
-          ((Left (), spans), Still _) -> go (Left (), spans)
-          ((Left (), spans), Moving f) -> go (Right (time f, time f), spans)
+          ((Left _lastTime, spans), Still f) -> go (Left (time f), spans)
+          ((Left lastTime, spans), Moving f) -> go (Right (lastTime, time f), spans)
           ((Right (firstTime, _), spans), Still f) -> go
-            ( Left ()
+            ( Left (time f)
             , spans
               <> [ TimeSpan (durationFromSeconds firstTime)
                             (durationFromSeconds (time f))
@@ -241,7 +241,7 @@ classifyMovingScenes fullLength = Pipes.evalStateT $ draw' >>= \case
           ((Right (firstTime, _), spans), Moving f) ->
             go (Right (firstTime, time f), spans)
       Nothing -> case state' of
-        (Left (), spans) -> return spans
+        (Left _, spans) -> return spans
         (Right (startTime, _), spans) ->
           return
             $  spans

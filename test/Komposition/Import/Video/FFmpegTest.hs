@@ -55,6 +55,9 @@ spec_classifyMovement = do
 frameRate :: Int
 frameRate = 10
 
+frameDuration :: Duration
+frameDuration = durationFromSeconds (1 / fromIntegral frameRate)
+
 newtype TestPixel = TestPixel Word8
   deriving (Eq)
 
@@ -105,22 +108,6 @@ unwrapSegment (Pause x) = x
 
 countTestSegmentFrames :: [TestSegment] -> Int
 countTestSegmentFrames = getSum . foldMap (pure . length . unwrapSegment)
-
-unwrapScenes :: [Segment a] -> [a]
-unwrapScenes = foldMap $ \case
-  Scene x -> pure x
-  Pause _ -> mempty
-
-segmentWithDuration :: TestSegment -> Segment Duration
-segmentWithDuration =
-  fmap (durationFromSeconds . (/ fromIntegral frameRate) . fromIntegral . length)
-
-segmentTimeSpans :: [Segment Duration] -> [Segment TimeSpan]
-segmentTimeSpans = snd . foldl' go (Duration 0, [])
-  where
-    go (t, xs) x =
-      let next = t <> unwrapSegment x
-      in (next, xs <> [x $> TimeSpan t next])
 
 genScene :: MonadGen m => Range Int -> Ix2 -> m TestSegment
 genScene range resolution@(width :. height) = do
@@ -218,23 +205,35 @@ hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
     Nothing     -> success
   where resolution = 10 :. 10
 
+segmentWithDuration :: TestSegment -> Segment Duration
+segmentWithDuration =
+  fmap (durationFromSeconds . (/ fromIntegral frameRate) . fromIntegral . length)
+
+movingSceneTimeSpans :: [Segment Duration] -> [TimeSpan]
+movingSceneTimeSpans = snd . foldl' go (Duration 0, [])
+  where
+    go (t, xs) x =
+      let next = t <> unwrapSegment x
+      in (next, xs <> adjust (x $> TimeSpan t next))
+    adjust = \case
+      Scene ts
+        | spanStart ts == 0 -> pure ts
+        | otherwise -> pure ts { spanStart = spanStart ts - frameDuration }
+      Pause _ -> mempty
+
 hprop_classifies_same_scenes_as_input = withShrinks 50 . withTests 100 . property $ do
   -- Generate test segments
   segments <- forAll $ do
     let segmentLength = Range.linear (frameRate * 1) (frameRate * 5)
     genSegments (Range.linear 0 10) segmentLength resolution
   -- Convert test segments to timespanned ones, and actual pixel frames
-  let segmentsWithTimespans = segments
-                              & map segmentWithDuration
-                              & segmentTimeSpans
+  let durations = map segmentWithDuration segments
       pixelFrames = testSegmentsToPixelFrames segments
-      fullDuration = foldMap
-                     (durationOf AdjustedDuration . unwrapSegment)
-                     segmentsWithTimespans
+      expectedSegments = movingSceneTimeSpans durations
+      fullDuration = foldMap unwrapSegment durations
 
   let classifiedFrames =
         Pipes.each pixelFrames
-        & classifyMovement 0.8
         & classifyMovement 1.0
         & Pipes.toList
 
@@ -248,7 +247,7 @@ hprop_classifies_same_scenes_as_input = withShrinks 50 . withTests 100 . propert
         & Pipes.runEffect
         & runIdentity
   -- Check classified timespan equivalence
-  unwrapScenes segmentsWithTimespans === classified
+  expectedSegments === classified
 
   where resolution = 10 :. 10
 
