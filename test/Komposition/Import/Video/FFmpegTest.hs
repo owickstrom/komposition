@@ -194,14 +194,14 @@ hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
   let pixelFrames = testSegmentsToPixelFrames segments
       -- Run classifier on pixel frames
       counted =
-        classifyMovement 2.0 (Pipes.each pixelFrames)
+        classifyMovement 1.0 (Pipes.each pixelFrames)
           & Pipes.toList
           & countSegments
   -- Sanity check: same number of frames
   countTestSegmentFrames segments === totalClassifiedFrames counted
   -- Then ignore first and last segment, and verify all other segments
   case dropFirstAndLast counted of
-    Just middle -> traverse_ (assertStillLengthAtLeast 2.0) middle
+    Just middle -> traverse_ (assertStillLengthAtLeast 1.0) middle
     Nothing     -> success
   where resolution = 10 :. 10
 
