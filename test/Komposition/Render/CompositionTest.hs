@@ -30,9 +30,14 @@ hprop_flat_timeline_has_same_duration_as_hierarchical =
 hprop_flat_timeline_has_same_clips_as_hierarchical =
   property $ do
     s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallelWithClips
-    let Just flat = Render.flattenTimeline s
-    timelineVideoClips s === flatVideoClips flat
-    timelineAudioClips s === flatAudioClips flat
+    flat <- annotateShowId (Render.flattenTimeline s)
+
+    flat
+      ^.. _Just . Render.videoParts . each . Render._VideoClipPart
+      === timelineVideoClips s
+    flat
+      ^.. _Just . Render.audioParts . each . Render._AudioClipPart
+      === timelineAudioClips s
 
 hprop_flat_timeline_uses_still_frame_from_single_clip = property $ do
   let genVideoTrack = do
@@ -120,12 +125,12 @@ timelineParallels tl = do
   seq' <- toList (tl ^. sequences)
   toList (seq' ^. parallels)
 
-timelineVideoClips :: Timeline a -> [(VideoAsset, TimeSpan)]
+timelineVideoClips :: Timeline a -> [Render.VideoClip]
 timelineVideoClips tl = do
   par' <- timelineParallels tl
   par' ^. videoTrack . videoParts >>= \case
-    VideoClip _ asset span _ -> pure (asset, span)
-    VideoGap{}               -> mempty
+    VideoClip _ asset span speed -> pure (Render.VideoClip asset span speed)
+    VideoGap{}                   -> mempty
 
 timelineAudioClips :: Timeline a -> [AudioAsset]
 timelineAudioClips tl = do
@@ -133,18 +138,6 @@ timelineAudioClips tl = do
   par' ^. audioTrack . audioParts >>= \case
     AudioClip _ asset -> pure asset
     AudioGap{}        -> mempty
-
-flatVideoClips :: Render.Composition -> [(VideoAsset, TimeSpan)]
-flatVideoClips (Render.Composition vs _) = toList vs & foldMap
-  (\case
-    Render.VideoClipPart (Render.VideoClip asset span _) -> pure (asset, span)
-    Render.StillFramePart{}                              -> mempty
-  )
-
-flatAudioClips :: Render.Composition -> [AudioAsset]
-flatAudioClips (Render.Composition _ as) = toList as & foldMap (\case
-  Render.AudioClipPart asset -> pure asset
-  Render.SilencePart{}       -> mempty)
 
 annotateShowId x = annotateShow x $> x
 
