@@ -63,8 +63,8 @@ genUndoableTimelineEvent =
   [ pure (CommandKeyMappedEvent Delete)
   , CommandKeyMappedEvent . Paste <$> Gen.enumBounded
   , FocusedClipSpeedSet <$> Gen.genVideoSpeed
-  , FocusedClipStartSet <$> Gen.duration' (Range.linear 0 10 :: Range Int)
-  , FocusedClipEndSet <$> Gen.duration' (Range.linear 10 20 :: Range Int)
+  , FocusedClipStartSet <$> Gen.duration' (Range.linearFrac 0 10)
+  , FocusedClipEndSet <$> Gen.duration' (Range.linearFrac 10 20)
   , pure (CommandKeyMappedEvent Split)
   , pure (CommandKeyMappedEvent Join)
   ]

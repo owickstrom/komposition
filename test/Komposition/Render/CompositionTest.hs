@@ -9,7 +9,7 @@ module Komposition.Render.CompositionTest where
 import           Komposition.Prelude
 import qualified Prelude
 
-import           Control.Lens
+import           Control.Lens                       hiding (at)
 import           Hedgehog                           hiding (Parallel)
 import qualified Hedgehog.Gen                       as Gen
 import qualified Hedgehog.Range                     as Range
@@ -46,8 +46,13 @@ hprop_flat_timeline_uses_still_frame_from_single_clip = property $ do
   flat <- annotateShowId (Render.flattenTimeline s)
 
   flat
-    ^.. (_Just . Render.videoParts . each . Render._StillFramePart . Render.stillFrameMode)
-    & traverse_ (Render.LastFrame ===)
+    ^.. ( _Just
+        . Render.videoParts
+        . each
+        . Render._StillFramePart
+        . Render.stillFrameMode
+        )
+    &   traverse_ (Render.LastFrame ===)
 
 hprop_flat_timeline_uses_still_frames_from_subsequent_clips = property $ do
   -- Generate a parallel where the video track ends with a video clip,
@@ -57,13 +62,15 @@ hprop_flat_timeline_uses_still_frames_from_subsequent_clips = property $ do
       vt <-
         VideoTrack ()
           <$> (   snoc
-              <$> Gen.list (Range.linear 1 5) Gen.videoPart
+              <$> Gen.list (Range.linear 1 10) Gen.videoPart
               <*> Gen.videoClip
               )
-      pure $ Parallel
-        ()
-        vt
-        (AudioTrack () [AudioGap () (durationOf AdjustedDuration vt / 2)])
+      at <- AudioTrack () . pure . AudioGap () <$> Gen.duration'
+        (Range.linearFrac
+          0
+          (durationToSeconds (durationOf AdjustedDuration vt) - 0.1)
+        )
+      pure (Parallel () vt at)
 
   s    <- forAll $ Gen.timeline (Range.exponential 0 5) genParallel
 
@@ -84,10 +91,12 @@ hprop_flat_timeline_uses_last_frame_for_automatic_video_padding = property $ do
   let
     genParallel = do
       vt <- VideoTrack () . pure <$> Gen.videoClip
-      pure $ Parallel
-        ()
-        vt
-        (AudioTrack () [AudioGap () (durationOf AdjustedDuration vt * 2)])
+      at <- AudioTrack () . pure . AudioGap () <$> Gen.duration'
+        (Range.linearFrac
+          (durationToSeconds (durationOf AdjustedDuration vt) + 0.1)
+          10
+        )
+      pure (Parallel () vt at)
 
   s    <- forAll $ Gen.timeline (Range.exponential 0 5) genParallel
 

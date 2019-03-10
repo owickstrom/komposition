@@ -1,23 +1,23 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs     #-}
+{-# LANGUAGE DataKinds  #-}
+{-# LANGUAGE GADTs      #-}
 {-# LANGUAGE LambdaCase #-}
 module Komposition.Composition.Generators where
 
-import           Komposition.Prelude     hiding ( nonEmpty )
+import           Komposition.Prelude            hiding (nonEmpty)
 
-import qualified Data.List.NonEmpty                 as NonEmpty
 import           Control.Lens
-import           Hedgehog                hiding ( Parallel(..) )
-import qualified Hedgehog.Gen                  as Gen
+import qualified Data.List.NonEmpty             as NonEmpty
+import           Hedgehog                       hiding (Parallel (..))
+import qualified Hedgehog.Gen                   as Gen
 import           Hedgehog.Range
 
-import           Komposition.Composition hiding (videoTrack, audioTrack)
+import           Komposition.Composition        hiding (audioTrack, videoTrack)
 import           Komposition.Composition.Insert
-import           Komposition.Focus
 import           Komposition.Duration
-import           Komposition.VideoSpeed
-import           Komposition.Library     hiding ( assetMetadata )
+import           Komposition.Focus
+import           Komposition.Library            hiding (assetMetadata)
 import           Komposition.MediaType
+import           Komposition.VideoSpeed
 
 timeline :: MonadGen m => Range Int -> m (Parallel ()) -> m (Timeline ())
 timeline range genParallel =
@@ -75,30 +75,29 @@ videoPart = Gen.choice [videoClip, videoGap]
 videoClip :: MonadGen m => m (TrackPart 'Video ())
 videoClip = do
       asset <- videoAsset
-      let maxDuration =
-            floor (durationToSeconds (asset ^. videoAssetMetadata . duration)) :: Int
-      spanStart' <- duration' (linear 0 maxDuration)
+      let maxDuration = durationToSeconds (asset ^. videoAssetMetadata . duration)
+      spanStart' <- duration' (linearFrac 0 maxDuration)
       spanEnd'   <- duration'
-        (linear (ceiling (durationToSeconds spanStart') + 1) maxDuration)
+        (linearFrac (durationToSeconds spanStart' + 1) maxDuration)
       VideoClip () asset (TimeSpan spanStart' spanEnd') <$> genVideoSpeed
 
 videoGap :: MonadGen m => m (TrackPart 'Video ())
-videoGap = VideoGap () <$> duration' (linear 1 10 :: Range Int)
+videoGap = VideoGap () <$> duration' (linearFrac 1 10)
 
 audioPart :: MonadGen m => m (TrackPart 'Audio ())
 audioPart = Gen.choice [clip, gap]
   where
     clip = AudioClip () <$> audioAsset
-    gap  = AudioGap () <$> duration' (linear 1 10 :: Range Int)
+    gap  = AudioGap () <$> duration' (linearFrac 1 10 :: Range Double)
 
-duration' :: Integral n => MonadGen m => Range n -> m Duration
-duration' range = durationFromSeconds <$> Gen.double (fromIntegral <$> range)
+duration' :: MonadGen m => Range Double -> m Duration
+duration' range = durationFromSeconds <$> Gen.double range
 
 assetMetadata :: MonadGen m => m AssetMetadata
 assetMetadata =
   AssetMetadata
     <$> (OriginalPath <$> Gen.string (linear 1 50) Gen.unicode)
-    <*> duration' (linear 1 10 :: Range Int)
+    <*> duration' (linearFrac 1 10)
 
 -- With Focus
 
@@ -130,7 +129,7 @@ parallelFocus (Sequence _ pars) =
         ]
 
 videoTrackFocus :: MonadGen m => VideoTrack () -> m (Focus 'TrackFocusType)
-videoTrackFocus (VideoTrack _ vs) = 
+videoTrackFocus (VideoTrack _ vs) =
   Gen.choice [pure (TrackFocus Video Nothing), TrackFocus Video . Just <$> clipFocus vs]
 
 audioTrackFocus :: MonadGen m => AudioTrack () -> m (Focus 'TrackFocusType)
