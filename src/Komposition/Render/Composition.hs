@@ -88,6 +88,9 @@ data Composition = Composition
 
 makeLenses ''Composition
 
+instance Semigroup Composition where
+  Composition v1 a1 <> Composition v2 a2 = Composition (v1 <> v2) (a1 <> a2)
+
 instance HasDuration Composition where
   durationOf mode (Composition vs as) =
     max (foldMap (durationOf mode) vs) (foldMap (durationOf mode) as)

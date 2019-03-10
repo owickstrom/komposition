@@ -11,7 +11,7 @@ import qualified Prelude
 
 import           Control.Lens                       hiding (at)
 import           Hedgehog                           hiding (Parallel)
-import qualified Hedgehog.Gen                       as Gen
+import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import qualified Hedgehog.Range                     as Range
 
 import           Komposition.Composition
@@ -38,6 +38,8 @@ hprop_flat_timeline_has_same_clips_as_hierarchical =
     flat
       ^.. _Just . Render.audioParts . each . Render._AudioClipPart
       === timelineAudioClips s
+
+-- * Still frames in gaps
 
 hprop_flat_timeline_uses_still_frame_from_single_clip = property $ do
   let genVideoTrack = do
@@ -115,6 +117,19 @@ hprop_flat_timeline_uses_last_frame_for_automatic_video_padding = property $ do
         . Render.stillFrameMode
         )
     &   traverse_ (Render.LastFrame ===)
+
+-- * Flattening equivalences
+
+hprop_flat_timeline_is_same_as_all_its_flat_sequences = property $ do
+  s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallel
+  Render.flattenTimeline s
+    === (s ^.. sequences . each & foldMap Render.flattenSequence)
+
+hprop_flat_timeline_is_same_as_all_its_flat_parallels = property $ do
+  s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallel
+  Render.flattenTimeline s
+    === (s ^.. sequences . each . parallels . each
+         & foldMap Render.flattenParallel)
 
 ----------------------------------------------------------------------
 -- HELPERS
