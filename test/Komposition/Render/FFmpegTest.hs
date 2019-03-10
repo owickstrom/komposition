@@ -35,8 +35,8 @@ spec_FFmpegRender =
           let
             speed       = VideoSpeed 1
             span        = TimeSpan 0 fullDuration
-            composition = Composition (pure (VideoClip clip span speed))
-                                      (pure (Silence fullDuration))
+            composition = Composition (pure (VideoClipPart (VideoClip clip span speed)))
+                                      (pure (SilencePart fullDuration))
           runAndCheckProgressAndDuration d composition fullDuration
 
         it "does not exceed 1.0 for video in double speed" $ \d -> do
@@ -46,8 +46,8 @@ spec_FFmpegRender =
               span1       = TimeSpan 0 chunk
               span2       = TimeSpan chunk (chunk * 2)
               composition = Composition
-                (VideoClip clip span1 speed :| [VideoClip clip span2 speed])
-                (pure (Silence (fullDuration / 2)))
+                (VideoClipPart (VideoClip clip span1 speed) :| [VideoClipPart (VideoClip clip span2 speed)])
+                (pure (SilencePart (fullDuration / 2)))
           runAndCheckProgressAndDuration d composition (fullDuration / 2)
 
         it "does not exceed 1.0 for video in half speed" $ \d -> do
@@ -57,8 +57,8 @@ spec_FFmpegRender =
               span1       = TimeSpan 0 chunk
               span2       = TimeSpan chunk (chunk * 2)
               composition = Composition
-                (VideoClip clip span1 speed :| [VideoClip clip span2 speed])
-                (pure (Silence (fullDuration * 2)))
+                (VideoClipPart (VideoClip clip span1 speed) :| [VideoClipPart (VideoClip clip span2 speed)])
+                (pure (SilencePart (fullDuration * 2)))
           runAndCheckProgressAndDuration d composition (fullDuration * 2)
 
 

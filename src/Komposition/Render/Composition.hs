@@ -4,12 +4,25 @@
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell    #-}
 -- | Flat compositions for rendering.
 
 module Komposition.Render.Composition
-  ( Composition(..)
+  ( VideoClip (..)
+  , StillFrame (..)
+  , stillFrameMode
+  , stillFrameAsset
+  , stillFrameTimeSpan
+  , stillFrameDuration
+  , Composition(..)
+  , videoParts
+  , audioParts
   , StillFrameMode(..)
   , CompositionPart(..)
+  , _VideoClipPart
+  , _StillFramePart
+  , _AudioClipPart
+  , _SilencePart
   , flattenTimeline
   , flattenSequence
   , flattenParallel
@@ -18,39 +31,62 @@ module Komposition.Render.Composition
 
 import           Komposition.Prelude
 
+import           Control.Lens
+
 import qualified Komposition.Composition as Core
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.VideoSpeed
 
-data Composition =
-  Composition (NonEmpty (CompositionPart 'Video))
-              (NonEmpty (CompositionPart 'Audio))
-  deriving (Show, Eq, Generic)
-
 data StillFrameMode = FirstFrame | LastFrame
   deriving (Show, Eq, Generic, Hashable)
 
+data VideoClip = VideoClip VideoAsset TimeSpan VideoSpeed
+  deriving (Show, Eq, Generic)
+
+data StillFrame = StillFrame { _stillFrameMode     :: StillFrameMode
+                             , _stillFrameAsset    :: VideoAsset
+                             , _stillFrameTimeSpan :: TimeSpan
+                             , _stillFrameDuration :: Duration
+                             }
+  deriving (Show, Eq, Generic)
+
+makeLenses ''StillFrame
+
+instance HasDuration VideoClip where
+  durationOf mode (VideoClip _ ts speed) = case mode of
+    AdjustedDuration -> durationInSpeed (durationOf OriginalDuration ts) speed
+    OriginalDuration -> durationOf OriginalDuration ts
+
+instance HasDuration StillFrame where
+  durationOf _ (StillFrame _ _ _ d) = d
+
 data CompositionPart mt where
-  VideoClip :: VideoAsset -> TimeSpan -> VideoSpeed -> CompositionPart 'Video
-  StillFrame
-    :: StillFrameMode -> VideoAsset -> TimeSpan -> Duration -> CompositionPart 'Video
-  AudioClip :: AudioAsset -> CompositionPart 'Audio
-  Silence :: Duration -> CompositionPart 'Audio
+  VideoClipPart :: VideoClip -> CompositionPart 'Video
+  StillFramePart :: StillFrame -> CompositionPart 'Video
+  AudioClipPart :: AudioAsset -> CompositionPart 'Audio
+  SilencePart :: Duration -> CompositionPart 'Audio
+
+makePrisms ''CompositionPart
 
 instance HasDuration (CompositionPart mt) where
   durationOf mode = \case
-    VideoClip _ ts speed ->
-      case mode of
-        AdjustedDuration -> durationInSpeed (durationOf OriginalDuration ts) speed
-        OriginalDuration -> durationOf OriginalDuration ts
-    AudioClip a -> durationOf OriginalDuration a
-    StillFrame _ _ _ d  -> d
-    Silence d -> d
+    VideoClipPart vc -> durationOf mode vc
+    AudioClipPart a -> durationOf mode a
+    StillFramePart sf  -> durationOf mode sf
+    SilencePart d -> d
 
 deriving instance Eq (CompositionPart t)
 deriving instance Show (CompositionPart t)
+
+data Composition = Composition
+  { _videoParts :: NonEmpty (CompositionPart 'Video)
+  , _audioParts :: NonEmpty (CompositionPart 'Audio)
+  }
+  deriving (Show, Eq, Generic)
+
+makeLenses ''Composition
 
 instance HasDuration Composition where
   durationOf mode (Composition vs as) =
@@ -86,8 +122,8 @@ flattenParallel s = do
 
 singleVideoPart :: Core.VideoPart a -> Maybe Composition
 singleVideoPart (Core.VideoClip _ asset ts speed) = Just
-  (Composition (pure (VideoClip asset ts speed))
-               (pure (Silence (durationOf AdjustedDuration ts)))
+  (Composition (pure (VideoClipPart (VideoClip asset ts speed)))
+               (pure (SilencePart (durationOf AdjustedDuration ts)))
   )
 singleVideoPart _ = Nothing
 
@@ -111,24 +147,24 @@ flattenTracks (Core.VideoTrack _ vs) (Core.AudioTrack _ as) =
         Core.VideoClip _ asset ts speed ->
           ( tracks <>
             Tracks
-              (map (StillFrame FirstFrame asset ts) precedingGaps <>
-               [VideoClip asset ts speed])
+              (map (StillFramePart . StillFrame FirstFrame asset ts) precedingGaps <>
+               [VideoClipPart (VideoClip asset ts speed)])
               []
           , Just (asset, ts)
           , [])
         Core.VideoGap _ d -> (tracks, lastAsset, precedingGaps <> [d])
     toAudio =
       \case
-        Core.AudioClip _ asset -> Tracks [] [AudioClip asset]
-        Core.AudioGap _ d -> Tracks [] [Silence d]
+        Core.AudioClip _ asset -> Tracks [] [AudioClipPart asset]
+        Core.AudioGap _ d -> Tracks [] [SilencePart d]
     matchTrackDurations video audio (lastAsset, ts) =
       case (durationOf AdjustedDuration video, durationOf AdjustedDuration audio) of
         (vd, ad)
           | vd < ad ->
-            video <> Tracks [StillFrame LastFrame lastAsset ts (ad - vd)] [] <>
+            video <> Tracks [StillFramePart (StillFrame LastFrame lastAsset ts (ad - vd))] [] <>
             audio
-          | vd > ad -> video <> audio <> Tracks [] [Silence (vd - ad)]
+          | vd > ad -> video <> audio <> Tracks [] [SilencePart (vd - ad)]
           | otherwise -> video <> audio
     addGapsWithLastFrame videoTrack mLastAsset gaps =
       mLastAsset >>= \(lastAsset, ts) ->
-        pure (videoTrack <> Tracks (map (StillFrame LastFrame lastAsset ts) gaps) [])
+        pure (videoTrack <> Tracks (map (StillFramePart . StillFrame LastFrame lastAsset ts) gaps) [])
