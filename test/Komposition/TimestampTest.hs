@@ -23,7 +23,7 @@ equalishTo d1 d2 =
 
 hprop_roundtripTimestamp =
   property $ do
-    d <- forAll $ Gen.duration' (exponential 1 (2 ^ 16))
+    d <- forAll $ Gen.duration' (exponentialFloat 1 (2 ^ 16))
 
     let printed = printTimestamp d
     annotate (toS printed)

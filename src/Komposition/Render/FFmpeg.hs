@@ -116,19 +116,19 @@ toCommandInput mediaType tmpDir videoSettings source startAt parts' =
           return (toInputIndex (Vector.length is))
     toPartStream mediaType' source' (i, p) =
       case (mediaType', i, p) of
-        (SVideo, vi, Composition.VideoClip asset ts speed) -> do
+        (SVideo, vi, Composition.VideoClipPart (Composition.VideoClip asset ts speed)) -> do
           ii <- addUniqueInput (VideoAssetInput (videoAssetSourcePath source' asset))
           return ("v" <> show vi, VideoClipStream ii ts speed)
-        (SVideo, vi, Composition.StillFrame mode asset ts duration') -> do
+        (SVideo, vi, Composition.StillFramePart (Composition.StillFrame mode asset ts duration')) -> do
           frameFile <-
             lift (extractFrameToFile' videoSettings mode source' asset ts tmpDir)
           ii <- addUniqueInput (StillFrameInput frameFile duration')
           return ("v" <> show vi, StillFrameStream ii)
-        (SAudio, ai, Composition.AudioClip asset) -> do
+        (SAudio, ai, Composition.AudioClipPart asset) -> do
           ii <- addUniqueInput (AudioAssetInput (asset ^. assetMetadata . path . unOriginalPath))
           return
             ("a" <> show ai, AudioClipStream ii (TimeSpan 0 (durationOf AdjustedDuration asset)))
-        (SAudio, ai, Composition.Silence d) ->
+        (SAudio, ai, Composition.SilencePart d) ->
           return ("a" <> show ai, SilenceStream d)
     toCommandInputOrPanic :: SMediaType mt -> (NonEmpty (PartStreamName, PartStream mt), Vector (Input mt)) -> IO (CommandInput mt)
 
