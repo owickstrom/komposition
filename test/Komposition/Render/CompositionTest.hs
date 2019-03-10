@@ -21,23 +21,22 @@ import qualified Komposition.Render.Composition     as Render
 
 import qualified Komposition.Composition.Generators as Gen
 
-hprop_flat_timeline_has_same_duration_as_hierarchical =
-  property $ do
-    s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallelWithClips
-    let Just flat = Render.flattenTimeline s
-    durationOf AdjustedDuration s === durationOf AdjustedDuration flat
+hprop_flat_timeline_has_same_duration_as_hierarchical = property $ do
+  timeline' <- forAll $
+    Gen.timeline (Range.exponential 0 5) Gen.parallelWithClips
+  let Just flat = Render.flattenTimeline timeline'
+  durationOf AdjustedDuration timeline' === durationOf AdjustedDuration flat
 
 hprop_flat_timeline_has_same_clips_as_hierarchical =
   property $ do
-    s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallelWithClips
-    flat <- annotateShowId (Render.flattenTimeline s)
+    timeline' <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallelWithClips
+    flat <- annotateShowId (Render.flattenTimeline timeline')
 
-    flat
-      ^.. _Just . Render.videoParts . each . Render._VideoClipPart
-      === timelineVideoClips s
-    flat
-      ^.. _Just . Render.audioParts . each . Render._AudioClipPart
-      === timelineAudioClips s
+    flat ^.. _Just . Render.videoParts . each . Render._VideoClipPart
+      === timelineVideoClips timeline'
+
+    flat ^.. _Just . Render.audioParts . each . Render._AudioClipPart
+      === timelineAudioClips timeline'
 
 -- * Still frames in gaps
 
@@ -46,11 +45,11 @@ hprop_flat_timeline_uses_still_frame_from_single_clip = property $ do
         v1 <- Gen.videoClip
         vs <- Gen.list (Range.linear 0 1) Gen.videoPart
         pure (VideoTrack () (v1 : vs))
-  s <- forAll $ Gen.timeline
+  timeline' <- forAll $ Gen.timeline
     (Range.exponential 0 5)
     (Parallel () <$> genVideoTrack <*> Gen.audioTrack)
 
-  flat <- annotateShowId (Render.flattenTimeline s)
+  flat <- annotateShowId (Render.flattenTimeline timeline')
 
   flat
     ^.. ( _Just
@@ -79,9 +78,9 @@ hprop_flat_timeline_uses_still_frames_from_subsequent_clips = property $ do
         )
       pure (Parallel () vt at)
 
-  s    <- forAll $ Gen.timeline (Range.exponential 0 5) genParallel
+  timeline' <- forAll $ Gen.timeline (Range.exponential 0 5) genParallel
 
-  flat <- annotateShowId (Render.flattenTimeline s)
+  flat      <- annotateShowId (Render.flattenTimeline timeline')
 
   flat
     ^.. ( _Just
@@ -105,10 +104,9 @@ hprop_flat_timeline_uses_last_frame_for_automatic_video_padding = property $ do
         )
       pure (Parallel () vt at)
 
-  s    <- forAll $ Gen.timeline (Range.exponential 0 5) genParallel
+  timeline' <- forAll $ Gen.timeline (Range.exponential 0 5) genParallel
 
-  flat <- annotateShowId (Render.flattenTimeline s)
-
+  flat      <- annotateShowId (Render.flattenTimeline timeline')
   flat
     ^.. ( _Just
         . Render.videoParts
@@ -121,15 +119,16 @@ hprop_flat_timeline_uses_last_frame_for_automatic_video_padding = property $ do
 -- * Flattening equivalences
 
 hprop_flat_timeline_is_same_as_all_its_flat_sequences = property $ do
-  s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallel
-  Render.flattenTimeline s
-    === (s ^.. sequences . each & foldMap Render.flattenSequence)
+  timeline' <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallel
+  let flat = timeline' ^.. sequences . each
+             & foldMap Render.flattenSequence
+  Render.flattenTimeline timeline' === flat
 
 hprop_flat_timeline_is_same_as_all_its_flat_parallels = property $ do
-  s <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallel
-  Render.flattenTimeline s
-    === (s ^.. sequences . each . parallels . each
-         & foldMap Render.flattenParallel)
+  timeline' <- forAll $ Gen.timeline (Range.exponential 0 5) Gen.parallel
+  let flat = timeline' ^.. sequences . each . parallels . each
+             & foldMap Render.flattenParallel
+  Render.flattenTimeline timeline' === flat
 
 ----------------------------------------------------------------------
 -- HELPERS
