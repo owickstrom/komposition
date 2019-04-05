@@ -8,7 +8,6 @@ module Komposition.Import.Video.FFmpegTest where
 import           Komposition.Prelude
 import qualified Prelude
 
-import qualified Data.List.Extra                 as List
 import           Data.Massiv.Array               (Ix2 (..))
 import qualified Data.Massiv.Array               as A
 import           Graphics.ColorSpace
@@ -96,11 +95,6 @@ instance Show (Segment [TestFrame]) where
 instance Show (Segment TimeSpan) where
   show (Scene ts) = "Scene (" <> show ts <> ")"
   show (Pause ts) = "Pause (" <> show ts <> ")"
-
-dropFirstAndLast :: [a] -> Maybe [a]
-dropFirstAndLast xs
-  | length xs >= 2 = pure (List.init ( List.tail xs))
-  | otherwise = mzero
 
 unwrapSegment :: Segment a -> a
 unwrapSegment (Scene x) = x
@@ -200,7 +194,7 @@ hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
   -- Sanity check: same number of frames
   countTestSegmentFrames segments === totalClassifiedFrames counted
   -- Then ignore first and last segment, and verify all other segments
-  case dropFirstAndLast counted of
+  case initMay counted of
     Just middle -> traverse_ (assertStillLengthAtLeast 1.0) middle
     Nothing     -> success
   where resolution = 10 :. 10
