@@ -193,7 +193,8 @@ hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
           & countSegments
   -- Sanity check: same number of frames
   countTestSegmentFrames segments === totalClassifiedFrames counted
-  -- Then ignore first and last segment, and verify all other segments
+  -- Then ignore last segment (which can be a shorter still segment),
+  -- and verify all other segments
   case initMay counted of
     Just middle -> traverse_ (assertStillLengthAtLeast 1.0) middle
     Nothing     -> success
