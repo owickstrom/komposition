@@ -196,7 +196,7 @@ hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
   -- Then ignore last segment (which can be a shorter still segment),
   -- and verify all other segments
   case initMay counted of
-    Just middle -> traverse_ (assertStillLengthAtLeast 1.0) middle
+    Just rest -> traverse_ (assertStillLengthAtLeast 1.0) rest
     Nothing     -> success
   where resolution = 10 :. 10
 
