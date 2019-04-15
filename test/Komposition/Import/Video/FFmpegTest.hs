@@ -180,15 +180,17 @@ testSegmentsToPixelFrames :: [TestSegment] -> [Timed MassivFrame]
 testSegmentsToPixelFrames = map (fmap toFrame) . addTimed . foldMap unwrapSegment
 
 hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
+  minStillSegmentTime <- forAll $
+    Gen.double (Range.linearFrac (1 / fromIntegral frameRate) 2)
   -- Generate test segments
   segments <- forAll $ genSegments (Range.linear 1 10)
-                                   (Range.linear 1 (frameRate * 2))
+                                   (Range.linear 1 (frameRate * 4))
                                    resolution
   -- Convert test segments to actual pixel frames
   let pixelFrames = testSegmentsToPixelFrames segments
       -- Run classifier on pixel frames
       counted =
-        classifyMovement 1.0 (Pipes.each pixelFrames)
+        classifyMovement minStillSegmentTime (Pipes.each pixelFrames)
           & Pipes.toList
           & countSegments
   -- Sanity check: same number of frames
@@ -196,7 +198,7 @@ hprop_classifies_still_segments_of_min_length = withTests 100 . property $ do
   -- Then ignore last segment (which can be a shorter still segment),
   -- and verify all other segments
   case initMay counted of
-    Just rest -> traverse_ (assertStillLengthAtLeast 1.0) rest
+    Just rest -> traverse_ (assertStillLengthAtLeast minStillSegmentTime) rest
     Nothing     -> success
   where resolution = 10 :. 10
 
