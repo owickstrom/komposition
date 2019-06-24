@@ -72,7 +72,7 @@ runFFmpegCommand toProgress totalDuration cmd = do
     -- server's start. If there's some reliable way of parsing the output to
     -- ensure the server is up, that would be preferable.
     delayIfStreaming =
-      if isStreaming cmd then liftIO (threadDelay 500000) else return ()
+      pass -- if isStreaming cmd then liftIO (threadDelay 500000) else return ()
 
 
     waitForExit p = waitExitCode p >>= \case

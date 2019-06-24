@@ -53,6 +53,7 @@ import qualified Data.Text                                                as Tex
 import           Data.Time.Clock                                          (diffTimeToPicoseconds)
 import qualified GI.Gdk                                                   as Gdk
 import qualified GI.GLib.Constants                                        as GLib
+import qualified GI.GLib.Functions                                        as GLib
 import qualified GI.Gst                                                   as Gst
 import           GI.Gtk                                                   (AttrOp (..))
 import qualified GI.Gtk                                                   as Gtk
@@ -290,6 +291,8 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
 
   previewStream n uri streamingProcess videoSettings =
     let setUp d content = do
+          statusLabel <- Gtk.new Gtk.Label [#label := "Initializing..."]
+          #packStart content statusLabel False False 10
           playbin <-
             Gst.elementFactoryMake "playbin" Nothing `orFailCreateWith` "playbin"
           playbinBus <- Gst.elementGetBus playbin `orFailCreateWith` "playbin bus"
@@ -298,15 +301,39 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
             case msgType of
               [Gst.MessageTypeError] -> do
                 (gError, _) <- Gst.messageParseError msg
-                gErrorText     <- Gst.gerrorMessage gError
-                liftIO . putStrLn $ show gError <> ": " <> gErrorText
-              [Gst.MessageTypeStateChanged] ->
-                -- (oldState, newState, _) <- Gst.messageParseStateChanged msg
-                -- putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                gErrorText  <- Gst.gerrorMessage gError
+                code        <- Gst.gerrorCode gError
+                domain      <- GLib.quarkToString =<< Gst.gerrorDomain gError
+                case (domain, code) of
+                  ("gst-resource-error-quark", 5) -> do
+                    threadDelay 500000 -- 500ms
+                    runUI_ $ do
+                        putStrLn ("Restarting..." :: Text)
+                        void . Gst.elementSetState playbin $ Gst.StateNull
+                        void . Gst.elementSetState playbin $ Gst.StatePlaying
+                  _ -> liftIO . putStrLn $ domain <> " - " <> show gError <> ": " <> gErrorText
+              [Gst.MessageTypeBuffering] ->
+                Gst.messageParseBuffering msg >>= \case
+                  percent
+                    | percent >= 100 -> do
+                        Gtk.labelSetLabel statusLabel "Playing..."
+                        void $ do
+                          GI.setObjectPropertyString playbin "uri" (Just uri)
+                          Gst.elementSetState playbin Gst.StatePlaying
+                    | otherwise -> do
+                        Gtk.labelSetLabel statusLabel ("Buffering (" <> show percent <> "%)")
+                        void . Gst.elementSetState playbin $ Gst.StatePaused
+              [Gst.MessageTypeStateChanged] -> do
+                (oldState, newState, _) <- Gst.messageParseStateChanged msg
+                putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+                return ()
+              [Gst.MessageTypeStreamStatus] -> do
+                (statusType, _owner) <- Gst.messageParseStreamStatus msg
+                putStrLn ("Stream status: " <> show statusType :: Text)
                 return ()
               [Gst.MessageTypeEos] ->
                 #destroy d
-              _ -> return ()
+              msgTypes -> print msgTypes
             return True
           gtkSink <-
             Gst.elementFactoryMake "gtksink" Nothing `orFailCreateWith` "GTK sink"
