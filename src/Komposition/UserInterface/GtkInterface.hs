@@ -311,7 +311,9 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
                         putStrLn ("Restarting..." :: Text)
                         void . Gst.elementSetState playbin $ Gst.StateNull
                         void . Gst.elementSetState playbin $ Gst.StatePlaying
-                  _ -> liftIO . putStrLn $ domain <> " - " <> show gError <> ": " <> gErrorText
+                  _ -> do
+                    liftIO . putStrLn $ domain <> " - " <> show gError <> ": " <> gErrorText
+                    #destroy d
               [Gst.MessageTypeBuffering] ->
                 Gst.messageParseBuffering msg >>= \case
                   percent
@@ -333,7 +335,7 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
                 return ()
               [Gst.MessageTypeEos] ->
                 #destroy d
-              msgTypes -> print msgTypes
+              _ -> pass
             return True
           gtkSink <-
             Gst.elementFactoryMake "gtksink" Nothing `orFailCreateWith` "GTK sink"
