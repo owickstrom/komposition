@@ -114,7 +114,7 @@ library
                       , lens
                       , massiv >= 0.2 && < 0.3
                       , massiv-io >= 0.1.4 && < 0.2
-                      , motor >= 0.3 && < 0.4
+                      , motor >= 0.4 && < 0.5
                       , mtl
                       , pipes
                       , pipes-parse
