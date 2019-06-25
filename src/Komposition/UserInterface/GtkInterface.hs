@@ -291,8 +291,7 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
 
   previewStream n uri streamingProcess videoSettings =
     let setUp d content = do
-          statusLabel <- Gtk.new Gtk.Label [#label := "Initializing..."]
-          #packStart content statusLabel False False 10
+          (overlay, background, statusLabel) <- createOverlayAndLabel content
           playbin <-
             Gst.elementFactoryMake "playbin" Nothing `orFailCreateWith` "playbin"
           playbinBus <- Gst.elementGetBus playbin `orFailCreateWith` "playbin bus"
@@ -306,7 +305,10 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
                 domain      <- GLib.quarkToString =<< Gst.gerrorDomain gError
                 case (domain, code) of
                   ("gst-resource-error-quark", 5) -> do
-                    threadDelay 500000 -- 500ms
+                    -- In case the HTTP server for the stream is not
+                    -- yet up, this error will be thrown, and we
+                    -- restart the GStreamer playbin after 500ms.
+                    threadDelay 500000
                     runUI_ $ do
                         putStrLn ("Restarting..." :: Text)
                         void . Gst.elementSetState playbin $ Gst.StateNull
@@ -318,13 +320,12 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
                 Gst.messageParseBuffering msg >>= \case
                   percent
                     | percent >= 100 -> do
-                        Gtk.labelSetLabel statusLabel "Playing..."
-                        void $ do
-                          GI.setObjectPropertyString playbin "uri" (Just uri)
-                          Gst.elementSetState playbin Gst.StatePlaying
+                        #hide background
+                        void $ Gst.elementSetState playbin Gst.StatePlaying
                     | otherwise -> do
+                        #show background
                         Gtk.labelSetLabel statusLabel ("Buffering (" <> show percent <> "%)")
-                        void . Gst.elementSetState playbin $ Gst.StatePaused
+                        void $ Gst.elementSetState playbin Gst.StatePaused
               [Gst.MessageTypeStateChanged] -> do
                 (oldState, newState, _) <- Gst.messageParseStateChanged msg
                 putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
@@ -359,8 +360,8 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
           ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
           void . Gtk.onWidgetRealize content $ do
-            #packStart content videoWidget True True 0
-            #show videoWidget
+            #add overlay videoWidget
+            #showAll overlay
             #setSizeRequest
               videoWidget
               (fromIntegral (videoSettings ^. resolution . width))
@@ -382,6 +383,19 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
           maybe
             (Prelude.fail ("Couldn't create GStreamer " <> what <> "."))
             return
+
+        createOverlayAndLabel :: Gtk.Box -> IO (Gtk.Overlay, Gtk.Box, Gtk.Label)
+        createOverlayAndLabel content = do
+          overlay <- Gtk.new Gtk.Overlay []
+          background <- Gtk.new Gtk.Box []
+          style <- Gtk.widgetGetStyleContext background
+          Gtk.styleContextAddClass style "preview-overlay"
+          statusLabel <- Gtk.new Gtk.Label [#label := "Initializing..."]
+          #packStart background statusLabel True True 0
+          #addOverlay overlay background
+          #packStart content overlay True True 0
+          pure (overlay, background, statusLabel)
+
     in inNewModalDialog n ModalDialog { title = "Preview", message = Nothing, .. }
 
   beep _ = irunUI Gdk.beep
