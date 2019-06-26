@@ -11,7 +11,7 @@ extra-deps:
  - ffmpeg-light-0.12.2.2
  - indexed-0.1.3
  - massiv-0.2.5.0
- - motor-0.3.0
+ - motor-0.4.0
  - row-types-0.2.3.0
  - process-1.6.4.0
  - gi-gtk-declarative-0.4.2
