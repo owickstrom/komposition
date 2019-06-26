@@ -4,7 +4,7 @@ jobs:
   build:
     working_directory: ~/project
     docker:
-      - image: owickstrom/komposition-stack-builder:lts-12.4
+      - image: fpco/stack-build:lts-13.24
     steps:
       - checkout
 
