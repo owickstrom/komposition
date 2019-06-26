@@ -53,8 +53,6 @@ runFFmpegCommand toProgress totalDuration cmd = do
   printEscapedFFmpegInvocation allArgs
   bracket (startProcess process) stopProcess $ \p -> do
     liftIO (IO.hSetBuffering (getStderr p) IO.NoBuffering)
-    delayIfStreaming
-    yield (toProgress 0)
     fromCarriageReturnSplit (getStderr p) >-> yieldLines
     waitForExit p
   where
@@ -67,14 +65,6 @@ runFFmpegCommand toProgress totalDuration cmd = do
             (durationToSeconds currentDuration / durationToSeconds totalDuration)
           )
         Nothing -> return ()
-
-    -- TODO: This is a horrible hack to await the FFmpeg streaming
-    -- server's start. If there's some reliable way of parsing the output to
-    -- ensure the server is up, that would be preferable.
-    delayIfStreaming =
-      pass -- if isStreaming cmd then liftIO (threadDelay 500000) else return ()
-
-
     waitForExit p = waitExitCode p >>= \case
       ExitSuccess   -> return ()
       ExitFailure e -> throwIO

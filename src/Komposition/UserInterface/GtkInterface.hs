@@ -308,33 +308,44 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
                     -- In case the HTTP server for the stream is not
                     -- yet up, this error will be thrown, and we
                     -- restart the GStreamer playbin after 500ms.
-                    threadDelay 500000
+                    let delayMs = 500
+                    putStrLn ("HTTP stream not yet available, restarting in " <> show delayMs <> " ms..." :: Text)
+                    threadDelay (delayMs * 1000)
                     runUI_ $ do
-                        putStrLn ("Restarting..." :: Text)
                         void . Gst.elementSetState playbin $ Gst.StateNull
                         void . Gst.elementSetState playbin $ Gst.StatePlaying
                   _ -> do
+                    -- Other errors are printed, and the preview dialog is closed.
                     liftIO . putStrLn $ domain <> " - " <> show gError <> ": " <> gErrorText
                     #destroy d
               [Gst.MessageTypeBuffering] ->
                 Gst.messageParseBuffering msg >>= \case
                   percent
                     | percent >= 100 -> do
+                        -- No more buffering needed, hide overlay and
+                        -- continue playing
                         #hide background
                         void $ Gst.elementSetState playbin Gst.StatePlaying
                     | otherwise -> do
+                        -- Buffering needed, show overlay with
+                        -- appropriate text and paus the playbin
                         #show background
                         Gtk.labelSetLabel statusLabel ("Buffering (" <> show percent <> "%)")
                         void $ Gst.elementSetState playbin Gst.StatePaused
-              [Gst.MessageTypeStateChanged] -> do
-                (oldState, newState, _) <- Gst.messageParseStateChanged msg
-                putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
-                return ()
-              [Gst.MessageTypeStreamStatus] -> do
-                (statusType, _owner) <- Gst.messageParseStreamStatus msg
-                putStrLn ("Stream status: " <> show statusType :: Text)
-                return ()
+
+              -- Commented out, but useful for debugging:
+              --
+              -- [Gst.MessageTypeStateChanged] -> do
+              --   (oldState, newState, _) <- Gst.messageParseStateChanged msg
+              --   putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
+              --   return ()
+              -- [Gst.MessageTypeStreamStatus] -> do
+              --   (statusType, _owner) <- Gst.messageParseStreamStatus msg
+              --   putStrLn ("Stream status: " <> show statusType :: Text)
+              --   return ()
+
               [Gst.MessageTypeEos] ->
+                -- Stream has ended, close the preview dialog
                 #destroy d
               _ -> pass
             return True
@@ -349,13 +360,7 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
           GI.setObjectPropertyBool playbin "force-aspect-ratio" True
           void $ GI.setObjectPropertyString playbin "uri" (Just uri)
 
-          streamingStarted <- newEmptyMVar
-
           let updateProgress = do
-                -- We await the first progress update so that we know the
-                -- streaming has started.
-                void await
-                liftIO (putMVar streamingStarted ())
                 forever (void await)
           ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
 
@@ -366,8 +371,7 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
               videoWidget
               (fromIntegral (videoSettings ^. resolution . width))
               (fromIntegral (videoSettings ^. resolution . height))
-            takeMVar streamingStarted
-            -- Start streaming once the server is ready.
+            -- Try start streaming
             void $ Gst.elementSetState playbin Gst.StatePlaying
 
           void . Gtk.onWidgetDestroy d $ do
