@@ -12,7 +12,7 @@ jobs:
           name: Install native dependencies
           command: |
             apt update
-            apt install ffmpeg
+            apt install ffmpeg -y
 
       - run:
           name: Query resolver & ghc version
