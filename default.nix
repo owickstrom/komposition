@@ -12,7 +12,12 @@ let
 
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
-      ffmpeg-light = pkgs.haskell.lib.doJailbreak super.ffmpeg-light;
+      ffmpeg-light = pkgs.haskell.lib.doJailbreak (self.callHackage "ffmpeg-light" "0.12.2.2" {
+        libavcodec = null;
+        libavdevice = null;
+        libavformat = null;
+        libswscale = null;
+      });
       fused-effects =
         let
           prefetched = builtins.fromJSON (builtins.readFile ./fused-effects.json);
