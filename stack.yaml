@@ -8,6 +8,7 @@ extra-deps:
  - criterion-measurement-0.1.1.0
  - gi-gstbase-1.0.16
  - gi-gst-1.0.16
+ - hedgehog-1.0
  - ffmpeg-light-0.12.2.2
  - indexed-0.1.3
  - massiv-0.2.5.0
