@@ -12,7 +12,13 @@ jobs:
           name: Install native dependencies
           command: |
             apt update
-            apt install ffmpeg libavutil-dev -y
+            apt install -y \
+                ffmpeg \
+                libavcodec-dev \
+                libavdevice-dev \
+                libavformat-dev \
+                libswscale-dev \
+                libavutil-dev
 
       - run:
           name: Query resolver & ghc version
