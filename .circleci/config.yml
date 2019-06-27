@@ -4,7 +4,7 @@ jobs:
   build:
     working_directory: ~/project
     docker:
-      - image: fpco/stack-build:lts-13.24
+      - image: ubuntu:19.04
     steps:
       - checkout
 
@@ -12,6 +12,13 @@ jobs:
           name: Install native dependencies
           command: |
             apt update
+            # stack dependencies
+            apt install -y g++ gcc libc6-dev libffi-dev libgmp-dev make xz-utils zlib1g-dev git gnupg netbase wget
+
+            # install stack
+            (cd /tmp && wget https://get.haskellstack.org/stable/linux-x86_64.tar.gz && tar xzf linux-x86_64.tar.gz && cp stack-*-linux-*/stack /usr/bin/stack)
+
+            # komposition dependencies
             apt install -y \
                 ffmpeg \
                 sox \
