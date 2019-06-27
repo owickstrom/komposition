@@ -14,12 +14,23 @@ jobs:
             apt update
             apt install -y \
                 ffmpeg \
-                libavcodec-dev \
-                libavdevice-dev \
+                sox \
+                libgmp-dev \
+                libavutil-dev \
                 libavformat-dev \
+                libavcodec-dev \
                 libswscale-dev \
-                libavutil-dev
-
+                libavdevice-dev \
+                libgirepository1.0-dev \
+                libgtk-3-dev \
+                libpango1.0-dev \
+                libgdk-pixbuf2.0-dev \
+                libgstreamer1.0-dev \
+                gstreamer1.0-libav \
+                gstreamer1.0-gtk3 \
+                gstreamer1.0-plugins-base \
+                gstreamer1.0-plugins-good \
+                gstreamer1.0-plugins-bad
       - run:
           name: Query resolver & ghc version
           command: |
