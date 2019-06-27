@@ -4,7 +4,7 @@ jobs:
   build:
     working_directory: ~/project
     docker:
-      - image: ubuntu:19.04
+      - image: owickstrom/komposition-stack-builder:lts-13.24
     steps:
       - checkout
 
@@ -12,32 +12,7 @@ jobs:
           name: Install native dependencies
           command: |
             apt update
-            # stack dependencies
-            apt install -y g++ gcc libc6-dev libffi-dev libgmp-dev make xz-utils zlib1g-dev git gnupg netbase wget
-
-            # install stack
-            (cd /tmp && wget https://get.haskellstack.org/stable/linux-x86_64.tar.gz && tar xzf linux-x86_64.tar.gz && cp stack-*-linux-*/stack /usr/bin/stack)
-
-            # komposition dependencies
-            apt install -y \
-                ffmpeg \
-                sox \
-                libgmp-dev \
-                libavutil-dev \
-                libavformat-dev \
-                libavcodec-dev \
-                libswscale-dev \
-                libavdevice-dev \
-                libgirepository1.0-dev \
-                libgtk-3-dev \
-                libpango1.0-dev \
-                libgdk-pixbuf2.0-dev \
-                libgstreamer1.0-dev \
-                gstreamer1.0-libav \
-                gstreamer1.0-gtk3 \
-                gstreamer1.0-plugins-base \
-                gstreamer1.0-plugins-good \
-                gstreamer1.0-plugins-bad
+            apt install -y ffmpeg
       - run:
           name: Query resolver & ghc version
           command: |

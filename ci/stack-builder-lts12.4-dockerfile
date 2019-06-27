@@ -1,7 +1,7 @@
 # Base image for Komposition builds on CircleCI, with system dependencies
 # and Stack preinstalled.
 
-FROM ubuntu:18.04
+FROM ubuntu:19.04
 
 ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y \
 RUN curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C /usr/bin '*/stack'
 ENV PATH="${HOME}/.local/bin:${PATH}"
 
-RUN stack --resolver lts-12.4 --no-terminal --install-ghc setup
+RUN stack --resolver lts-13.24 --no-terminal --install-ghc setup
 
 ADD . /preload-app
 WORKDIR /preload-app
