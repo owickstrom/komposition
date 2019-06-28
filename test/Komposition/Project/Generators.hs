@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies    #-}
 
 module Komposition.Project.Generators where
 
@@ -18,23 +19,26 @@ import           Komposition.VideoSettings          (AllVideoSettings (..),
                                                      Resolution (..),
                                                      VideoSettings (..))
 
-library :: MonadGen m => m Library
+library :: (MonadGen m, GenBase m ~ Identity) => m Library
 library =
     Library
     <$> Gen.list (linear 1 5) Gen.videoAsset
     <*> Gen.list (linear 1 5) Gen.audioAsset
 
-resolution :: MonadGen m => m Resolution
+resolution :: (MonadGen m, GenBase m ~ Identity) => m Resolution
 resolution =
   Resolution
   <$> Gen.word (linear 200 2000)
   <*> Gen.word (linear 200 2000)
 
-videoSettings :: MonadGen m => m VideoSettings
+videoSettings :: (MonadGen m, GenBase m ~ Identity) => m VideoSettings
 videoSettings =
   VideoSettings <$> Gen.word (linear 15 25) <*> resolution
 
-projectWithTimelineAndFocus :: MonadGen m => m (Timeline (), SequenceFocus) -> m (WithoutHistory Project)
+projectWithTimelineAndFocus
+  :: (MonadGen m, GenBase m ~ Identity)
+  => m (Timeline (), SequenceFocus)
+  -> m (WithoutHistory Project)
 projectWithTimelineAndFocus genTimeline = do
   _projectName                <- Gen.text (linear 1 5) Gen.unicode
   (_timeline, _timelineFocus) <- genTimeline
@@ -42,5 +46,5 @@ projectWithTimelineAndFocus genTimeline = do
   _videoSettings <- AllVideoSettings <$> videoSettings <*> videoSettings
   return Project { .. }
 
-project :: MonadGen m => m (WithoutHistory Project)
+project :: (MonadGen m, GenBase m ~ Identity) => m (WithoutHistory Project)
 project = projectWithTimelineAndFocus (Gen.timelineWithFocus (linear 1 10) Gen.parallel)

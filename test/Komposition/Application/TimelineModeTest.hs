@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE PolyKinds        #-}
+{-# LANGUAGE TypeFamilies     #-}
 module Komposition.Application.TimelineModeTest where
 
 import           Komposition.Prelude
@@ -41,7 +42,10 @@ import           Komposition.Render.StubRender
 import           Komposition.UserInterface.StubUserInterface
 
 
-initializeState :: MonadGen m => (Timeline (), Focus 'SequenceFocusType) -> m TimelineState
+initializeState
+  :: (MonadGen m, GenBase m ~ Identity)
+  => (Timeline (), Focus 'SequenceFocusType)
+  -> m TimelineState
 initializeState (timeline', focus')= do
   existingProject'    <-
     ExistingProject
@@ -55,7 +59,7 @@ initializeState (timeline', focus')= do
     , _previewImagePath = Nothing
     }
 
-genUndoableTimelineEvent :: MonadGen m => m SomeEvent
+genUndoableTimelineEvent :: (MonadGen m, GenBase m ~ Identity) => m SomeEvent
 genUndoableTimelineEvent =
   -- TODO: add Insert
   SomeEvent <$>
@@ -132,10 +136,10 @@ hprop_undo_actions_are_redoable = property $ do
   -- starting the undos
   timelineToTree (beforeUndos ^. currentTimeline) === timelineToTree (afterRedos ^. currentTimeline)
 
-genMediaType :: MonadGen m => m MediaType
+genMediaType :: (MonadGen m, GenBase m ~ Identity) => m MediaType
 genMediaType = Gen.choice [pure Video, pure Audio]
 
-genInsertType :: MonadGen m => m InsertType
+genInsertType :: (MonadGen m, GenBase m ~ Identity) => m InsertType
 genInsertType =
   Gen.choice
   [ pure InsertComposition
@@ -143,7 +147,7 @@ genInsertType =
   , InsertGap <$> Gen.maybe genMediaType
   ]
 
-genFocusChangingEvents :: MonadGen m => m [SomeEvent]
+genFocusChangingEvents :: (MonadGen m, GenBase m ~ Identity) => m [SomeEvent]
 genFocusChangingEvents = Gen.choice
   [pure <$> genUndoableTimelineEvent, pure <$> genFocusEvent, genInsertEvents]
   where
