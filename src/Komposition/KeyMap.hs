@@ -64,7 +64,8 @@ keySequenceToText :: KeySequence -> Text
 keySequenceToText = Text.unwords . map keyComboToText
 
 keyComboToText :: KeyCombo -> Text
-keyComboToText = Text.intercalate "-" . map keyToText . HashSet.toList
+keyComboToText = Text.intercalate "-" .
+                 map keyToText . HashSet.toList
 
 keyToText :: Key -> Text
 keyToText =

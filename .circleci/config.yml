@@ -4,15 +4,18 @@ jobs:
   build:
     working_directory: ~/project
     docker:
-      - image: owickstrom/komposition-stack-builder:lts-12.4
+      - image: owickstrom/komposition-stack-builder:lts-13.24
+    environment:
+      LC_ALL: C.UTF-8
+      LANG: en_US.UTF-8
     steps:
       - checkout
 
       - run:
           name: Install native dependencies
           command: |
-            apt install ffmpeg
-
+            apt update
+            apt install -y ffmpeg
       - run:
           name: Query resolver & ghc version
           command: |

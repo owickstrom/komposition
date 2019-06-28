@@ -1,4 +1,4 @@
-resolver: lts-12.4
+resolver: lts-13.26
 
 packages:
 - .
@@ -8,14 +8,18 @@ extra-deps:
  - criterion-measurement-0.1.1.0
  - gi-gstbase-1.0.16
  - gi-gst-1.0.16
+ - hedgehog-1.0
  - ffmpeg-light-0.12.2.2
  - indexed-0.1.3
  - massiv-0.2.5.0
- - motor-0.3.0
- - row-types-0.2.3.0
+ - motor-0.4.0
+ - row-types-0.3.0.0
  - process-1.6.4.0
+ - tasty-hedgehog-1.0.0.1
  - gi-gtk-declarative-0.4.2
  - git: https://github.com/reinerp/indexed-extras.git
    commit: 8b38e7503c030644154e844cd932003d9438cfa2
  - git: https://github.com/robrix/fused-effects.git
    commit: 7421ffa4e2d05b961fb0347ddab5ebdef9e32f25
+
+allow-newer: true

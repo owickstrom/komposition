@@ -128,6 +128,18 @@
 .preview.dialog {
   padding: 0;
 }
+.preview-overlay {
+  background: rgba(0,0,0,.75);
+  color: #eee;
+  font-size: 125%;
+}
+
+spinner {
+  animation-name: spin;
+  animation-duration: 1s;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
 
 .help {
   min-width: 250pt;

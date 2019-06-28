@@ -212,8 +212,8 @@ data ImportFileModel = ImportFileModel
   }
 
 data SelectAssetsModel mt where
-  SelectAssetsModel 
-    :: ( Show (Asset mt) 
+  SelectAssetsModel
+    :: ( Show (Asset mt)
        , Show (SMediaType mt)
        )
     => { mediaType      :: SMediaType mt
@@ -249,7 +249,7 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   patchWindow
     :: Typeable Event
     => HasType n (Window m window event) r
-    => Modify n (Window m window event) r ~ r
+    => ((n .== Window m window event) .// r) ~ r
     => Name n
     -> WindowMarkup m window event
     -> m r r ()

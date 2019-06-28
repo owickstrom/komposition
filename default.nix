@@ -1,44 +1,80 @@
-{ compiler ? "ghc863", doCheck ? true, doBenchmark ? false }:
+{ compiler ? "ghc864", doCheck ? true, doBenchmark ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {
-    name = "nixos-unstable-2019-01-05";
-    url = https://github.com/nixos/nixpkgs/;
-    # `git ls-remote https://github.com/nixos/nixpkgs-channels nixos-unstable`
-    rev = "eebd1a9263716a04689a37b6537e50801d376b5e";
+    name = "nixos-unstable-2019-06-23";
+    url = https://github.com/nixos/nixpkgs-channels/;
+    rev = "3ddd23719bbd878c5ddf4ad9597c0e00904245f8";
+    ref = "nixos-19.03";
   }) {};
-
-  giGtkDeclarativeJson = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
-  fusedEffectsJson = builtins.fromJSON (builtins.readFile ./fused-effects.json);
 
   inherit (nixpkgs) pkgs;
 
+  githubHaskellPackage = pkgs: attrs: args:
+    let
+      prefetched = builtins.fromJSON (builtins.readFile attrs.path);
+      src = nixpkgs.fetchFromGitHub {
+        owner = attrs.owner;
+        repo = attrs.repo;
+        inherit (prefetched) rev sha256;
+      };
+      packageSrc = if attrs.repoSubDir == "" then src else "${src}/${attrs.repoSubDir}";
+    in pkgs.callCabal2nix attrs.repo packageSrc args;
+
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
-      criterion = self.callHackage "criterion" "1.5.3.0" {};
-      ffmpeg-light = pkgs.haskell.lib.doJailbreak super.ffmpeg-light;
-      fused-effects =
-        let
-          src = nixpkgs.fetchFromGitHub {
-            owner = "robrix";
-            repo = "fused-effects";
-            inherit (fusedEffectsJson) rev sha256;
-          };
-        in self.callCabal2nix "fused-effects" src {};
-      haskell-gi-overloading = pkgs.haskell.lib.dontHaddock (self.callHackage "haskell-gi-overloading" "1.0" {});
+      ffmpeg-light = pkgs.haskell.lib.doJailbreak (self.callHackage "ffmpeg-light" "0.12.2.2" {
+        libavcodec = null;
+        libavdevice = null;
+        libavformat = null;
+        libswscale = null;
+      });
+      fused-effects = githubHaskellPackage self {
+        owner = "robrix";
+        repo = "fused-effects";
+        path = nix/fused-effects.json;
+        repoSubDir = "";
+      } {};
+      hedgehog = githubHaskellPackage self {
+        owner = "hedgehogqa";
+        repo = "haskell-hedgehog";
+        path = nix/haskell-hedgehog.json;
+        repoSubDir = "hedgehog";
+      } {};
       indexed-extras = pkgs.haskell.lib.doJailbreak super.indexed-extras;
-      massiv = self.callHackage "massiv" "0.2.5.0" {};
-      massiv-io = self.callHackage "massiv-io" "0.1.4.0" {};
+      motor = githubHaskellPackage self {
+        owner = "owickstrom";
+        repo = "motor";
+        path = nix/motor.json;
+        repoSubDir = "motor";
+      } {};
       pipes-safe = self.callHackage "pipes-safe" "2.3.1" {};
       protolude = self.callHackage "protolude" "0.2.3" {};
       gi-gtk-declarative =
         let
+          prefetched = builtins.fromJSON (builtins.readFile ./nix/gi-gtk-declarative.json);
           src = nixpkgs.fetchFromGitHub {
             owner = "owickstrom";
             repo = "gi-gtk-declarative";
-            inherit (giGtkDeclarativeJson) rev sha256;
+            inherit (prefetched) rev sha256;
           };
-        in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};    };
+        in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
+      row-types = githubHaskellPackage self {
+        owner = "target";
+        repo = "row-types";
+        path = nix/row-types.json;
+        repoSubDir = "";
+      } {};
+      tasty-hedgehog = githubHaskellPackage self {
+        owner = "qfpl";
+        repo = "tasty-hedgehog";
+        path = nix/tasty-hedgehog.json;
+        repoSubDir = "";
+      } {};
+    };
+  };
+  fontsConf = nixpkgs.makeFontsConf {
+    fontDirectories = [ nixpkgs.cantarell-fonts ];
   };
   toggleCheck = if doCheck then pkgs.haskell.lib.doCheck else pkgs.haskell.lib.dontCheck;
   toggleBenchmark = if doBenchmark then pkgs.haskell.lib.doBenchmark else pkgs.lib.id;
@@ -81,13 +117,12 @@ let
       mkdir -p $out/bin
       ln -s ${drv}/bin/komposition $out/bin
       wrapProgram $out/bin/komposition \
+        --set FONTCONFIG_FILE "${fontsConf}" \
         --prefix 'PATH' ':' "${pkgs.ffmpeg}/bin" \
         --prefix 'PATH' ':' "${pkgs.sox}/bin"
     '';
   };
-in
-{ komposition = komposition;
-  komposition-shell = haskellPackages.shellFor {
+  shell = haskellPackages.shellFor {
     withHoogle = true;
     packages = p: [drv];
     buildInputs = with pkgs; [
@@ -108,5 +143,9 @@ in
       python.packages.mkdocs
       python.packages.mkdocs-material
       ];
+    FONTCONFIG_FILE = fontsConf;
   };
+in
+{ komposition = komposition;
+  komposition-shell = shell;
 }
