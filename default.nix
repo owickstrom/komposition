@@ -10,6 +10,17 @@ let
 
   inherit (nixpkgs) pkgs;
 
+  githubHaskellPackage = pkgs: attrs: args:
+    let
+      prefetched = builtins.fromJSON (builtins.readFile attrs.path);
+      src = nixpkgs.fetchFromGitHub {
+        owner = attrs.owner;
+        repo = attrs.repo;
+        inherit (prefetched) rev sha256;
+      };
+      packageSrc = if attrs.repoSubDir == "" then src else "${src}/${attrs.repoSubDir}";
+    in pkgs.callCabal2nix attrs.repo packageSrc args;
+
   haskellPackages = pkgs.haskell.packages.${compiler}.override {
     overrides = self: super: {
       ffmpeg-light = pkgs.haskell.lib.doJailbreak (self.callHackage "ffmpeg-light" "0.12.2.2" {
@@ -18,45 +29,48 @@ let
         libavformat = null;
         libswscale = null;
       });
-      fused-effects =
-        let
-          prefetched = builtins.fromJSON (builtins.readFile ./fused-effects.json);
-          src = nixpkgs.fetchFromGitHub {
-            owner = "robrix";
-            repo = "fused-effects";
-            inherit (prefetched) rev sha256;
-          };
-        in self.callCabal2nix "fused-effects" src {};
+      fused-effects = githubHaskellPackage self {
+        owner = "robrix";
+        repo = "fused-effects";
+        path = nix/fused-effects.json;
+        repoSubDir = "";
+      } {};
+      hedgehog = githubHaskellPackage self {
+        owner = "hedgehogqa";
+        repo = "haskell-hedgehog";
+        path = nix/haskell-hedgehog.json;
+        repoSubDir = "hedgehog";
+      } {};
       indexed-extras = pkgs.haskell.lib.doJailbreak super.indexed-extras;
-      motor =
-        let
-          prefetched = builtins.fromJSON (builtins.readFile ./motor.json);
-          src = nixpkgs.fetchFromGitHub {
-            owner = "owickstrom";
-            repo = "motor";
-            inherit (prefetched) rev sha256;
-          };
-        in self.callCabal2nix "motor" "${src}/motor" {};
+      motor = githubHaskellPackage self {
+        owner = "owickstrom";
+        repo = "motor";
+        path = nix/motor.json;
+        repoSubDir = "motor";
+      } {};
       pipes-safe = self.callHackage "pipes-safe" "2.3.1" {};
       protolude = self.callHackage "protolude" "0.2.3" {};
       gi-gtk-declarative =
         let
-          prefetched = builtins.fromJSON (builtins.readFile ./gi-gtk-declarative.json);
+          prefetched = builtins.fromJSON (builtins.readFile ./nix/gi-gtk-declarative.json);
           src = nixpkgs.fetchFromGitHub {
             owner = "owickstrom";
             repo = "gi-gtk-declarative";
             inherit (prefetched) rev sha256;
           };
         in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
-      row-types =
-        let
-          prefetched = builtins.fromJSON (builtins.readFile ./row-types.json);
-          src = nixpkgs.fetchFromGitHub {
-            owner = "target";
-            repo = "row-types";
-            inherit (prefetched) rev sha256;
-          };
-        in self.callCabal2nix "row-types" src {};
+      row-types = githubHaskellPackage self {
+        owner = "target";
+        repo = "row-types";
+        path = nix/row-types.json;
+        repoSubDir = "";
+      } {};
+      tasty-hedgehog = githubHaskellPackage self {
+        owner = "qfpl";
+        repo = "tasty-hedgehog";
+        path = nix/tasty-hedgehog.json;
+        repoSubDir = "";
+      } {};
     };
   };
   fontsConf = nixpkgs.makeFontsConf {
