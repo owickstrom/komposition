@@ -4,7 +4,7 @@ jobs:
   build:
     working_directory: ~/project
     docker:
-      - image: owickstrom/komposition-stack-builder:lts-13.24
+      - image: owickstrom/komposition-stack-builder:ubuntu-18.04-lts-13.24
     environment:
       LC_ALL: C.UTF-8
       LANG: en_US.UTF-8

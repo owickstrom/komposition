@@ -1,7 +1,7 @@
 # Base image for Komposition builds on CircleCI, with system dependencies
 # and Stack preinstalled.
 
-FROM ubuntu:19.04
+FROM ubuntu:18.04
 
 ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
