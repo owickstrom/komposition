@@ -59,11 +59,16 @@ jobs:
 
       - deploy:
           command: |
+            stack install
+
             if [ "$CIRCLE_PROJECT_USERNAME" == "owickstrom" ]; then
               if [[ "$CIRCLE_BRANCH" == "master" ]]; then
                 echo 'TODO: release'
               fi
             fi
+
+      - store_artifacts:
+          path: ~/.local/bin/komposition
 
 workflows:
   version: 2
