@@ -61,7 +61,7 @@ jobs:
           command: |
             if [ "$CIRCLE_PROJECT_USERNAME" == "owickstrom" ]; then
               if [[ "$CIRCLE_BRANCH" == "master" ]]; then
-                release
+                echo 'TODO: release'
               fi
             fi
 
