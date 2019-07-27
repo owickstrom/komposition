@@ -12,17 +12,16 @@ module Komposition.UserInterface.GtkInterface.SelectBox
 import           Komposition.Prelude
 
 import           Control.Lens
-import qualified Data.List.NonEmpty                      as NonEmpty
-import qualified GI.GObject                              as GI
-import qualified GI.Gtk                                  as Gtk
+import qualified Data.List.NonEmpty             as NonEmpty
+import qualified GI.GObject                     as GI
+import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
-import           GI.Gtk.Declarative.Attributes.Collected
 import           GI.Gtk.Declarative.EventSource
-import           GI.Gtk.Declarative.State
 
 data SelectBoxProperties a = SelectBoxProperties
   { selected         :: a
   , values           :: NonEmpty a
+  -- TODO: remove
   , selectBoxClasses :: ClassSet
   } deriving (Eq, Show)
 
@@ -34,7 +33,7 @@ selectBox
   => (a -> Text)
   -> SelectBoxProperties a
   -> Widget (SelectBoxEvent a)
-selectBox format customData = Widget (CustomWidget {..})
+selectBox format customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.ComboBoxText
     customCreate props = do
@@ -44,22 +43,17 @@ selectBox format customData = Widget (CustomWidget {..})
       case elemIndex (selected props) (values props) of
         Just i  -> #setActive combo (fromIntegral i)
         Nothing -> pass
-      sc <- Gtk.widgetGetStyleContext combo
-      updateClasses sc mempty (selectBoxClasses props)
-      return (SomeState (StateTreeWidget (StateTreeNode combo sc mempty ())))
+      return (combo, ())
 
-    customPatch (SomeState st) old new
+    customPatch old new ()
       | old == new = CustomKeep
       | otherwise = CustomModify $ \(combo :: Gtk.ComboBoxText) -> do
         #removeAll combo
         for_ (values new) $ \value ->
           #appendText combo (format value)
-        updateClasses (stateTreeStyleContext (stateTreeNode st))
-                      (selectBoxClasses old)
-                      (selectBoxClasses new)
-        return (SomeState st)
+        return ()
 
-    customSubscribe props (combo :: Gtk.ComboBoxText) cb = do
+    customSubscribe props () (combo :: Gtk.ComboBoxText) cb = do
       h <- Gtk.on combo
                   #changed
                   (cb

@@ -13,18 +13,16 @@ import qualified GI.GLib                        as GLib
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
-import           GI.Gtk.Declarative.State
 
 type CustomState = IORef FilePath
 
 thumbnailPreview :: FilePath -> Widget a
-thumbnailPreview customData = Widget (CustomWidget {..})
+thumbnailPreview customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.Layout
     customCreate thumbnailPath = do
       src <- newIORef thumbnailPath
       layout <- Gtk.layoutNew Gtk.noAdjustment Gtk.noAdjustment
-      sc <- Gtk.widgetGetStyleContext layout
       image <- Gtk.imageNewFromPixbuf Pixbuf.noPixbuf
       Gtk.widgetSetSizeRequest layout 200 200
       Gtk.layoutPut layout image 0 0
@@ -45,17 +43,13 @@ thumbnailPreview customData = Widget (CustomWidget {..})
         w <- Gdk.getRectangleWidth a
         h <- Gdk.getRectangleHeight a
         redraw w h
-      return (SomeState (StateTreeWidget (StateTreeNode layout sc mempty src)))
+      return (layout, src)
 
-    customPatch (SomeState (stateTree :: StateTree stateType w e c cs)) old (new :: FilePath)
+    customPatch old new src
       | old == new = CustomKeep
-      | otherwise =
-        case (stateTree, eqT @cs @CustomState) of
-          (StateTreeWidget top, Just Refl) -> CustomModify $ \_ -> do
-            writeIORef (stateTreeCustomState top) new
-            return (SomeState (StateTreeWidget top))
+      | otherwise = CustomModify $ \_layout -> do
+          writeIORef src new
+          return src
 
-          _ -> CustomReplace
-
-    customSubscribe _ _ _ =
+    customSubscribe _ _ _ _ =
       return (fromCancellation (return ()))

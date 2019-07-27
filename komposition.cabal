@@ -102,7 +102,7 @@ library
                       , gi-glib
                       , gi-gst
                       , gi-gtk
-                      , gi-gtk-declarative >= 0.4.2 && < 0.4.3
+                      , gi-gtk-declarative == 0.4.3
                       , gi-gdk
                       , gi-gdkpixbuf
                       , gi-pango

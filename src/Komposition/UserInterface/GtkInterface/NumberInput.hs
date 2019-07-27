@@ -13,12 +13,10 @@ module Komposition.UserInterface.GtkInterface.NumberInput
 
 import           Komposition.Prelude
 
-import qualified GI.GObject                              as GI
-import qualified GI.Gtk                                  as Gtk
+import qualified GI.GObject                     as GI
+import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
-import           GI.Gtk.Declarative.Attributes.Collected
 import           GI.Gtk.Declarative.EventSource
-import           GI.Gtk.Declarative.State
 
 data NumberInputProperties n = NumberInputProperties
   { value              :: n
@@ -35,7 +33,7 @@ numberInput
   :: (Typeable n, Eq n, NumberInputNum n)
   => NumberInputProperties n
   -> Widget (NumberInputEvent n)
-numberInput customData = Widget (CustomWidget {..})
+numberInput customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.SpinButton
     customCreate props = do
@@ -43,23 +41,17 @@ numberInput customData = Widget (CustomWidget {..})
       adj <- propsToAdjustment props
       Gtk.spinButtonSetAdjustment spin adj
       Gtk.spinButtonSetDigits spin (digits props)
-      sc <- Gtk.widgetGetStyleContext spin
-      updateClasses sc mempty (numberInputClasses props)
-      Gtk.widgetShow spin
-      return (SomeState (StateTreeWidget (StateTreeNode spin sc mempty ())))
+      return (spin, ())
 
-    customPatch (SomeState st) old new
+    customPatch old new ()
       | old == new = CustomKeep
-      | otherwise = CustomModify $ \(spin :: Gtk.SpinButton) -> do
+      | otherwise = CustomModify $ \spin -> do
         adj <- propsToAdjustment new
         Gtk.spinButtonSetAdjustment spin adj
         Gtk.spinButtonSetDigits spin (digits new)
-        updateClasses (stateTreeStyleContext (stateTreeNode st))
-                      (numberInputClasses old)
-                      (numberInputClasses new)
-        return (SomeState st)
+        return ()
 
-    customSubscribe _ (spin :: Gtk.SpinButton) cb = do
+    customSubscribe _params () (spin :: Gtk.SpinButton) cb = do
       h <- Gtk.on spin #valueChanged $
         cb . NumberInputChanged . fromDouble =<< #getValue spin
       return (fromCancellation (GI.signalHandlerDisconnect spin h))
