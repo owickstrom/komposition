@@ -13,17 +13,17 @@ module Komposition.UserInterface.GtkInterface.NumberInput
 
 import           Komposition.Prelude
 
+import           Data.Vector                    (Vector)
 import qualified GI.GObject                     as GI
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
 
 data NumberInputProperties n = NumberInputProperties
-  { value              :: n
-  , range              :: (n, n)
-  , step               :: n
-  , digits             :: Word32
-  , numberInputClasses :: ClassSet
+  { value  :: n
+  , range  :: (n, n)
+  , step   :: n
+  , digits :: Word32
   } deriving (Eq, Show)
 
 
@@ -31,9 +31,10 @@ newtype NumberInputEvent n = NumberInputChanged n
 
 numberInput
   :: (Typeable n, Eq n, NumberInputNum n)
-  => NumberInputProperties n
+  => Vector (Attribute Gtk.SpinButton (NumberInputEvent n))
+  -> NumberInputProperties n
   -> Widget (NumberInputEvent n)
-numberInput customParams = Widget (CustomWidget {..})
+numberInput customAttributes customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.SpinButton
     customCreate props = do

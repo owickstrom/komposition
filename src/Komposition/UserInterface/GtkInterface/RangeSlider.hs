@@ -8,6 +8,7 @@ module Komposition.UserInterface.GtkInterface.RangeSlider where
 
 import           Komposition.Prelude
 
+import           Data.Vector                    (Vector)
 import qualified GI.GObject                     as GI
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
@@ -16,17 +17,18 @@ import           GI.Gtk.Declarative.EventSource
 type CustomState = ()
 
 data RangeSliderProperties = RangeSliderProperties
-  { range              :: (Double, Double)
-  , rangeValue         :: Double
-  -- TODO: remove and integrate into CustomWidget in gi-gtk-declarative
-  , rangeSliderClasses :: ClassSet
+  { range      :: (Double, Double)
+  , rangeValue :: Double
   } deriving (Eq, Show)
 
 
 newtype RangeSliderEvent = RangeSliderChanged Double
 
-rangeSlider :: RangeSliderProperties -> Widget RangeSliderEvent
-rangeSlider customParams = Widget (
+rangeSlider
+  :: Vector (Attribute Gtk.Scale RangeSliderEvent)
+  -> RangeSliderProperties
+  -> Widget RangeSliderEvent
+rangeSlider customAttributes customParams = Widget (
   CustomWidget
     { customWidget = Gtk.Scale
     , customCreate = \(RangeSliderProperties { range, rangeValue }) -> do

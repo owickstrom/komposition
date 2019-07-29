@@ -203,18 +203,17 @@ renderPreviewPane path' = pane defaultPaneProperties $ container
   Box
   [classes ["preview-pane"]]
   [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 } $ case path' of
-      Just p  -> thumbnailPreview p
+      Just p  -> thumbnailPreview [] p
       Nothing -> noPreviewAvailable
   ]
   where noPreviewAvailable = widget Label [#label := "No preview available."]
 
 durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
-durationControl vs range' currentDur = toDuration <$> numberInput NumberInputProperties
+durationControl vs range' currentDur = toDuration <$> numberInput [] NumberInputProperties
   { value              = durationToSeconds currentDur
   , NumberInput.range  = range' & both %~ durationToSeconds
   , step               = 1 / fromIntegral (vs ^. frameRate)
   , digits             = 2
-  , numberInputClasses = []
   }
   where toDuration (NumberInputChanged n) = durationFromSeconds n
 
@@ -396,8 +395,8 @@ renderBottomBar model = container
     , #ellipsize := EllipsizeModeEnd
     , #halign := AlignStart
     ]
-  , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ toZoomEvent <$> rangeSlider
-    (RangeSliderProperties (1, 9) zl ["zoom-level"])
+  , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ toZoomEvent
+    <$> rangeSlider [classes ["zoom-level"]] (RangeSliderProperties (1, 9) zl)
   ]
   where
     ZoomLevel zl = model ^. zoomLevel

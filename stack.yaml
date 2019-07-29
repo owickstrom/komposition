@@ -16,7 +16,7 @@ extra-deps:
  - row-types-0.3.0.0
  - process-1.6.4.0
  - tasty-hedgehog-1.0.0.1
- - gi-gtk-declarative-0.4.2
+ - gi-gtk-declarative-0.5.0
  - git: https://github.com/reinerp/indexed-extras.git
    commit: 8b38e7503c030644154e844cd932003d9438cfa2
  - git: https://github.com/robrix/fused-effects.git

@@ -7,6 +7,7 @@ module Komposition.UserInterface.GtkInterface.ThumbnailPreview where
 import           Komposition.Prelude
 
 import           Data.IORef
+import           Data.Vector                    (Vector)
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GdkPixbuf                   as Pixbuf
 import qualified GI.GLib                        as GLib
@@ -16,8 +17,8 @@ import           GI.Gtk.Declarative.EventSource
 
 type CustomState = IORef FilePath
 
-thumbnailPreview :: FilePath -> Widget a
-thumbnailPreview customParams = Widget (CustomWidget {..})
+thumbnailPreview :: Vector (Attribute Gtk.Layout a) -> FilePath -> Widget a
+thumbnailPreview customAttributes customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.Layout
     customCreate thumbnailPath = do

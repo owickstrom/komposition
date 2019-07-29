@@ -15,11 +15,10 @@ import           Komposition.VideoSpeed
 
 videoSpeedControl :: VideoSpeed -> Widget VideoSpeed
 videoSpeedControl current =    toDefaultVideoSpeedChanged
-  <$> numberInput NumberInputProperties
+  <$> numberInput [] NumberInputProperties
         { value              = current ^. unVideoSpeed
         , range              = (0.1, 10.0)
         , step               = 0.1
         , digits             = 1
-        , numberInputClasses = []
         }
   where toDefaultVideoSpeedChanged (NumberInputChanged v) = VideoSpeed v
