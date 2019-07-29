@@ -58,7 +58,8 @@ let
             repo = "gi-gtk-declarative";
             inherit (prefetched) rev sha256;
           };
-        in self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {};
+        in pkgs.haskell.lib.dontCheck
+          (self.callCabal2nix "gi-gtk-declarative" "${src}/gi-gtk-declarative" {});
       row-types = githubHaskellPackage self {
         owner = "target";
         repo = "row-types";
