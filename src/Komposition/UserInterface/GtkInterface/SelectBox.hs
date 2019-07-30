@@ -1,5 +1,4 @@
 {-# LANGUAGE GADTs               #-}
-{-# LANGUAGE NamedFieldPuns      #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -13,16 +12,15 @@ import           Komposition.Prelude
 
 import           Control.Lens
 import qualified Data.List.NonEmpty             as NonEmpty
+import           Data.Vector                    (Vector)
 import qualified GI.GObject                     as GI
 import qualified GI.Gtk                         as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
 
 data SelectBoxProperties a = SelectBoxProperties
-  { selected         :: a
-  , values           :: NonEmpty a
-  -- TODO: remove
-  , selectBoxClasses :: ClassSet
+  { selected :: a
+  , values   :: NonEmpty a
   } deriving (Eq, Show)
 
 
@@ -30,10 +28,11 @@ newtype SelectBoxEvent a = SelectBoxChanged a
 
 selectBox
   :: (Typeable a, Eq a)
-  => (a -> Text)
+  => Vector (Attribute Gtk.ComboBoxText (SelectBoxEvent a))
+  -> (a -> Text)
   -> SelectBoxProperties a
   -> Widget (SelectBoxEvent a)
-selectBox format customParams = Widget (CustomWidget {..})
+selectBox customAttributes format customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.ComboBoxText
     customCreate props = do
@@ -49,9 +48,7 @@ selectBox format customParams = Widget (CustomWidget {..})
       | old == new = CustomKeep
       | otherwise = CustomModify $ \(combo :: Gtk.ComboBoxText) -> do
         #removeAll combo
-        for_ (values new) $ \value ->
-          #appendText combo (format value)
-        return ()
+        for_ (values new) (#appendText combo . format)
 
     customSubscribe props () (combo :: Gtk.ComboBoxText) cb = do
       h <- Gtk.on combo

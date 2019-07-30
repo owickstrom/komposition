@@ -34,8 +34,8 @@ sequenceToTree (Sequence ann pars) =
   Node ("Sequence " <> show ann) (toList (parallelToTree <$> pars))
 
 parallelToTree :: Show a => Parallel a -> Tree String
-parallelToTree (Parallel ann videoTrack audioTrack) =
-  Node ("Parallel " <> show ann) [videoTrackToTree videoTrack, audioTrackToTree audioTrack]
+parallelToTree (Parallel ann videoTrack' audioTrack') =
+  Node ("Parallel " <> show ann) [videoTrackToTree videoTrack', audioTrackToTree audioTrack']
 
 videoTrackToTree :: Show a => VideoTrack a -> Tree String
 videoTrackToTree (VideoTrack ann vs) =

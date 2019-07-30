@@ -31,7 +31,7 @@ rangeSlider
 rangeSlider customAttributes customParams = Widget (
   CustomWidget
     { customWidget = Gtk.Scale
-    , customCreate = \(RangeSliderProperties { range, rangeValue }) -> do
+    , customCreate = \RangeSliderProperties { range, rangeValue } -> do
         scale <- Gtk.new Gtk.Scale []
         uncurry (#setRange scale) range
         #setValue scale rangeValue

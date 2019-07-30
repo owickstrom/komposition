@@ -143,18 +143,18 @@ renderParallel
   :: ZoomLevel
   -> Parallel (Focus 'SequenceFocusType, Focused)
   -> BoxChild (Event 'TimelineMode)
-renderParallel zl (Parallel (_thisFocus, focused) videoTrack audioTrack) = container
+renderParallel zl (Parallel (_thisFocus, focused) videoTrack' audioTrack') = container
   Box
   [ #orientation := OrientationVertical
   , classes
     [ "composition"
     , "parallel"
     , focusedClass focused
-    , emptyClass (videoTrackIsEmpty videoTrack && audioTrackIsEmpty audioTrack)
+    , emptyClass (videoTrackIsEmpty videoTrack' && audioTrackIsEmpty audioTrack')
     ]
   ]
-  [ renderVideoTrack zl videoTrack
-  , renderAudioTrack zl audioTrack
+  [ renderVideoTrack zl videoTrack'
+  , renderAudioTrack zl audioTrack'
   ]
 
 renderVideoTrack
@@ -254,14 +254,14 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
         [ heading "Parallel"
         , textEntry "Duration" (formatDuration (durationOf AdjustedDuration p))
         ]
-      Just (SomeVideoTrack t@(VideoTrack _ videoParts))
+      Just (SomeVideoTrack t@(VideoTrack _ videoParts'))
         -> [ heading "Video Track"
-           , textEntry "Parts" (show (length videoParts))
+           , textEntry "Parts" (show (length videoParts'))
            , textEntry "Duration" (formatDuration (durationOf AdjustedDuration t))
            ]
-      Just (SomeAudioTrack t@(AudioTrack _ audioParts))
+      Just (SomeAudioTrack t@(AudioTrack _ audioParts'))
         -> [ heading "Audio Track"
-           , textEntry "Parts" (show (length audioParts))
+           , textEntry "Parts" (show (length audioParts'))
            , textEntry "Duration" (formatDuration (durationOf AdjustedDuration t))
            ]
       Just (SomeVideoPart (VideoClip _ asset ts speed))
