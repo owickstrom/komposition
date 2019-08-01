@@ -99,8 +99,8 @@ resolutionControl model = container
   , BoxChild defaultBoxChildProperties { padding = 5 }
   $   toResolutionChanged
   <$> selectBox
-        []
         prettyPrintResolution
+        []
         SelectBoxProperties
           { selected         = model ^. newProjectResolution
           , values           = resolutions

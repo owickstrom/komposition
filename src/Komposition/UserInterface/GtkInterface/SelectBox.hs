@@ -28,11 +28,11 @@ newtype SelectBoxEvent a = SelectBoxChanged a
 
 selectBox
   :: (Typeable a, Eq a)
-  => Vector (Attribute Gtk.ComboBoxText (SelectBoxEvent a))
-  -> (a -> Text)
+  => (a -> Text)
+  -> Vector (Attribute Gtk.ComboBoxText (SelectBoxEvent a))
   -> SelectBoxProperties a
   -> Widget (SelectBoxEvent a)
-selectBox customAttributes format customParams = Widget (CustomWidget {..})
+selectBox format customAttributes customParams = Widget (CustomWidget {..})
   where
     customWidget = Gtk.ComboBoxText
     customCreate props = do
@@ -48,7 +48,8 @@ selectBox customAttributes format customParams = Widget (CustomWidget {..})
       | old == new = CustomKeep
       | otherwise = CustomModify $ \(combo :: Gtk.ComboBoxText) -> do
         #removeAll combo
-        for_ (values new) (#appendText combo . format)
+        for_ (values new) $ \value ->
+          #appendText combo (format value)
 
     customSubscribe props () (combo :: Gtk.ComboBoxText) cb = do
       h <- Gtk.on combo

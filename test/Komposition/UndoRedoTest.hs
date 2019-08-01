@@ -3,6 +3,8 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Komposition.UndoRedoTest where
 
 import           Komposition.Prelude  hiding (applyN)
@@ -67,15 +69,19 @@ applyAll f history =
     Just ma -> applyAll f . fst =<< ma
     Nothing -> pure history
 
+genTestValuesAndActions :: MonadGen m => m (Vector Char, [TestAction])
+genTestValuesAndActions = do
+  initial <- genTestValues (Range.exponential 1 100)
+  actions <- genTestActions (Range.exponential 0 100) (Vector.length initial)
+  pure (initial, actions)
+
 hprop_undo_history_has_correct_number_of_undos = property $ do
-  initial <- forAll (genTestValues (Range.exponential 1 100))
-  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
+  (initial, actions) <- forAll genTestValuesAndActions
   history <- runAndRecordAll (init initial) actions
   numUndos history === length actions
 
 hprop_undo_all_returns_initial_state = property $ do
-  initial <- forAll (genTestValues (Range.exponential 1 100))
-  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
+  (initial, actions) <- forAll genTestValuesAndActions
   -- we apply all actions
   afterActions <- runAndRecordAll (init initial) actions
   -- then undo them all
@@ -85,8 +91,7 @@ hprop_undo_all_returns_initial_state = property $ do
   afterUndos ^. current === initial
 
 hprop_redo_all_returns_final_state = property $ do
-  initial <- forAll (genTestValues (Range.exponential 1 100))
-  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
+  (initial, actions) <- forAll genTestValuesAndActions
   -- we apply all actions
   afterActions <- runAndRecordAll (init initial) actions
   -- then undo and redo them all
@@ -95,8 +100,7 @@ hprop_redo_all_returns_final_state = property $ do
   afterRedos ^. current === afterActions ^. current
 
 hprop_run_new_action_clears_redos = property $ do
-  initial <- forAll (genTestValues (Range.exponential 1 100))
-  actions <- forAll (genTestActions (Range.exponential 0 100) (Vector.length initial))
+  (initial, actions) <- forAll genTestValuesAndActions
   -- we apply all actions
   afterActions <- runAndRecordAll (init initial) actions
   -- and undo them all
