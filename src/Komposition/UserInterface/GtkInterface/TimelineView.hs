@@ -16,7 +16,7 @@ where
 import           Komposition.Prelude                                      hiding
                                                                            (on)
 
-import           Control.Lens
+import           Control.Lens                                             hiding (preview)
 import           Data.Int                                                 (Int32)
 import           Data.Text                                                (Text)
 import qualified Data.Vector                                              as Vector
@@ -49,6 +49,7 @@ import           Komposition.UserInterface.GtkInterface.NumberInput       as Num
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
 import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
+import           Komposition.UserInterface.GtkInterface.VideoStreamer
 import           Komposition.VideoSettings
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
@@ -78,7 +79,7 @@ renderClipAsset zl thisFocus focused asset' duration' = container
   ]
   [ BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ widget
       Button
-      [ on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+      [ on #buttonPressEvent (\eventButton -> (True, CommandKeyMappedEvent (JumpFocus thisFocus)))
       , #widthRequest := widthFromDuration zl duration'
       , #hasFocus := (focused == Focused)
       ]
@@ -120,13 +121,25 @@ renderAudioPart zl = \case
   AudioGap ann duration' -> renderGap zl ann duration'
 
 renderTimeline
-  :: ZoomLevel
+  :: TimelineViewModel
   -> Timeline (Focus 'SequenceFocusType, Focused)
   -> Widget (Event 'TimelineMode)
-renderTimeline zl (Timeline sub) = container
+renderTimeline model (Timeline sub) = container
   Box
-  [classes ["composition", "timeline", emptyClass (null sub)]]
-  (map (BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } . renderSequence zl) (Vector.fromList $ toList sub))
+  [classes (["composition", "timeline", emptyClass (null sub)] <> playingClass)]
+  (map
+    ( BoxChild defaultBoxChildProperties { expand  = False
+                                         , fill    = False
+                                         , padding = 0
+                                         }
+    . renderSequence (model ^. zoomLevel)
+    )
+    (Vector.fromList $ toList sub)
+  )
+  where
+    playingClass
+      | model ^. isPlaying = pure "playing"
+      | otherwise = mempty
 
 renderSequence
   :: ZoomLevel
@@ -198,15 +211,24 @@ emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
 renderPreviewPane
-  :: Maybe FilePath -> Pane (Event 'TimelineMode)
-renderPreviewPane path' = pane defaultPaneProperties $ container
+  :: Maybe Preview -> Pane (Event 'TimelineMode)
+renderPreviewPane preview' = pane defaultPaneProperties $ container
   Box
   [classes ["preview-pane"]]
-  [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 } $ case path' of
-      Just p  -> thumbnailPreview [] p
-      Nothing -> noPreviewAvailable
+  [ BoxChild defaultBoxChildProperties { expand  = True
+                                       , fill    = True
+                                       , padding = 0
+                                       }
+      $ case preview' of
+          Just (PreviewStream uri) ->
+            onStreamerEvent <$>
+            videoStreamer
+            (StreamerProperties { desiredState = DesiredPlaying, uri = Just uri })
+          Just (PreviewImage p) -> thumbnailPreview [] p
+          Nothing               -> noPreviewAvailable
   ]
   where noPreviewAvailable = widget Label [#label := "No preview available."]
+        onStreamerEvent StreamerPlaybackEnd = PreviewFinished
 
 durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
 durationControl vs range' currentDur = toDuration <$> numberInput [] NumberInputProperties
@@ -335,7 +357,7 @@ renderMainArea
   :: TimelineViewModel -> Widget (Event 'TimelineMode)
 renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
-  (renderPreviewPane (model ^. previewImagePath))
+  (renderPreviewPane (model ^. preview))
   (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline . current)))
   where
     project' = model ^. project
@@ -423,7 +445,7 @@ timelineView model =
           , #vscrollbarPolicy := PolicyTypeNever
           , classes ["timeline-container"]
           ]
-          (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
+          (renderTimeline model focusedTimelineWithSetFoci)
         , BoxChild defaultBoxChildProperties $ renderBottomBar model
         ]
   where

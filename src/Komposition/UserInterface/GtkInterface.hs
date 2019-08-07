@@ -113,6 +113,7 @@ asGtkWindow w =
 instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterface (GtkUserInterface m) where
   type Window (GtkUserInterface m) = GtkWindow
   type WindowMarkup (GtkUserInterface m) = GtkWindowMarkup
+  type BackgroundProcess (GtkUserInterface m) = Async ()
 
   newWindow name markup' keyMap =
     ilift ask >>>= \env ->
@@ -187,8 +188,12 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
 
   runInBackground name action =
     FSM.get name >>>= \w ->
-      iliftIO . void . async $
-        action >>= traverse_ (writeChan (events (windowEvents w)))
+      iliftIO . async $
+        (action >>= traverse_ (writeChan (events (windowEvents w))))
+        `catch` \(SomeException e) -> print e
+
+  cancelProcess process =
+    iliftIO (cancel process `catch` \(SomeException e) -> print e)
 
   setTransientFor childName parentName =
     FSM.get childName >>>= \child' ->

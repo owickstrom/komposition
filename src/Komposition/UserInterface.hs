@@ -4,7 +4,6 @@
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
@@ -21,7 +20,6 @@ import           Komposition.Prelude            hiding (State)
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
-import           Data.Vector                    (Vector)
 import           Motor.FSM                      hiding (Delete)
 import           Pipes
 import           Pipes.Safe                     (SafeT)
@@ -150,10 +148,13 @@ data Event mode where
   CreateClicked :: Event NewProjectMode
   -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
-  PreviewImageRefreshed :: Maybe FilePath -> Event TimelineMode
+  PreviewImageExtracted :: FilePath -> Event TimelineMode
   FocusedClipSpeedSet :: VideoSpeed -> Event TimelineMode
   FocusedClipStartSet :: Duration -> Event TimelineMode
   FocusedClipEndSet :: Duration -> Event TimelineMode
+  PreviewProcessFailed :: SomeException -> Event TimelineMode
+  PreviewCancelled :: Event TimelineMode
+  PreviewFinished :: Event TimelineMode
   -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportClassifySet :: Bool -> Event ImportMode
@@ -186,12 +187,18 @@ data FileChooserMode
 newtype ZoomLevel = ZoomLevel Double
   deriving (Eq, Show)
 
+data Preview
+  = PreviewStream Text
+  | PreviewImage FilePath
+  deriving (Eq, Show)
+
 data TimelineViewModel = TimelineViewModel
-  { _project          :: WithHistory Project
-  , _currentFocus     :: Focus SequenceFocusType
-  , _statusMessage    :: Maybe Text
-  , _zoomLevel        :: ZoomLevel
-  , _previewImagePath :: Maybe FilePath
+  { _project       :: WithHistory Project
+  , _currentFocus  :: Focus SequenceFocusType
+  , _statusMessage :: Maybe Text
+  , _zoomLevel     :: ZoomLevel
+  , _preview       :: Maybe Preview
+  , _isPlaying     :: Bool
   } deriving (Eq, Show)
 
 makeLenses ''TimelineViewModel
@@ -238,6 +245,7 @@ data WindowType = TopWindow | Modal
 class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
   type Window m :: WindowType -> Type -> Type
   type WindowMarkup m :: WindowType -> Type -> Type
+  type BackgroundProcess m
 
   newWindow
     :: Typeable event
@@ -307,7 +315,11 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     :: HasType n (Window m window e) r
     => Typeable e
     => Name n
-    -> IO (Vector e)
+    -> IO (Maybe e)
+    -> m r r (BackgroundProcess m)
+
+  cancelProcess
+    :: BackgroundProcess m
     -> m r r ()
 
   beep :: Name n -> m r r ()

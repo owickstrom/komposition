@@ -97,6 +97,19 @@
   background-color: #ccc;
 }
 
+
+.timeline.playing .clip,
+.timeline.playing .gap {
+    opacity: 0.5;
+}
+
+.timeline.playing .focused .clip,
+.timeline.playing .focused .gap,
+.timeline.playing .clip.focused,
+.timeline.playing .gap.focused {
+    opacity: 1;
+}
+
 .sidebar {
   padding: 1em;
 }
