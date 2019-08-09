@@ -232,6 +232,7 @@ renderPreviewPane model = pane defaultPaneProperties $ container
   where noPreviewAvailable = widget Label [#label := "No preview available."]
         onStreamerEvent = \case
           StreamerPlaybackProgress d -> PlaybackProgress d
+          StreamerPlaybackRestarting -> PlaybackRestarting
           StreamerPlaybackEnd -> PlaybackFinished
         playUri uri' =
             onStreamerEvent <$>

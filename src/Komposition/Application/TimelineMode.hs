@@ -77,7 +77,7 @@ type TimelineEffects sig =
 data PreviewingState t m = PreviewingState
   { _previewType     :: Preview
   , _previewProcess  :: Maybe (UI.BackgroundProcess (t m))
-  , _previewProgress :: Double
+  , _previewProgress :: Maybe Double
   }
 
 makeLenses ''PreviewingState
@@ -115,7 +115,7 @@ timelineViewFromState state' =
   (state' ^. statusMessage)
   (state' ^. zoomLevel)
   (state' ^? preview . _Previewing . previewType)
-  (state' ^?  preview . _Previewing . previewProgress)
+  (state' ^?  preview . _Previewing . previewProgress . traverse)
 
 timelineMode
   :: ( Application t m sig
@@ -214,7 +214,7 @@ timelineMode gui state' = do
             continueWithStatusMessage
               "Cannot render a composition without video clips."
       CommandKeyMappedEvent PlayOrStop ->
-        playFocusedComposition gui state' >>>= timelineMode gui
+        playFocusedComposition gui state' >>>= refreshPreviewAndContinue gui
       CommandKeyMappedEvent Undo ->
         case undo (state' ^. existingProject.project.timeline) of
           Just (Left err) -> beep gui >> continueWithStatusMessage err
@@ -252,7 +252,7 @@ timelineMode gui state' = do
       ZoomLevelChanged      zl   -> state' & zoomLevel .~ zl & timelineMode gui
       PreviewFrameExtracted path' ->
         state'
-        & preview .~ Previewing (PreviewingState (PreviewFrame path') Nothing 0)
+        & preview .~ Previewing (PreviewingState (PreviewFrame path') Nothing Nothing)
         & timelineMode gui
       FocusedClipSpeedSet speed -> runUndoableAction gui (SetClipSpeed (state' ^. existingProject.project.timelineFocus) speed) state'
       FocusedClipStartSet start -> runUndoableAction gui (SetClipStart (state' ^. existingProject.project.timelineFocus)start) state'
@@ -443,13 +443,13 @@ playFocusedComposition gui state' =
         ilift (logLnText Info "Going into playing...")
         state'
           & setPlayingMessage
-          & preview .~ Previewing (PreviewingState (PlayHttpStream host port) (Just bg) 0)
+          & preview .~ Previewing (PreviewingState (PlayHttpStream host port) (Just bg) (Just 0))
           & inPlaying gui
       Nothing -> beepWith "Cannot play a composition without video clips."
     playFile fp =
       state'
         & setPlayingMessage
-        & preview .~ Previewing (PreviewingState (PlayFile fp) Nothing 0)
+        & preview .~ Previewing (PreviewingState (PlayFile fp) Nothing (Just 0))
         & inPlaying gui
     setPlayingMessage =
       case KeyMap.lookupSequence PlayOrStop (keymaps STimelineMode) of
@@ -477,23 +477,26 @@ inPlaying gui state' = awaitFinished state' >>>= cleanup >>>= reset
           ilift (logLnText Error ("Streaming process failed during playback: " <> msg))
           ireturn state''
         CommandKeyMappedEvent PlayOrStop -> do
-          ilift (logLnText Info "Stopped.")
+          ilift (logLnText Debug "Playback stopped.")
           ireturn state''
         PlaybackProgress p -> do
-          ilift (logLnText Debug ("Playback progress: " <> show p))
+          ilift (logLnText Trace ("Playback progress: " <> show p))
           state''
-            & preview . _Previewing . previewProgress .~ p
+            & preview . _Previewing . previewProgress ?~ p
             & awaitFinished
+        PlaybackRestarting -> do
+          ilift (logLnText Trace "Playback restaring")
+          awaitFinished state''
         PlaybackFinished -> do
-          ilift (logLnText Info "Playback finished.")
+          ilift (logLnText Debug "Playback finished.")
           ireturn state''
         _ -> beep gui >>> awaitFinished state''
     cleanup state'' =
       case state'' ^?! preview . _Previewing . previewProcess of
         Just bg -> do
-          ilift (logLnText Info "Cancelling streaming process...")
+          ilift (logLnText Debug "Cancelling streaming process...")
           cancelProcess bg
-          ilift (logLnText Info "Cancelled streaming process.")
+          ilift (logLnText Debug "Cancelled streaming process.")
           ireturn state''
         Nothing              -> ireturn state''
     reset state'' =

@@ -154,6 +154,7 @@ data Event mode where
   FocusedClipEndSet :: Duration -> Event TimelineMode
   StreamingProcessFailed :: Text -> Event TimelineMode
   PlaybackProgress :: Double -> Event TimelineMode
+  PlaybackRestarting :: Event TimelineMode
   PlaybackFinished :: Event TimelineMode
   -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode

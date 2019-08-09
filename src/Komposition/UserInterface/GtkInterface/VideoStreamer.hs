@@ -31,6 +31,7 @@ type StreamURI = Text
 
 data StreamerEvent
   = StreamerPlaybackProgress Double
+  | StreamerPlaybackRestarting
   | StreamerPlaybackEnd
   deriving (Eq, Show, Typeable)
 
@@ -81,13 +82,16 @@ videoStreamer customParams = Widget
       progressListener <- async $
         let loop = do
               threadDelay 40000 -- 40ms
-              runUI_ $ do
+              completed <- runUI $ do
                 (gotPosition, position) <- #queryPosition playbin Gst.FormatTime
                 (gotDuration, duration) <- #queryDuration playbin Gst.FormatTime
-                when (gotPosition && gotDuration) $ do
-                  let progress = fromIntegral position / fromIntegral duration
-                  cb (StreamerPlaybackProgress progress)
-              loop
+                let progress =
+                      if gotPosition && gotDuration
+                      then fromIntegral position / fromIntegral duration
+                      else 0
+                cb (StreamerPlaybackProgress progress)
+                pure (progress >= 1)
+              unless completed loop
         in loop
 
       void $ Gst.busAddWatch playbinBus GLib.PRIORITY_DEFAULT $ \_bus msg -> do
@@ -106,8 +110,9 @@ videoStreamer customParams = Widget
                 -- yet up, this error will be thrown, and we
                 -- restart the GStreamer playbin after 500ms.
                 let delayMs = 500
-                putStrLn ("HTTP stream not yet available, restarting in " <> show delayMs <> " ms..." :: Text)
+                putStrLn ("Stream not yet available, restarting in " <> show delayMs <> " ms..." :: Text)
                 threadDelay (delayMs * 1000)
+                cb StreamerPlaybackRestarting
                 runUI_ $ do
                     void . Gst.elementSetState playbin $ Gst.StateNull
                     void . Gst.elementSetState playbin $ Gst.StatePlaying
@@ -206,3 +211,9 @@ orFailCreateWith action what =
 
 runUI_ :: IO () -> IO ()
 runUI_ ma = void (Gdk.threadsAddIdle GLib.PRIORITY_HIGH (ma *> return False))
+
+runUI :: IO a -> IO a
+runUI ma = do
+  ret <- newEmptyMVar
+  runUI_ (ma >>= putMVar ret)
+  takeMVar ret
