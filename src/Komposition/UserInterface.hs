@@ -189,8 +189,8 @@ newtype ZoomLevel = ZoomLevel Double
   deriving (Eq, Show)
 
 data Preview
-  = PlayHttpStream Text Word
-  | PlayFile FilePath
+  = PlayHttpStream Text Word Duration
+  | PlayFile FilePath Duration
   | PreviewFrame FilePath
   deriving (Eq, Show)
 
@@ -352,10 +352,3 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> Text -- ^ Progress window title
     -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer
     -> m r r (Maybe (Either e a))
-  previewStream
-    :: HasType n (Window m TopWindow event) r
-    => Name n -- ^ Name of parent window
-    -> Text -- ^ URI to stream
-    -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
-    -> VideoSettings
-    -> m r r (Maybe ())

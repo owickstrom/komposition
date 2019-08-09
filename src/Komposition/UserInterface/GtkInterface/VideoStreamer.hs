@@ -27,6 +27,8 @@ import           GI.Gtk.Declarative             (CustomPatch (..),
                                                  CustomWidget (..), Widget (..))
 import           GI.Gtk.Declarative.EventSource
 
+import           Komposition.Duration
+
 type StreamURI = Text
 
 data StreamerEvent
@@ -41,6 +43,7 @@ data DesiredState = DesiredPlaying | DesiredPaused
 data StreamerProperties = StreamerProperties
   { desiredState :: DesiredState
   , uri          :: Maybe StreamURI
+  , fullDuration :: Duration
   } deriving (Eq, Show, Typeable)
 
 data StreamerState = StreamerState
@@ -77,17 +80,17 @@ videoStreamer customParams = Widget
     --     Nothing  -> return ()
     --   return ()
 
-  , customSubscribe = \_props StreamerState{..} _widget cb -> do
+  , customSubscribe = \props StreamerState{..} _widget cb -> do
       -- Emit progress events
       progressListener <- async $
         let loop = do
               threadDelay 40000 -- 40ms
               completed <- runUI $ do
                 (gotPosition, position) <- #queryPosition playbin Gst.FormatTime
-                (gotDuration, duration) <- #queryDuration playbin Gst.FormatTime
+                -- (gotDuration, duration) <- #queryDuration playbin Gst.FormatTime
                 let progress =
-                      if gotPosition && gotDuration
-                      then fromIntegral position / fromIntegral duration
+                      if gotPosition
+                      then fromIntegral position / durationToNanoSeconds (fullDuration props)
                       else 0
                 cb (StreamerPlaybackProgress progress)
                 pure (progress >= 1)

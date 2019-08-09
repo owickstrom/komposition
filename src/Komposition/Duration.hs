@@ -24,6 +24,10 @@ durationToSeconds :: Duration -> Double
 durationToSeconds (Duration dt) =
   fromIntegral (diffTimeToPicoseconds dt) / 10e11
 
+durationToNanoSeconds :: Duration -> Double
+durationToNanoSeconds (Duration dt) =
+  fromIntegral (diffTimeToPicoseconds dt) / 1000
+
 data DurationMode = OriginalDuration | AdjustedDuration
 
 class HasDuration t where

@@ -211,33 +211,43 @@ renderPreviewPane
   :: TimelineViewModel -> Pane (Event 'TimelineMode)
 renderPreviewPane model = pane defaultPaneProperties $ container
   Box
-  [classes ["preview-pane"], #orientation := OrientationVertical ]
+  [classes ["preview-pane"], #orientation := OrientationVertical]
   [ BoxChild defaultBoxChildProperties { expand  = True
                                        , fill    = True
                                        , padding = 0
                                        }
-      $ case model ^. preview of
-          Just (PlayHttpStream host port) -> playUri ("http://" <> host <> ":" <> show port)
-          Just (PlayFile fp) -> playUri ("file://" <> toS fp)
-          Just (PreviewFrame p) -> thumbnailPreview [] p
-          Nothing               -> noPreviewAvailable
-  , BoxChild defaultBoxChildProperties $ container Box [ #orientation := OrientationHorizontal ] [
-      BoxChild
-      defaultBoxChildProperties { expand = True, fill = True }
-      (widget ProgressBar [ #fraction := fromMaybe 0 (model ^. playbackProgress)
-                          , classes ["playback-progress"]
-                          ])
+    $ case model ^. preview of
+        Just (PlayHttpStream host port fullDuration') ->
+          playUri ("http://" <> host <> ":" <> show port) fullDuration'
+        Just (PlayFile fp fullDuration') ->
+          playUri ("file://" <> toS fp) fullDuration'
+        Just (PreviewFrame p) -> thumbnailPreview [] p
+        Nothing               -> noPreviewAvailable
+  , BoxChild defaultBoxChildProperties $ container
+    Box
+    [#orientation := OrientationHorizontal]
+    [ BoxChild
+        defaultBoxChildProperties { expand = True, fill = True }
+        (widget
+          ProgressBar
+          [ #fraction := fromMaybe 0 (model ^. playbackProgress)
+          , classes ["playback-progress"]
+          ]
+        )
     ]
   ]
-  where noPreviewAvailable = widget Label [#label := "No preview available."]
-        onStreamerEvent = \case
-          StreamerPlaybackProgress d -> PlaybackProgress d
-          StreamerPlaybackRestarting -> PlaybackRestarting
-          StreamerPlaybackEnd -> PlaybackFinished
-        playUri uri' =
-            onStreamerEvent <$>
-            videoStreamer
-            (StreamerProperties { desiredState = DesiredPlaying, uri = Just uri' })
+  where
+    noPreviewAvailable = widget Label [#label := "No preview available."]
+    onStreamerEvent    = \case
+      StreamerPlaybackProgress d -> PlaybackProgress d
+      StreamerPlaybackRestarting -> PlaybackRestarting
+      StreamerPlaybackEnd        -> PlaybackFinished
+    playUri uri' fullDuration' = onStreamerEvent <$> videoStreamer
+      (StreamerProperties { desiredState = DesiredPlaying
+                          , uri          = Just uri'
+                          , fullDuration = fullDuration'
+                          }
+      )
 
 durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
 durationControl vs range' currentDur = toDuration <$> numberInput [] NumberInputProperties

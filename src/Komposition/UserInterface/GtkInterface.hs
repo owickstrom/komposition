@@ -40,11 +40,9 @@ import           Control.Effect.Carrier                                   (Carri
 import           Control.Effect.Reader                                    (ReaderC,
                                                                            ask,
                                                                            runReader)
-import           Control.Lens
 import           Control.Monad                                            (void)
 import           Control.Monad.Indexed                                    ()
 import           Control.Monad.Indexed.Trans
-import qualified Data.GI.Base.Properties                                  as GI
 import qualified Data.HashSet                                             as HashSet
 import           Data.Row.Records                                         (Empty,
                                                                            HasType)
@@ -53,7 +51,6 @@ import qualified Data.Text                                                as Tex
 import           Data.Time.Clock                                          (diffTimeToPicoseconds)
 import qualified GI.Gdk                                                   as Gdk
 import qualified GI.GLib.Constants                                        as GLib
-import qualified GI.GLib.Functions                                        as GLib
 import qualified GI.Gst                                                   as Gst
 import           GI.Gtk                                                   (AttrOp (..))
 import qualified GI.Gtk                                                   as Gtk
@@ -73,7 +70,6 @@ import           Komposition.Progress
 import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
-import           Komposition.VideoSettings
 
 import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
 import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
@@ -292,119 +288,6 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
           void (tryPutMVar result Nothing)
 
       readMVar result
-
-  previewStream n uri streamingProcess videoSettings =
-    let setUp d content = do
-          (overlay, background, statusLabel) <- createOverlayAndLabel content
-          playbin <-
-            Gst.elementFactoryMake "playbin" Nothing `orFailCreateWith` "playbin"
-          playbinBus <- Gst.elementGetBus playbin `orFailCreateWith` "playbin bus"
-          void . Gst.busAddWatch playbinBus GLib.PRIORITY_DEFAULT $ \_bus msg -> do
-            msgType <- Gst.getMessageType msg
-            case msgType of
-              [Gst.MessageTypeError] -> do
-                (gError, _) <- Gst.messageParseError msg
-                gErrorText  <- Gst.gerrorMessage gError
-                code        <- Gst.gerrorCode gError
-                domain      <- GLib.quarkToString =<< Gst.gerrorDomain gError
-                case (domain, code) of
-                  ("gst-resource-error-quark", 5) -> do
-                    -- In case the HTTP server for the stream is not
-                    -- yet up, this error will be thrown, and we
-                    -- restart the GStreamer playbin after 500ms.
-                    let delayMs = 500
-                    putStrLn ("HTTP stream not yet available, restarting in " <> show delayMs <> " ms..." :: Text)
-                    threadDelay (delayMs * 1000)
-                    runUI_ $ do
-                        void . Gst.elementSetState playbin $ Gst.StateNull
-                        void . Gst.elementSetState playbin $ Gst.StatePlaying
-                  _ -> do
-                    -- Other errors are printed, and the preview dialog is closed.
-                    liftIO . putStrLn $ domain <> " - " <> show gError <> ": " <> gErrorText
-                    #destroy d
-              [Gst.MessageTypeBuffering] ->
-                Gst.messageParseBuffering msg >>= \case
-                  percent
-                    | percent >= 100 -> do
-                        -- No more buffering needed, hide overlay and
-                        -- continue playing
-                        #hide background
-                        void $ Gst.elementSetState playbin Gst.StatePlaying
-                    | otherwise -> do
-                        -- Buffering needed, show overlay with
-                        -- appropriate text and paus the playbin
-                        #show background
-                        Gtk.labelSetLabel statusLabel ("Buffering (" <> show percent <> "%)")
-                        void $ Gst.elementSetState playbin Gst.StatePaused
-
-              -- Commented out, but useful for debugging:
-              --
-              -- [Gst.MessageTypeStateChanged] -> do
-              --   (oldState, newState, _) <- Gst.messageParseStateChanged msg
-              --   putStrLn ("State changed: " <> show oldState <> " -> " <> show newState :: Text)
-              --   return ()
-              -- [Gst.MessageTypeStreamStatus] -> do
-              --   (statusType, _owner) <- Gst.messageParseStreamStatus msg
-              --   putStrLn ("Stream status: " <> show statusType :: Text)
-              --   return ()
-
-              [Gst.MessageTypeEos] ->
-                -- Stream has ended, close the preview dialog
-                #destroy d
-              _ -> pass
-            return True
-          gtkSink <-
-            Gst.elementFactoryMake "gtksink" Nothing `orFailCreateWith` "GTK sink"
-          GI.setObjectPropertyObject playbin "video-sink" (Just gtkSink)
-          GI.setObjectPropertyBool playbin "force-aspect-ratio" True
-
-          videoWidget <-
-            GI.getObjectPropertyObject gtkSink "widget" Gtk.Widget `orFailCreateWith`
-            "sink widget"
-          GI.setObjectPropertyBool playbin "force-aspect-ratio" True
-          void $ GI.setObjectPropertyString playbin "uri" (Just uri)
-
-          let updateProgress = do
-                forever (void await)
-          ffmpegRenderer <- async $ runSafeT (runEffect (streamingProcess >-> updateProgress))
-
-          void . Gtk.onWidgetRealize content $ do
-            #add overlay videoWidget
-            #showAll overlay
-            #setSizeRequest
-              videoWidget
-              (fromIntegral (videoSettings ^. resolution . width))
-              (fromIntegral (videoSettings ^. resolution . height))
-            -- Try start streaming
-            void $ Gst.elementSetState playbin Gst.StatePlaying
-
-          void . Gtk.onWidgetDestroy d $ do
-            void $ Gst.elementSetState playbin Gst.StateNull
-            void . async $ cancel ffmpegRenderer
-
-        toResponse _ _ = const (return Nothing)
-        tearDown d _ = #destroy d
-        classes = HashSet.fromList ["preview"]
-        orFailCreateWith :: IO (Maybe t) -> Prelude.String -> IO t
-        orFailCreateWith action what =
-          action >>=
-          maybe
-            (Prelude.fail ("Couldn't create GStreamer " <> what <> "."))
-            return
-
-        createOverlayAndLabel :: Gtk.Box -> IO (Gtk.Overlay, Gtk.Box, Gtk.Label)
-        createOverlayAndLabel content = do
-          overlay <- Gtk.new Gtk.Overlay []
-          background <- Gtk.new Gtk.Box []
-          style <- Gtk.widgetGetStyleContext background
-          Gtk.styleContextAddClass style "preview-overlay"
-          statusLabel <- Gtk.new Gtk.Label [#label := "Initializing..."]
-          #packStart background statusLabel True True 0
-          #addOverlay overlay background
-          #packStart content overlay True True 0
-          pure (overlay, background, statusLabel)
-
-    in inNewModalDialog n ModalDialog { title = "Preview", message = Nothing, .. }
 
   beep _ = irunUI Gdk.beep
 

@@ -128,7 +128,6 @@ timelineMode
   -> t m r r (TimelineModeResult t m)
 timelineMode gui state' = do
   patchWindow gui (timelineViewFromState state')
-  ilift (logLnText Info "Awaiting next event...")
   nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
     continue = timelineMode gui state'
@@ -246,8 +245,7 @@ timelineMode gui state' = do
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
           Just HelpClosed -> continue
           Nothing         -> continue
-      CommandKeyMappedEvent Exit -> do
-        ilift (logLnText Info "Exiting...")
+      CommandKeyMappedEvent Exit ->
         ireturn (TimelineExit state')
       ZoomLevelChanged      zl   -> state' & zoomLevel .~ zl & timelineMode gui
       PreviewFrameExtracted path' ->
@@ -263,6 +261,7 @@ timelineMode gui state' = do
           & preview .~ NotPreviewing
           & refreshPreviewAndContinue gui
       PlaybackProgress{} -> continue
+      PlaybackRestarting -> continue
       PlaybackFinished -> continue
       WindowClosed -> ireturn (TimelineExit state')
 
@@ -413,48 +412,74 @@ playFocusedComposition
   -> TimelineState t m
   -> t m r r (TimelineState t m)
 playFocusedComposition gui state' =
-  case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
-    Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
-    Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
-    Just (SomeVideoTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () t mempty))
-    Just (SomeAudioTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () mempty t))
-    Just (SomeVideoPart p) -> renderFlatComposition (Render.singleVideoPart p)
-    Just (SomeAudioPart (AudioClip _ asset)) ->
-      playFile (asset ^. assetMetadata . path . unOriginalPath)
-    Just (SomeAudioPart AudioGap{}) -> beepWith "Can't play audio gap."
-    Nothing -> beepWith "Can't play when no timeline part is focused."
+  case
+      atFocus (state' ^. existingProject . project . timelineFocus)
+              (state' ^. existingProject . project . timeline . current)
+    of
+      Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
+      Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
+      Just (SomeVideoTrack t) ->
+        renderFlatComposition (Render.flattenParallel (Parallel () t mempty))
+      Just (SomeAudioTrack t) ->
+        renderFlatComposition (Render.flattenParallel (Parallel () mempty t))
+      Just (SomeVideoPart p) ->
+        renderFlatComposition (Render.singleVideoPart p)
+      Just (SomeAudioPart (AudioClip _ asset)) -> playFile
+        (asset ^. assetMetadata . path . unOriginalPath)
+        (asset ^. assetMetadata . duration)
+      Just (SomeAudioPart AudioGap{}) -> beepWith "Can't play audio gap."
+      Nothing -> beepWith "Can't play when no timeline part is focused."
   where
     renderFlatComposition = \case
       Just flat -> do
         let host = "localhost"
             port = 12345
-        ilift (logLnText Info "Rendering...")
+        ilift (logLnText Debug "Rendering...")
         streamingProcess <- ilift $ renderComposition
-          (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
+          (  state'
+          ^. existingProject
+          .  project
+          .  videoSettings
+          .  proxyVideoSettings
+          )
           VideoProxy
           (HttpStreamingOutput host port)
           flat
         let ignoreProgress = forever (void Pipes.await)
-        bg <- runInBackground gui $
-          Pipes.runSafeT (Pipes.runEffect (Pipes.tryP streamingProcess >-> ignoreProgress)) Prelude.>>= \case
-            Left (FFmpeg.ProcessFailed e) ->
-              pure (Just (StreamingProcessFailed e))
-            Right () -> pure Nothing
-        ilift (logLnText Info "Going into playing...")
+        bg <- runInBackground gui $ do
+          Pipes.runSafeT
+              (Pipes.runEffect (Pipes.tryP streamingProcess >-> ignoreProgress))
+            Prelude.>>= \case
+                          Left (FFmpeg.ProcessFailed e) ->
+                            pure (Just (StreamingProcessFailed e))
+                          Right () -> pure Nothing
+        ilift (logLnText Debug "Going into playing...")
         state'
-          & setPlayingMessage
-          & preview .~ Previewing (PreviewingState (PlayHttpStream host port) (Just bg) (Just 0))
-          & inPlaying gui
+          &  setPlayingMessage
+          &  preview
+          .~ Previewing
+               (PreviewingState
+                 (PlayHttpStream host port (durationOf AdjustedDuration flat))
+                 (Just bg)
+                 (Just 0)
+               )
+          &  inPlaying gui
       Nothing -> beepWith "Cannot play a composition without video clips."
-    playFile fp =
+    playFile fp fullDuration =
       state'
-        & setPlayingMessage
-        & preview .~ Previewing (PreviewingState (PlayFile fp) Nothing (Just 0))
-        & inPlaying gui
+        &  setPlayingMessage
+        &  preview
+        .~ Previewing
+             (PreviewingState (PlayFile fp fullDuration) Nothing (Just 0))
+        &  inPlaying gui
     setPlayingMessage =
       case KeyMap.lookupSequence PlayOrStop (keymaps STimelineMode) of
         [] -> statusMessage ?~ "Playing..."
-        (ks : _) -> statusMessage ?~ "Playing... (hit " <> KeyMap.keySequenceToText ks <> " to stop)"
+        (ks : _) ->
+          statusMessage
+            ?~ "Playing... (hit "
+            <> KeyMap.keySequenceToText ks
+            <> " to stop)"
     beepWith msg = do
       beep gui
       state' & statusMessage ?~ msg & ireturn
@@ -485,7 +510,7 @@ inPlaying gui state' = awaitFinished state' >>>= cleanup >>>= reset
             & preview . _Previewing . previewProgress ?~ p
             & awaitFinished
         PlaybackRestarting -> do
-          ilift (logLnText Trace "Playback restaring")
+          ilift (logLnText Trace "Playback restarting...")
           awaitFinished state''
         PlaybackFinished -> do
           ilift (logLnText Debug "Playback finished.")
