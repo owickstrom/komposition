@@ -51,7 +51,7 @@ keymaps = \case
     , ([KeyDown]                      , Mapping (FocusCommand FocusDown))
     , ([KeyLeft]                      , Mapping (FocusCommand FocusLeft))
     , ([KeyRight]                     , Mapping (FocusCommand FocusRight))
-    , ([KeySpace]                     , Mapping Preview)
+    , ([KeySpace]                     , Mapping PlayOrStop)
     , ([KeyChar 'a']                  , addBindings RightOf)
     , ([KeyChar 'A']                  , addBindings LeftOf)
     , ([KeyChar 'd']                  , Mapping Delete)

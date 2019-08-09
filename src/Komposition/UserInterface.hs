@@ -79,7 +79,7 @@ data Command (mode :: Mode) where
   Paste :: Paste.PastePosition -> Command TimelineMode
   Import :: Command TimelineMode
   Render :: Command TimelineMode
-  Preview :: Command TimelineMode
+  PlayOrStop :: Command TimelineMode
   Undo :: Command TimelineMode
   Redo :: Command TimelineMode
   SaveProject :: Command TimelineMode
@@ -113,7 +113,7 @@ commandName = \case
     Paste.PasteRightOf -> "Paste Right Of"
   Import       -> "Import Assets"
   Render       -> "Render"
-  Preview      -> "Preview"
+  PlayOrStop   -> "Play/Stop"
   Undo         -> "Undo"
   Redo         -> "Redo"
   SaveProject  -> "Save"
@@ -148,13 +148,12 @@ data Event mode where
   CreateClicked :: Event NewProjectMode
   -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
-  PreviewImageExtracted :: FilePath -> Event TimelineMode
+  PreviewFrameExtracted :: FilePath -> Event TimelineMode
   FocusedClipSpeedSet :: VideoSpeed -> Event TimelineMode
   FocusedClipStartSet :: Duration -> Event TimelineMode
   FocusedClipEndSet :: Duration -> Event TimelineMode
-  PreviewProcessFailed :: SomeException -> Event TimelineMode
-  PreviewCancelled :: Event TimelineMode
-  PreviewFinished :: Event TimelineMode
+  StreamingProcessFailed :: Text -> Event TimelineMode
+  PlaybackFinished :: Event TimelineMode
   -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportClassifySet :: Bool -> Event ImportMode
@@ -188,8 +187,9 @@ newtype ZoomLevel = ZoomLevel Double
   deriving (Eq, Show)
 
 data Preview
-  = PreviewStream Text
-  | PreviewImage FilePath
+  = PlayHttpStream Text Word
+  | PlayFile FilePath
+  | PreviewFrame FilePath
   deriving (Eq, Show)
 
 data TimelineViewModel = TimelineViewModel

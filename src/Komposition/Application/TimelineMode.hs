@@ -38,6 +38,7 @@ import           Komposition.Composition.Insert
 import           Komposition.Composition.Paste
 import qualified Komposition.Composition.Split       as Split
 import           Komposition.Duration
+import qualified Komposition.FFmpeg.Process          as FFmpeg
 import           Komposition.Focus
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
@@ -63,6 +64,7 @@ import           Komposition.VideoSettings
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.LibraryMode
+import qualified Komposition.KeyMap                  as KeyMap
 
 type TimelineEffects sig =
   ( Member ProjectStore sig
@@ -72,9 +74,9 @@ type TimelineEffects sig =
   )
 
 data PreviewState t m
-  = PreviewingStream Text (UI.BackgroundProcess (t m))
-  | PreviewingFile FilePath
-  | PreviewingImage FilePath
+  = PlayingHttpStream Text Word (UI.BackgroundProcess (t m))
+  | PlayingFile FilePath
+  | PreviewingFrame FilePath
   | NoPreview
 
 data TimelineState t m = TimelineState
@@ -106,14 +108,14 @@ timelineViewFromState state' =
   (state' ^. preview . to isPlayingPreview)
   where
     userInterfacePreview = \case
-      PreviewingStream uri _ -> Just (PreviewStream uri)
-      PreviewingFile path' -> Just (PreviewStream (toS path'))
-      PreviewingImage path' -> Just (PreviewImage path')
+      PlayingHttpStream host port _ -> Just (PlayHttpStream host port)
+      PlayingFile path' -> Just (PlayFile (toS path'))
+      PreviewingFrame path' -> Just (PreviewFrame path')
       NoPreview -> Nothing
     isPlayingPreview = \case
-      PreviewingStream{} -> True
-      PreviewingFile{} -> True
-      PreviewingImage{} -> False
+      PlayingHttpStream{} -> True
+      PlayingFile{} -> True
+      PreviewingFrame{} -> False
       NoPreview -> False
 
 timelineMode
@@ -127,6 +129,7 @@ timelineMode
   -> t m r r (TimelineModeResult t m)
 timelineMode gui state' = do
   patchWindow gui (timelineViewFromState state')
+  ilift (logLnText Info "Awaiting next event...")
   nextEventOrTimeout gui 5 >>= maybe resetStatusMessage onNextEvent
   where
     continue = timelineMode gui state'
@@ -211,8 +214,8 @@ timelineMode gui state' = do
             beep gui
             continueWithStatusMessage
               "Cannot render a composition without video clips."
-      CommandKeyMappedEvent Preview ->
-        previewFocusedComposition gui state' >>>= timelineMode gui
+      CommandKeyMappedEvent PlayOrStop ->
+        playFocusedComposition gui state' >>>= timelineMode gui
       CommandKeyMappedEvent Undo ->
         case undo (state' ^. existingProject.project.timeline) of
           Just (Left err) -> beep gui >> continueWithStatusMessage err
@@ -244,22 +247,20 @@ timelineMode gui state' = do
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case
           Just HelpClosed -> continue
           Nothing         -> continue
-      CommandKeyMappedEvent Exit -> ireturn (TimelineExit state')
+      CommandKeyMappedEvent Exit -> do
+        ilift (logLnText Info "Exiting...")
+        ireturn (TimelineExit state')
       ZoomLevelChanged      zl   -> state' & zoomLevel .~ zl & timelineMode gui
-      PreviewImageExtracted path' -> state' & preview .~ PreviewingImage path' & timelineMode gui
+      PreviewFrameExtracted path' -> state' & preview .~ PreviewingFrame path' & timelineMode gui
       FocusedClipSpeedSet speed -> runUndoableAction gui (SetClipSpeed (state' ^. existingProject.project.timelineFocus) speed) state'
       FocusedClipStartSet start -> runUndoableAction gui (SetClipStart (state' ^. existingProject.project.timelineFocus)start) state'
       FocusedClipEndSet end -> runUndoableAction gui (SetClipEnd (state' ^. existingProject.project.timelineFocus)end) state'
-      PreviewProcessFailed e -> do
-        ilift (logLnText Error ("Preview process failed: " <> show e))
+      StreamingProcessFailed msg -> do
+        ilift (logLnText Error ("Streaming process failed: " <> msg))
         state'
           & preview .~ NoPreview
           & refreshPreviewAndContinue gui
-      PreviewFinished ->
-        state'
-          & preview .~ NoPreview
-          & refreshPreviewAndContinue gui
-      PreviewCancelled ->
+      PlaybackFinished ->
         state'
           & preview .~ NoPreview
           & refreshPreviewAndContinue gui
@@ -402,7 +403,7 @@ prettyFocusedAt = \case
   SomeVideoPart{} -> "video part"
   SomeAudioPart{} -> "audio part"
 
-previewFocusedComposition
+playFocusedComposition
   :: ( Application t m sig
      , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
      , Carrier sig m
@@ -411,7 +412,7 @@ previewFocusedComposition
   => Name n
   -> TimelineState t m
   -> t m r r (TimelineState t m)
-previewFocusedComposition gui state' =
+playFocusedComposition gui state' =
   case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
     Just (SomeSequence s) -> renderFlatComposition (Render.flattenSequence s)
     Just (SomeParallel p) -> renderFlatComposition (Render.flattenParallel p)
@@ -419,36 +420,82 @@ previewFocusedComposition gui state' =
     Just (SomeAudioTrack t) -> renderFlatComposition (Render.flattenParallel (Parallel () mempty t))
     Just (SomeVideoPart p) -> renderFlatComposition (Render.singleVideoPart p)
     Just (SomeAudioPart (AudioClip _ asset)) ->
-      previewFile (asset ^. assetMetadata . path . unOriginalPath)
-    Just (SomeAudioPart AudioGap{}) -> beepWith "Can't preview audio gap."
-    Nothing -> beepWith "Can't preview when no timeline part is focused."
+      playFile (asset ^. assetMetadata . path . unOriginalPath)
+    Just (SomeAudioPart AudioGap{}) -> beepWith "Can't play audio gap."
+    Nothing -> beepWith "Can't play when no timeline part is focused."
   where
     renderFlatComposition = \case
       Just flat -> do
+        let host = "localhost"
+            port = 12345
         ilift (logLnText Info "Rendering...")
         streamingProcess <- ilift $ renderComposition
           (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
           VideoProxy
-          (HttpStreamingOutput "localhost" 12345)
+          (HttpStreamingOutput host port)
           flat
-        let updateProgress = forever (void Pipes.await)
+        let ignoreProgress = forever (void Pipes.await)
         bg <- runInBackground gui $
-          Pipes.runSafeT (Pipes.runEffect (Pipes.tryP streamingProcess >-> updateProgress)) Prelude.>>= \case
-            Left e ->
-              pure (Just (PreviewProcessFailed e))
-            Right () -> pure Nothing -- TODO: such hacks, can't have
-        ilift (logLnText Info "Going into preview...")
+          Pipes.runSafeT (Pipes.runEffect (Pipes.tryP streamingProcess >-> ignoreProgress)) Prelude.>>= \case
+            Left (FFmpeg.ProcessFailed e) ->
+              pure (Just (StreamingProcessFailed e))
+            Right () -> pure Nothing
+        ilift (logLnText Info "Going into playing...")
         state'
-          & preview .~ PreviewingStream "http://localhost:12345" bg
-          & ireturn
-      Nothing -> beepWith "Cannot preview a composition without video clips."
-    previewFile fp =
+          & setPlayingMessage
+          & preview .~ PlayingHttpStream host port bg
+          & inPlaying gui
+      Nothing -> beepWith "Cannot play a composition without video clips."
+    playFile fp =
       state'
-        & preview .~ PreviewingFile("file://" <> toS fp)
-        & ireturn
+        & setPlayingMessage
+        & preview .~ PlayingFile fp
+        & inPlaying gui
+    setPlayingMessage =
+      case KeyMap.lookupSequence PlayOrStop (keymaps STimelineMode) of
+        [] -> statusMessage ?~ "Playing..."
+        (ks : _) -> statusMessage ?~ "Playing... (hit " <> KeyMap.keySequenceToText ks <> " to stop)"
     beepWith msg = do
       beep gui
       state' & statusMessage ?~ msg & ireturn
+
+inPlaying
+  :: ( Application t m sig
+     , r ~ (n .== Window (t m) 'TopWindow (Event 'TimelineMode))
+     , Carrier sig m
+     , TimelineEffects sig
+     )
+  => Name n
+  -> TimelineState t m
+  -> t m r r (TimelineState t m)
+inPlaying gui state' = do
+  patchWindow gui (timelineViewFromState state')
+  awaitFinished
+  cleanup
+  state'
+    & preview .~ NoPreview
+    & statusMessage .~ Nothing
+    & ireturn
+  where
+    awaitFinished =
+      nextEvent gui >>>= \case
+        StreamingProcessFailed msg ->
+          ilift (logLnText Error ("Streaming process failed during playback: " <> msg))
+        CommandKeyMappedEvent PlayOrStop ->
+          ilift (logLnText Info "Stopped.")
+        PlaybackFinished ->
+          ilift (logLnText Info "Playback finished.")
+        _ -> beep gui >>> awaitFinished
+    cleanup =
+      case state' ^. preview of
+        PlayingHttpStream _ _ bg -> do
+          ilift (logLnText Info "Cancelling streaming process...")
+          cancelProcess bg
+          ilift (logLnText Info "Cancelled streaming process.")
+        PlayingFile{}            -> ireturn ()
+        PreviewingFrame{}        -> ireturn ()
+        NoPreview{}              -> ireturn ()
+
 
 noAssetsMessage :: SMediaType mt -> Text
 noAssetsMessage mt =
@@ -583,7 +630,7 @@ refreshPreview gui state' = do
   case atFocus (state' ^. existingProject.project.timelineFocus) (state' ^. existingProject.project.timeline.current) of
     Just (SomeVideoPart (VideoClip _ videoAsset ts _)) ->
       ivoid . runInBackground gui $
-        pure . PreviewImageExtracted <$>
+        pure . PreviewFrameExtracted <$>
         FFmpeg.extractFrameToFile'
           (state' ^. existingProject . project . videoSettings . proxyVideoSettings)
           Render.FirstFrame

@@ -79,7 +79,7 @@ renderClipAsset zl thisFocus focused asset' duration' = container
   ]
   [ BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ widget
       Button
-      [ on #buttonPressEvent (\eventButton -> (True, CommandKeyMappedEvent (JumpFocus thisFocus)))
+      [ on #buttonPressEvent (\_eventButton -> (True, CommandKeyMappedEvent (JumpFocus thisFocus)))
       , #widthRequest := widthFromDuration zl duration'
       , #hasFocus := (focused == Focused)
       ]
@@ -220,15 +220,17 @@ renderPreviewPane preview' = pane defaultPaneProperties $ container
                                        , padding = 0
                                        }
       $ case preview' of
-          Just (PreviewStream uri) ->
-            onStreamerEvent <$>
-            videoStreamer
-            (StreamerProperties { desiredState = DesiredPlaying, uri = Just uri })
-          Just (PreviewImage p) -> thumbnailPreview [] p
+          Just (PlayHttpStream host port) -> playUri ("http://" <> host <> ":" <> show port)
+          Just (PlayFile fp) -> playUri ("file://" <> toS fp)
+          Just (PreviewFrame p) -> thumbnailPreview [] p
           Nothing               -> noPreviewAvailable
   ]
   where noPreviewAvailable = widget Label [#label := "No preview available."]
-        onStreamerEvent StreamerPlaybackEnd = PreviewFinished
+        onStreamerEvent StreamerPlaybackEnd = PlaybackFinished
+        playUri uri' =
+            onStreamerEvent <$>
+            videoStreamer
+            (StreamerProperties { desiredState = DesiredPlaying, uri = Just uri' })
 
 durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
 durationControl vs range' currentDur = toDuration <$> numberInput [] NumberInputProperties

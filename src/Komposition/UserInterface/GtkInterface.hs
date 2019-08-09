@@ -190,10 +190,9 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
     FSM.get name >>>= \w ->
       iliftIO . async $
         (action >>= traverse_ (writeChan (events (windowEvents w))))
-        `catch` \(SomeException e) -> print e
 
   cancelProcess process =
-    iliftIO (cancel process `catch` \(SomeException e) -> print e)
+    iliftIO (cancel process)
 
   setTransientFor childName parentName =
     FSM.get childName >>>= \child' ->
@@ -416,6 +415,11 @@ instance UserInterfaceMarkup GtkWindowMarkup where
   libraryView = GtkModalMarkup . View.libraryView
   importView = GtkModalMarkup . View.importView
 
+newtype GtkMainExitedException =
+  GtkMainExitedException String deriving (Typeable, Show)
+
+instance Exception GtkMainExitedException
+
 runGtkUserInterface
   :: (Monad m, Carrier sig m)
   => FilePath
@@ -427,11 +431,12 @@ runGtkUserInterface cssPath runEffects ui = do
   void $ Gtk.init Nothing
   screen  <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
 
-  appLoop <- async $ do
-    runEffects (runReader Env { .. } (runGtkUserInterface' ui))
-    Gtk.mainQuit
-  Gtk.main
-  cancel appLoop
+  withAsync (runEffects (runReader Env { .. } (runGtkUserInterface' ui)) <* Gtk.mainQuit) $ \result-> do
+    Gtk.main
+    poll result >>= \case
+      Nothing -> throwIO (GtkMainExitedException "gtk's main loop exited unexpectedly")
+      Just (Left e) -> throwIO e
+      Just (Right ()) -> pass
 
 printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =

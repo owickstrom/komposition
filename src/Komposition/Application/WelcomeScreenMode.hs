@@ -122,11 +122,16 @@ openTimelineWindowWithProject project' = do
       timelineMode #timeline model >>= \case
         TimelineExit model' ->
           dialog #timeline DialogProperties { dialogTitle = "Confirm Exit", dialogMessage = "Are you sure you want to exit?", dialogChoices = [No, Yes]} >>>= \case
-            Just Yes -> destroyWindow #timeline
+            Just Yes -> do
+              ilift (logLnText Info "Destroying window...")
+              destroyWindow #timeline
+              ilift (logLnText Info "Destroyed window.")
             Just No -> runTimeline model'
             Nothing -> runTimeline model'
         TimelineClose -> do
+          ilift (logLnText Info "Destroying window...")
           destroyWindow #timeline
+          ilift (logLnText Info "Destroyed window.")
           welcomeScreenMode
 
 initialProject :: WithoutHistory Project
