@@ -80,8 +80,9 @@ library
                       , Komposition.UserInterface.GtkInterface.NumberInput
                       , Komposition.UserInterface.GtkInterface.RangeSlider
                       , Komposition.UserInterface.GtkInterface.SelectBox
-                      , Komposition.UserInterface.GtkInterface.TimelineView
                       , Komposition.UserInterface.GtkInterface.ThumbnailPreview
+                      , Komposition.UserInterface.GtkInterface.TimelineView
+                      , Komposition.UserInterface.GtkInterface.Threading
                       , Komposition.UserInterface.GtkInterface.VideoSpeedControl
                       , Komposition.UserInterface.GtkInterface.VideoStreamer
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView

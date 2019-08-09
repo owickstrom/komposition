@@ -15,19 +15,20 @@ where
 import           Komposition.Prelude
 import qualified Prelude
 
-import qualified Control.Concurrent.Async       as Async
-import qualified Data.GI.Base.Properties        as GI
-import qualified GI.Gdk                         as Gdk
-import qualified GI.GLib.Constants              as GLib
-import qualified GI.GLib.Functions              as GLib
-import qualified GI.Gst                         as Gst
-import           GI.Gtk                         (AttrOp (..))
-import qualified GI.Gtk                         as Gtk
-import           GI.Gtk.Declarative             (CustomPatch (..),
-                                                 CustomWidget (..), Widget (..))
+import qualified Control.Concurrent.Async                         as Async
+import qualified Data.GI.Base.Properties                          as GI
+import qualified GI.GLib.Constants                                as GLib
+import qualified GI.GLib.Functions                                as GLib
+import qualified GI.Gst                                           as Gst
+import           GI.Gtk                                           (AttrOp (..))
+import qualified GI.Gtk                                           as Gtk
+import           GI.Gtk.Declarative                               (CustomPatch (..),
+                                                                   CustomWidget (..),
+                                                                   Widget (..))
 import           GI.Gtk.Declarative.EventSource
 
 import           Komposition.Duration
+import           Komposition.UserInterface.GtkInterface.Threading
 
 type StreamURI = Text
 
@@ -211,12 +212,3 @@ orFailCreateWith action what =
   maybe
     (Prelude.fail ("Couldn't create GStreamer " <> what <> "."))
     return
-
-runUI_ :: IO () -> IO ()
-runUI_ ma = void (Gdk.threadsAddIdle GLib.PRIORITY_HIGH (ma *> return False))
-
-runUI :: IO a -> IO a
-runUI ma = do
-  ret <- newEmptyMVar
-  runUI_ (ma >>= putMVar ret)
-  takeMVar ret

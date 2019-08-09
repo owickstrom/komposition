@@ -50,7 +50,6 @@ import           Data.String
 import qualified Data.Text                                                as Text
 import           Data.Time.Clock                                          (diffTimeToPicoseconds)
 import qualified GI.Gdk                                                   as Gdk
-import qualified GI.GLib.Constants                                        as GLib
 import qualified GI.Gst                                                   as Gst
 import           GI.Gtk                                                   (AttrOp (..))
 import qualified GI.Gtk                                                   as Gtk
@@ -70,6 +69,7 @@ import           Komposition.Progress
 import           Komposition.UserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
+import           Komposition.UserInterface.GtkInterface.Threading
 
 import qualified Komposition.UserInterface.GtkInterface.ImportView        as View
 import qualified Komposition.UserInterface.GtkInterface.LibraryView       as View
@@ -325,17 +325,6 @@ printFractionAsPercent :: Double -> Text
 printFractionAsPercent fraction =
   toS (printf "%.0f%%" (fraction * 100) :: Prelude.String)
 
-runUI_ :: IO () -> IO ()
-runUI_ ma = void (Gdk.threadsAddIdle GLib.PRIORITY_HIGH (ma *> return False))
-
-runUI :: IO a -> IO a
-runUI ma = do
-  ret <- newEmptyMVar
-  runUI_ (ma >>= putMVar ret)
-  takeMVar ret
-
-irunUI :: IxMonadIO m => IO a -> m i i a
-irunUI = iliftIO . runUI
 
 loadCss :: Env -> Gtk.Window -> IO ()
 loadCss Env { cssPath, screen } window' = do
