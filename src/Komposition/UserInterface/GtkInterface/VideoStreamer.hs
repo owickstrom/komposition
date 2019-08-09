@@ -15,6 +15,7 @@ where
 import           Komposition.Prelude
 import qualified Prelude
 
+import qualified Control.Concurrent.Async       as Async
 import qualified Data.GI.Base.Properties        as GI
 import qualified GI.Gdk                         as Gdk
 import qualified GI.GLib.Constants              as GLib
@@ -28,7 +29,9 @@ import           GI.Gtk.Declarative.EventSource
 
 type StreamURI = Text
 
-data StreamerEvent = StreamerPlaybackEnd
+data StreamerEvent
+  = StreamerPlaybackProgress Double
+  | StreamerPlaybackEnd
   deriving (Eq, Show, Typeable)
 
 data DesiredState = DesiredPlaying | DesiredPaused
@@ -74,14 +77,29 @@ videoStreamer customParams = Widget
     --   return ()
 
   , customSubscribe = \_props StreamerState{..} _widget cb -> do
+      -- Emit progress events
+      progressListener <- async $
+        let loop = do
+              threadDelay 40000 -- 40ms
+              runUI_ $ do
+                (gotPosition, position) <- #queryPosition playbin Gst.FormatTime
+                (gotDuration, duration) <- #queryDuration playbin Gst.FormatTime
+                when (gotPosition && gotDuration) $ do
+                  let progress = fromIntegral position / fromIntegral duration
+                  cb (StreamerPlaybackProgress progress)
+              loop
+        in loop
+
       void $ Gst.busAddWatch playbinBus GLib.PRIORITY_DEFAULT $ \_bus msg -> do
         msgType <- Gst.getMessageType msg
+
         case msgType of
           [Gst.MessageTypeError] -> do
             (gError, _) <- Gst.messageParseError msg
             gErrorText  <- Gst.gerrorMessage gError
             code        <- Gst.gerrorCode gError
             domain      <- GLib.quarkToString =<< Gst.gerrorDomain gError
+            -- Check for initialization or buffering problems
             case (domain, code) of
               ("gst-resource-error-quark", 5) -> do
                 -- In case the HTTP server for the stream is not
@@ -121,7 +139,10 @@ videoStreamer customParams = Widget
           --   return ()
           _                    -> pass
         pure True
-      return (fromCancellation (void (Gst.busRemoveWatch playbinBus)))
+
+      return .fromCancellation $ do
+        Async.cancel progressListener
+        void (Gst.busRemoveWatch playbinBus)
   })
 
 

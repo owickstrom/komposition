@@ -5,6 +5,7 @@
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PolyKinds             #-}
@@ -73,11 +74,20 @@ type TimelineEffects sig =
   , Member Render sig
   )
 
+data PreviewingState t m = PreviewingState
+  { _previewType     :: Preview
+  , _previewProcess  :: Maybe (UI.BackgroundProcess (t m))
+  , _previewProgress :: Double
+  }
+
+makeLenses ''PreviewingState
+
 data PreviewState t m
-  = PlayingHttpStream Text Word (UI.BackgroundProcess (t m))
-  | PlayingFile FilePath
-  | PreviewingFrame FilePath
-  | NoPreview
+  = Previewing (PreviewingState t m)
+  | NotPreviewing
+
+
+makePrisms ''PreviewState
 
 data TimelineState t m = TimelineState
   { _existingProject :: WithHistory ExistingProject
@@ -104,19 +114,8 @@ timelineViewFromState state' =
   (state' ^. existingProject.project.timelineFocus)
   (state' ^. statusMessage)
   (state' ^. zoomLevel)
-  (state' ^. preview . to userInterfacePreview)
-  (state' ^. preview . to isPlayingPreview)
-  where
-    userInterfacePreview = \case
-      PlayingHttpStream host port _ -> Just (PlayHttpStream host port)
-      PlayingFile path' -> Just (PlayFile (toS path'))
-      PreviewingFrame path' -> Just (PreviewFrame path')
-      NoPreview -> Nothing
-    isPlayingPreview = \case
-      PlayingHttpStream{} -> True
-      PlayingFile{} -> True
-      PreviewingFrame{} -> False
-      NoPreview -> False
+  (state' ^? preview . _Previewing . previewType)
+  (state' ^?  preview . _Previewing . previewProgress)
 
 timelineMode
   :: ( Application t m sig
@@ -251,19 +250,20 @@ timelineMode gui state' = do
         ilift (logLnText Info "Exiting...")
         ireturn (TimelineExit state')
       ZoomLevelChanged      zl   -> state' & zoomLevel .~ zl & timelineMode gui
-      PreviewFrameExtracted path' -> state' & preview .~ PreviewingFrame path' & timelineMode gui
+      PreviewFrameExtracted path' ->
+        state'
+        & preview .~ Previewing (PreviewingState (PreviewFrame path') Nothing 0)
+        & timelineMode gui
       FocusedClipSpeedSet speed -> runUndoableAction gui (SetClipSpeed (state' ^. existingProject.project.timelineFocus) speed) state'
       FocusedClipStartSet start -> runUndoableAction gui (SetClipStart (state' ^. existingProject.project.timelineFocus)start) state'
       FocusedClipEndSet end -> runUndoableAction gui (SetClipEnd (state' ^. existingProject.project.timelineFocus)end) state'
       StreamingProcessFailed msg -> do
         ilift (logLnText Error ("Streaming process failed: " <> msg))
         state'
-          & preview .~ NoPreview
+          & preview .~ NotPreviewing
           & refreshPreviewAndContinue gui
-      PlaybackFinished ->
-        state'
-          & preview .~ NoPreview
-          & refreshPreviewAndContinue gui
+      PlaybackProgress{} -> continue
+      PlaybackFinished -> continue
       WindowClosed -> ireturn (TimelineExit state')
 
     printUnexpectedFocusError err cmd = case err of
@@ -443,13 +443,13 @@ playFocusedComposition gui state' =
         ilift (logLnText Info "Going into playing...")
         state'
           & setPlayingMessage
-          & preview .~ PlayingHttpStream host port bg
+          & preview .~ Previewing (PreviewingState (PlayHttpStream host port) (Just bg) 0)
           & inPlaying gui
       Nothing -> beepWith "Cannot play a composition without video clips."
     playFile fp =
       state'
         & setPlayingMessage
-        & preview .~ PlayingFile fp
+        & preview .~ Previewing (PreviewingState (PlayFile fp) Nothing 0)
         & inPlaying gui
     setPlayingMessage =
       case KeyMap.lookupSequence PlayOrStop (keymaps STimelineMode) of
@@ -468,33 +468,39 @@ inPlaying
   => Name n
   -> TimelineState t m
   -> t m r r (TimelineState t m)
-inPlaying gui state' = do
-  patchWindow gui (timelineViewFromState state')
-  awaitFinished
-  cleanup
-  state'
-    & preview .~ NoPreview
-    & statusMessage .~ Nothing
-    & ireturn
+inPlaying gui state' = awaitFinished state' >>>= cleanup >>>= reset
   where
-    awaitFinished =
+    awaitFinished state'' = do
+      patchWindow gui (timelineViewFromState state'')
       nextEvent gui >>>= \case
-        StreamingProcessFailed msg ->
+        StreamingProcessFailed msg -> do
           ilift (logLnText Error ("Streaming process failed during playback: " <> msg))
-        CommandKeyMappedEvent PlayOrStop ->
+          ireturn state''
+        CommandKeyMappedEvent PlayOrStop -> do
           ilift (logLnText Info "Stopped.")
-        PlaybackFinished ->
+          ireturn state''
+        PlaybackProgress p -> do
+          ilift (logLnText Debug ("Playback progress: " <> show p))
+          state''
+            & preview . _Previewing . previewProgress .~ p
+            & awaitFinished
+        PlaybackFinished -> do
           ilift (logLnText Info "Playback finished.")
-        _ -> beep gui >>> awaitFinished
-    cleanup =
-      case state' ^. preview of
-        PlayingHttpStream _ _ bg -> do
+          ireturn state''
+        _ -> beep gui >>> awaitFinished state''
+    cleanup state'' =
+      case state'' ^?! preview . _Previewing . previewProcess of
+        Just bg -> do
           ilift (logLnText Info "Cancelling streaming process...")
           cancelProcess bg
           ilift (logLnText Info "Cancelled streaming process.")
-        PlayingFile{}            -> ireturn ()
-        PreviewingFrame{}        -> ireturn ()
-        NoPreview{}              -> ireturn ()
+          ireturn state''
+        Nothing              -> ireturn state''
+    reset state'' =
+      state''
+        & preview .~ NotPreviewing
+        & statusMessage .~ Nothing
+        & ireturn
 
 
 noAssetsMessage :: SMediaType mt -> Text

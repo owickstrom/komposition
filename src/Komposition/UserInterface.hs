@@ -153,6 +153,7 @@ data Event mode where
   FocusedClipStartSet :: Duration -> Event TimelineMode
   FocusedClipEndSet :: Duration -> Event TimelineMode
   StreamingProcessFailed :: Text -> Event TimelineMode
+  PlaybackProgress :: Double -> Event TimelineMode
   PlaybackFinished :: Event TimelineMode
   -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
@@ -193,12 +194,12 @@ data Preview
   deriving (Eq, Show)
 
 data TimelineViewModel = TimelineViewModel
-  { _project       :: WithHistory Project
-  , _currentFocus  :: Focus SequenceFocusType
-  , _statusMessage :: Maybe Text
-  , _zoomLevel     :: ZoomLevel
-  , _preview       :: Maybe Preview
-  , _isPlaying     :: Bool
+  { _project          :: WithHistory Project
+  , _currentFocus     :: Focus SequenceFocusType
+  , _statusMessage    :: Maybe Text
+  , _zoomLevel        :: ZoomLevel
+  , _preview          :: Maybe Preview
+  , _playbackProgress :: Maybe Double
   } deriving (Eq, Show)
 
 makeLenses ''TimelineViewModel

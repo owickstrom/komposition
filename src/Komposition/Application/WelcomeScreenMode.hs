@@ -111,7 +111,7 @@ openTimelineWindowWithProject
   => WithoutHistory ExistingProject
   -> t m Empty Empty ()
 openTimelineWindowWithProject project' = do
-  let state' = TimelineState (initializeHistory project') Nothing Nothing (ZoomLevel 5) NoPreview
+  let state' = TimelineState (initializeHistory project') Nothing Nothing (ZoomLevel 5) NotPreviewing
   newWindow
     #timeline
     (timelineViewFromState state')

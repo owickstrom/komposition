@@ -28,6 +28,7 @@ import           GI.Gtk                                                   (Align
                                                                            MenuItem (..),
                                                                            Orientation (..),
                                                                            PolicyType (..),
+                                                                           ProgressBar (..),
                                                                            ScrolledWindow (..),
                                                                            Window (..))
 import           GI.Gtk.Declarative
@@ -126,7 +127,7 @@ renderTimeline
   -> Widget (Event 'TimelineMode)
 renderTimeline model (Timeline sub) = container
   Box
-  [classes (["composition", "timeline", emptyClass (null sub)] <> playingClass)]
+  [classes ["composition", "timeline", emptyClass (null sub)]]
   (map
     ( BoxChild defaultBoxChildProperties { expand  = False
                                          , fill    = False
@@ -136,10 +137,6 @@ renderTimeline model (Timeline sub) = container
     )
     (Vector.fromList $ toList sub)
   )
-  where
-    playingClass
-      | model ^. isPlaying = pure "playing"
-      | otherwise = mempty
 
 renderSequence
   :: ZoomLevel
@@ -211,22 +208,31 @@ emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
 renderPreviewPane
-  :: Maybe Preview -> Pane (Event 'TimelineMode)
-renderPreviewPane preview' = pane defaultPaneProperties $ container
+  :: TimelineViewModel -> Pane (Event 'TimelineMode)
+renderPreviewPane model = pane defaultPaneProperties $ container
   Box
-  [classes ["preview-pane"]]
+  [classes ["preview-pane"], #orientation := OrientationVertical ]
   [ BoxChild defaultBoxChildProperties { expand  = True
                                        , fill    = True
                                        , padding = 0
                                        }
-      $ case preview' of
+      $ case model ^. preview of
           Just (PlayHttpStream host port) -> playUri ("http://" <> host <> ":" <> show port)
           Just (PlayFile fp) -> playUri ("file://" <> toS fp)
           Just (PreviewFrame p) -> thumbnailPreview [] p
           Nothing               -> noPreviewAvailable
+  , BoxChild defaultBoxChildProperties $ container Box [ #orientation := OrientationHorizontal ] [
+      BoxChild
+      defaultBoxChildProperties { expand = True, fill = True }
+      (widget ProgressBar [ #fraction := fromMaybe 0 (model ^. playbackProgress)
+                          , classes ["playback-progress"]
+                          ])
+    ]
   ]
   where noPreviewAvailable = widget Label [#label := "No preview available."]
-        onStreamerEvent StreamerPlaybackEnd = PlaybackFinished
+        onStreamerEvent = \case
+          StreamerPlaybackProgress d -> PlaybackProgress d
+          StreamerPlaybackEnd -> PlaybackFinished
         playUri uri' =
             onStreamerEvent <$>
             videoStreamer
@@ -359,7 +365,7 @@ renderMainArea
   :: TimelineViewModel -> Widget (Event 'TimelineMode)
 renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
-  (renderPreviewPane (model ^. preview))
+  (renderPreviewPane model)
   (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline . current)))
   where
     project' = model ^. project
@@ -436,7 +442,7 @@ timelineView model =
       ]
     $ container
         Box
-        [#orientation := OrientationVertical]
+        [#orientation := OrientationVertical, classes playingClass]
         [ BoxChild defaultBoxChildProperties renderMenu
         , BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 }
           (renderMainArea model
@@ -454,3 +460,7 @@ timelineView model =
     focusedTimelineWithSetFoci :: Timeline (Focus 'SequenceFocusType, Focused)
     focusedTimelineWithSetFoci = withAllFoci (model ^. project.timeline.current)
       <&> \f -> (f, focusedState (model ^. currentFocus) f)
+    playingClass =
+      case model ^. playbackProgress of
+        Just _ -> pure "playing"
+        _      -> mempty

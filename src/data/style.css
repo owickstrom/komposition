@@ -98,15 +98,15 @@
 }
 
 
-.timeline.playing .clip,
-.timeline.playing .gap {
+.playing .timeline .clip,
+.playing .timeline .gap {
     opacity: 0.5;
 }
 
-.timeline.playing .focused .clip,
-.timeline.playing .focused .gap,
-.timeline.playing .clip.focused,
-.timeline.playing .gap.focused {
+.playing .timeline .focused .clip,
+.playing .timeline .focused .gap,
+.playing .timeline .clip.focused,
+.playing .timeline .gap.focused {
     opacity: 1;
 }
 
@@ -145,6 +145,13 @@
   background: rgba(0,0,0,.75);
   color: #eee;
   font-size: 125%;
+}
+
+.playback-progress {
+    opacity: 0;
+}
+.playing .playback-progress {
+    opacity: 1;
 }
 
 spinner {
