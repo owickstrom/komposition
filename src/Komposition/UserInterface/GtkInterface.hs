@@ -106,10 +106,16 @@ asGtkWindow :: GtkWindow window event -> IO Gtk.Window
 asGtkWindow w =
   Declarative.someStateWidget (widgetState w) >>= Gtk.unsafeCastTo Gtk.Window
 
-instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterface (GtkUserInterface m) where
+newtype GtkBackgroundProcess a = GtkBackgroundProcess (Async a)
+
+instance Show (GtkBackgroundProcess a) where
+  show _ = "<GtkUserInterface background process>"
+
+instance (Member (Reader Env) sig, Carrier sig m, MonadIO m)
+  => WindowUserInterface (GtkUserInterface m) where
   type Window (GtkUserInterface m) = GtkWindow
   type WindowMarkup (GtkUserInterface m) = GtkWindowMarkup
-  type BackgroundProcess (GtkUserInterface m) = Async ()
+  type BackgroundProcess (GtkUserInterface m) = GtkBackgroundProcess ()
 
   newWindow name markup' keyMap =
     ilift ask >>>= \env ->
@@ -184,10 +190,10 @@ instance (Member (Reader Env) sig, Carrier sig m, MonadIO m) => WindowUserInterf
 
   runInBackground name action =
     FSM.get name >>>= \w ->
-      iliftIO . async $
+      iliftIO . fmap GtkBackgroundProcess . async $
         (action >>= traverse_ (writeChan (events (windowEvents w))))
 
-  cancelProcess process =
+  cancelProcess (GtkBackgroundProcess process) =
     iliftIO (cancel process)
 
   setTransientFor childName parentName =

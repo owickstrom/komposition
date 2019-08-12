@@ -82,12 +82,20 @@ data PreviewingState t m = PreviewingState
 
 makeLenses ''PreviewingState
 
+instance Show (PreviewingState t m) where
+  show state' =
+       "{ _previewType     = " <> show (state' ^. previewType)
+    <> ", _previewProcess  = " <> show (state' ^. previewProcess . _Just . to (const ("<process>" :: Prelude.String)))
+    <> ", _previewProgress = " <> show (state' ^. previewProgress)
+    <> "}"
+
 data PreviewState t m
   = Previewing (PreviewingState t m)
   | NotPreviewing
-
+  deriving (Show)
 
 makePrisms ''PreviewState
+
 
 data TimelineState t m = TimelineState
   { _existingProject :: WithHistory ExistingProject
@@ -95,9 +103,18 @@ data TimelineState t m = TimelineState
   , _statusMessage   :: Maybe Text
   , _zoomLevel       :: ZoomLevel
   , _preview         :: PreviewState t m
-  }
+  } deriving (Show)
 
 makeLenses ''TimelineState
+
+-- instance Show (TimelineState t m) where
+--   show state =
+--        "{ _existingProject = " <> show (state ^. existingProject)
+--     <> ", _clipboard = " <> show (state ^. clipboard)
+--     <> ", _statusMessage = " <> show (state ^. statusMessage)
+--     <> ", _zoomLevel = " <> show (state ^. zoomLevel)
+--     <> ", _preview = " <> show (state ^. preview)
+--     <> "} "
 
 data TimelineModeResult t m
   = TimelineExit (TimelineState t m)

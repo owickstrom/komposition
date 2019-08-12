@@ -244,7 +244,7 @@ class UserInterfaceMarkup markup where
 
 data WindowType = TopWindow | Modal
 
-class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
+class (UserInterfaceMarkup (WindowMarkup m), Show (BackgroundProcess m)) => WindowUserInterface m where
   type Window m :: WindowType -> Type -> Type
   type WindowMarkup m :: WindowType -> Type -> Type
   type BackgroundProcess m
