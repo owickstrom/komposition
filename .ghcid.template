@@ -1,4 +1,6 @@
---command="nix-shell --run 'ghci -isrc -iexe -itest -idist-newstyle/build/x86_64-linux/ghc-8.4.3/komposition-0.1.0/build/autogen -fobject-code exe/Main.hs'"
+--command="nix-shell --run 'ghci -isrc -iexe -itest -idist-newstyle/build/x86_64-linux/ghc-8.6.4/komposition-0.1.0/build/autogen -fobject-code exe/Main.hs'"
+--color=always
 --reload=src
 --reload=exe
 --reload=test
+exe/Main.hs

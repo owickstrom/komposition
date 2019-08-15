@@ -324,12 +324,12 @@ instance MapAtFocus Parallel where
         Parallel ann <$> pure videoTrack' <*> mapAudioTrack audioTrack'
 
 instance MapAtFocus VideoTrack where
-  mapAtFocus (ClipFocus idx) FocusedTraversal {..} (VideoTrack ann videoParts) =
-    VideoTrack ann <$> (videoParts & ix idx %%~ mapTrackPart SVideo)
+  mapAtFocus (ClipFocus idx) FocusedTraversal {..} (VideoTrack ann videoParts') =
+    VideoTrack ann <$> (videoParts' & ix idx %%~ mapTrackPart SVideo)
 
 instance MapAtFocus AudioTrack where
-  mapAtFocus (ClipFocus idx) FocusedTraversal {..} (AudioTrack ann audioParts) =
-    AudioTrack ann <$> (audioParts & ix idx %%~ mapTrackPart SAudio)
+  mapAtFocus (ClipFocus idx) FocusedTraversal {..} (AudioTrack ann audioParts') =
+    AudioTrack ann <$> (audioParts' & ix idx %%~ mapTrackPart SAudio)
 
 mapAt :: Applicative f => Int -> (a -> f a) -> NonEmpty a -> f (NonEmpty a)
 mapAt idx f xs = toList xs & ix idx %%~ f <&> NonEmpty.fromList

@@ -39,10 +39,10 @@ instance HasParentAtFocus Sequence where
 
 instance HasParentAtFocus Parallel where
   parentAtFocus (TrackFocus _ Nothing) p  = pure (ParallelParent p)
-  parentAtFocus (TrackFocus mt (Just subFocus)) (Parallel _ videoTrack audioTrack) =
+  parentAtFocus (TrackFocus mt (Just subFocus)) (Parallel _ videoTrack' audioTrack') =
     case mt of
-      Video -> parentAtFocus subFocus videoTrack
-      Audio -> parentAtFocus subFocus audioTrack
+      Video -> parentAtFocus subFocus videoTrack'
+      Audio -> parentAtFocus subFocus audioTrack'
 
 instance HasParentAtFocus VideoTrack where
   parentAtFocus _ t  = pure (VideoTrackParent t)
@@ -93,10 +93,10 @@ instance WithParentOf Sequence where
 instance WithParentOf Parallel where
   withParentOf ParentTraversal {..} (TrackFocus clipType Nothing) p =
     onParallel clipType p
-  withParentOf t@ParentTraversal {..} (TrackFocus clipType (Just clipFocus)) (Parallel ann videoTrack audioTrack) =
+  withParentOf t@ParentTraversal {..} (TrackFocus clipType (Just clipFocus)) (Parallel ann videoTrack' audioTrack') =
         case clipType of
-          Video -> videoTrack & withParentOf t clipFocus & fmap (\track -> Parallel ann track audioTrack)
-          Audio -> audioTrack & withParentOf t clipFocus & fmap (Parallel ann videoTrack)
+          Video -> videoTrack' & withParentOf t clipFocus & fmap (\track -> Parallel ann track audioTrack')
+          Audio -> audioTrack' & withParentOf t clipFocus & fmap (Parallel ann videoTrack')
 
 instance WithParentOf VideoTrack where
   withParentOf ParentTraversal {..} (ClipFocus idx) = onVideoTrack idx

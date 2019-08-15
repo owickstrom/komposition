@@ -31,7 +31,7 @@ module Komposition.Render.Composition
 
 import           Komposition.Prelude
 
-import           Control.Lens
+import           Control.Lens            hiding (at)
 
 import qualified Komposition.Composition as Core
 import           Komposition.Duration

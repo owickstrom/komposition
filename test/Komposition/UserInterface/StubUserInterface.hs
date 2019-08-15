@@ -79,6 +79,7 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
          => WindowUserInterface (StubUserInterface m) where
   type Window (StubUserInterface m) = StubWindow
   type WindowMarkup (StubUserInterface m) = StubMarkup
+  type BackgroundProcess (StubUserInterface m) = ()
 
   newWindow name markup _ = FSM.new name (StubWindow markup)
   patchWindow _ _ = ireturn ()
@@ -95,6 +96,7 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
       Nothing -> ilift (throwError (NoMoreEvents (typeRep (Proxy @event))))
   nextEventOrTimeout name _ = Just <$> nextEvent name
   runInBackground _ _ = ireturn ()
+  cancelProcess = const (ireturn ())
   beep _ = ireturn ()
 
   -- TODO: Might need this actually stubbed
@@ -103,11 +105,6 @@ instance (Member (State StubState) sig, Member (Error StubError) sig, Carrier si
   chooseFile _ _ _ _ = ireturn Nothing
   -- TODO: Might need this actually stubbed
   progressBar _ _ _ = ireturn Nothing
-
-  -- TODO: This should be refactored to a separate declarative GTK
-  -- widget, rather than being in this type class
-  previewStream _ _ _ _ = ireturn Nothing
-
 
 getNextMatching
   :: Monad m

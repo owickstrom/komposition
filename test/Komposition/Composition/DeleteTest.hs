@@ -10,7 +10,6 @@ import qualified Prelude
 
 import           Data.Tree
 import           Hedgehog                           hiding (Parallel)
-import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import           Hedgehog.Range
 import           Test.Tasty.Hspec
 
@@ -69,7 +68,7 @@ hprop_returned_inverse_insertion_is_an_undo_action = property $ do
     Nothing -> pass
     Just (DeletionResult newTimeline (insertion, insertPos) newFocus) ->
       case insert newFocus insertion insertPos newTimeline of
-        Just (InsertionResult finalTimeline finalFocus) ->
+        Just (InsertionResult finalTimeline _finalFocus) ->
           timelineToTree initialTimeline === timelineToTree finalTimeline
         Nothing -> failure
   where

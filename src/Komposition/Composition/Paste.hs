@@ -4,10 +4,6 @@ module Komposition.Composition.Paste where
 
 import           Komposition.Prelude
 
-import           Komposition.Composition
-import           Komposition.Composition.Insert
-import           Komposition.Focus
-
 data PastePosition
   = PasteLeftOf
   | PasteRightOf

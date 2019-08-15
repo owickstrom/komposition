@@ -9,10 +9,8 @@ module Komposition.Composition.InsertTest where
 import           Komposition.Prelude
 import qualified Prelude
 
-import qualified Data.List.NonEmpty                 as NonEmpty
 import           Data.Tree
 import           Hedgehog                           hiding (Parallel)
-import qualified Hedgehog.Gen                       as Gen hiding (parallel)
 import           Hedgehog.Range
 import           Test.Tasty.Hspec
 

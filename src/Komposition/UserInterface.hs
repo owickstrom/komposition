@@ -4,7 +4,6 @@
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE GADTs              #-}
-{-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE LambdaCase         #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
@@ -21,7 +20,6 @@ import           Komposition.Prelude            hiding (State)
 import           Control.Lens
 import           Data.Row.Records
 import           Data.Time.Clock
-import           Data.Vector                    (Vector)
 import           Motor.FSM                      hiding (Delete)
 import           Pipes
 import           Pipes.Safe                     (SafeT)
@@ -81,7 +79,7 @@ data Command (mode :: Mode) where
   Paste :: Paste.PastePosition -> Command TimelineMode
   Import :: Command TimelineMode
   Render :: Command TimelineMode
-  Preview :: Command TimelineMode
+  PlayOrStop :: Command TimelineMode
   Undo :: Command TimelineMode
   Redo :: Command TimelineMode
   SaveProject :: Command TimelineMode
@@ -115,7 +113,7 @@ commandName = \case
     Paste.PasteRightOf -> "Paste Right Of"
   Import       -> "Import Assets"
   Render       -> "Render"
-  Preview      -> "Preview"
+  PlayOrStop   -> "Play/Stop"
   Undo         -> "Undo"
   Redo         -> "Redo"
   SaveProject  -> "Save"
@@ -150,10 +148,14 @@ data Event mode where
   CreateClicked :: Event NewProjectMode
   -- Timeline
   ZoomLevelChanged :: ZoomLevel -> Event TimelineMode
-  PreviewImageRefreshed :: Maybe FilePath -> Event TimelineMode
+  PreviewFrameExtracted :: FilePath -> Event TimelineMode
   FocusedClipSpeedSet :: VideoSpeed -> Event TimelineMode
   FocusedClipStartSet :: Duration -> Event TimelineMode
   FocusedClipEndSet :: Duration -> Event TimelineMode
+  StreamingProcessFailed :: Text -> Event TimelineMode
+  PlaybackProgress :: Double -> Event TimelineMode
+  PlaybackRestarting :: Event TimelineMode
+  PlaybackFinished :: Event TimelineMode
   -- Import
   ImportFileSelected :: Maybe FilePath -> Event ImportMode
   ImportClassifySet :: Bool -> Event ImportMode
@@ -186,12 +188,19 @@ data FileChooserMode
 newtype ZoomLevel = ZoomLevel Double
   deriving (Eq, Show)
 
+data Preview
+  = PlayHttpStream Text Word Duration
+  | PlayFile FilePath Duration
+  | PreviewFrame FilePath
+  deriving (Eq, Show)
+
 data TimelineViewModel = TimelineViewModel
   { _project          :: WithHistory Project
   , _currentFocus     :: Focus SequenceFocusType
   , _statusMessage    :: Maybe Text
   , _zoomLevel        :: ZoomLevel
-  , _previewImagePath :: Maybe FilePath
+  , _preview          :: Maybe Preview
+  , _playbackProgress :: Maybe Double
   } deriving (Eq, Show)
 
 makeLenses ''TimelineViewModel
@@ -235,9 +244,10 @@ class UserInterfaceMarkup markup where
 
 data WindowType = TopWindow | Modal
 
-class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
+class (UserInterfaceMarkup (WindowMarkup m), Show (BackgroundProcess m)) => WindowUserInterface m where
   type Window m :: WindowType -> Type -> Type
   type WindowMarkup m :: WindowType -> Type -> Type
+  type BackgroundProcess m
 
   newWindow
     :: Typeable event
@@ -307,7 +317,11 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     :: HasType n (Window m window e) r
     => Typeable e
     => Name n
-    -> IO (Vector e)
+    -> IO (Maybe e)
+    -> m r r (BackgroundProcess m)
+
+  cancelProcess
+    :: BackgroundProcess m
     -> m r r ()
 
   beep :: Name n -> m r r ()
@@ -338,10 +352,3 @@ class UserInterfaceMarkup (WindowMarkup m) => WindowUserInterface m where
     -> Text -- ^ Progress window title
     -> Producer ProgressUpdate (SafeT IO) a -- ^ Progress updates producer
     -> m r r (Maybe (Either e a))
-  previewStream
-    :: HasType n (Window m TopWindow event) r
-    => Name n -- ^ Name of parent window
-    -> Text -- ^ URI to stream
-    -> Producer ProgressUpdate (SafeT IO) () -- ^ Streaming process
-    -> VideoSettings
-    -> m r r (Maybe ())

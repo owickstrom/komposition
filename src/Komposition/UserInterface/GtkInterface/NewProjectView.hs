@@ -81,12 +81,11 @@ frameRateControl model = container
     $ widget Label [#label := "Frame Rate", #halign := AlignStart]
   , BoxChild defaultBoxChildProperties { padding = 5 }
   $   toFrameRateChanged
-  <$> numberInput NumberInputProperties
+  <$> numberInput [] NumberInputProperties
         { value              = fromIntegral (model ^. newProjectFrameRate)
         , range              = (15, 30)
         , step               = 1
         , digits             = 0
-        , numberInputClasses = []
         }
   ]
   where toFrameRateChanged (NumberInputChanged v) = FrameRateChanged v
@@ -101,10 +100,10 @@ resolutionControl model = container
   $   toResolutionChanged
   <$> selectBox
         prettyPrintResolution
+        []
         SelectBoxProperties
           { selected         = model ^. newProjectResolution
           , values           = resolutions
-          , selectBoxClasses = []
           }
   ]
   where toResolutionChanged (SelectBoxChanged r) = ResolutionChanged r

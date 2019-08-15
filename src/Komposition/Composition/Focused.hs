@@ -71,11 +71,11 @@ withAllFoci (Timeline sub) =
          (Maybe (Focus 'TrackFocusType) -> Focus 'SequenceFocusType)
       -> Parallel a
       -> Parallel (Focus 'SequenceFocusType)
-    onParallel wrap (Parallel _ videoTrack audioTrack) =
+    onParallel wrap (Parallel _ videoTrack' audioTrack') =
         Parallel
         (wrap Nothing)
-        (onVideoTrack (wrap . Just . TrackFocus Video) videoTrack)
-        (onAudioTrack (wrap . Just . TrackFocus Audio) audioTrack)
+        (onVideoTrack (wrap . Just . TrackFocus Video) videoTrack')
+        (onAudioTrack (wrap . Just . TrackFocus Audio) audioTrack')
     onVideoTrack wrap (VideoTrack _ parts') =
       VideoTrack (wrap Nothing) (zipWith (onTrackPart . wrap . Just . ClipFocus) [0 ..] parts')
     onAudioTrack wrap (AudioTrack _ parts') =

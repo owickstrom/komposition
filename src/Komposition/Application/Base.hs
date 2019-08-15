@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PolyKinds        #-}
 {-# LANGUAGE RankNTypes       #-}
-module Komposition.Application.Base ((>>), (>>=), Application, module X) where
+module Komposition.Application.Base ((>>), (>>=), ivoid, Application, module X) where
 
 import           Komposition.Prelude              as X hiding (State, get, (>>),
                                                         (>>=))
@@ -20,6 +20,9 @@ import           Motor.FSM                        as X hiding (Delete, delete)
 
 (>>=) :: IxMonad m => m i j a -> (a -> m j k b) -> m i k b
 (>>=) = (>>>=)
+
+ivoid :: IxMonad m => m i i a -> m i i ()
+ivoid = (>>> (ireturn ()))
 
 type Application t m sig
    = ( IxPointed (t m)

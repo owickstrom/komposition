@@ -1,9 +1,10 @@
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE PolyKinds        #-}
-{-# LANGUAGE TypeFamilies     #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-partial-type-signatures #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE OverloadedLabels      #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE TypeFamilies          #-}
 module Komposition.Application.TimelineModeTest where
 
 import           Komposition.Prelude
@@ -45,19 +46,18 @@ import           Komposition.UserInterface.StubUserInterface
 initializeState
   :: (MonadGen m, GenBase m ~ Identity)
   => (Timeline (), Focus 'SequenceFocusType)
-  -> m TimelineState
-initializeState (timeline', focus')= do
-  existingProject'    <-
+  -> m (TimelineState _ _)
+initializeState (timeline', focus') = do
+  existingProject' <-
     ExistingProject
     <$> (ProjectPath <$> Gen.string (Range.linear 1 10) Gen.unicode)
     <*> Gen.projectWithTimelineAndFocus (pure (timeline', focus'))
-  pure TimelineState
-    { _existingProject  = initializeHistory existingProject'
-    , _statusMessage    = Nothing
-    , _clipboard        = Nothing
-    , _zoomLevel        = ZoomLevel 1
-    , _previewImagePath = Nothing
-    }
+  pure TimelineState { _existingProject = initializeHistory existingProject'
+                     , _statusMessage   = Nothing
+                     , _clipboard       = Nothing
+                     , _zoomLevel       = ZoomLevel 1
+                     , _preview         = NotPreviewing
+                     }
 
 genUndoableTimelineEvent :: (MonadGen m, GenBase m ~ Identity) => m SomeEvent
 genUndoableTimelineEvent =
@@ -77,7 +77,9 @@ undoEvent = SomeEvent (CommandKeyMappedEvent Undo)
 redoEvent = SomeEvent (CommandKeyMappedEvent Redo)
 
 runTimelineMode
-  :: (Application t m sig, TimelineEffects sig) => TimelineState -> t m Empty Empty TimelineModeResult
+  :: (Application t m sig, TimelineEffects sig)
+  => TimelineState t m
+  -> t m Empty Empty (TimelineModeResult t m)
 runTimelineMode state' =
   newWindow #gui (timelineViewFromState state') keymap
     >>> timelineMode #gui state'
@@ -87,8 +89,8 @@ runTimelineMode state' =
 runTimelineStubbedWithExit
   :: MonadTest m
   => [SomeEvent]
-  -> TimelineState
-  -> m TimelineState
+  -> TimelineState StubUserInterface _
+  -> m (TimelineState StubUserInterface _)
 runTimelineStubbedWithExit events state' = case runPure state' of
   Left  err                     -> annotateShow err >> failure
   Right TimelineClose           -> failure
@@ -104,7 +106,7 @@ runTimelineStubbedWithExit events state' = case runPure state' of
         . runStubUserInterface (Vector.fromList (events <> pure (SomeEvent (CommandKeyMappedEvent Exit))))
         . runTimelineMode
 
-currentTimeline :: Getter TimelineState (Timeline ())
+currentTimeline :: Getter (TimelineState t m) (Timeline ())
 currentTimeline = existingProject.project.timeline.UndoRedo.current
 
 showTimelineAndFocus (t, f) = drawTree (timelineToTree t) <> "\n" <> show f

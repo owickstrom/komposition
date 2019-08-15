@@ -101,8 +101,8 @@ insert oldFocus insertion position parent = do
           let traversal =
                 FocusedTraversal
                 { mapSequence = pure
-                , mapParallel = \(Parallel ann (VideoTrack vAnn videoParts) audioTrack') -> do
-                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) videoParts
+                , mapParallel = \(Parallel ann (VideoTrack vAnn videoParts') audioTrack') -> do
+                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) videoParts'
                     put . pure $
                       SequenceFocus sIdx (Just (ParallelFocus pIdx (Just (TrackFocus Video (Just (ClipFocus newClipIdx))))))
                     pure (Parallel ann (VideoTrack vAnn newParts) audioTrack')
@@ -115,8 +115,8 @@ insert oldFocus insertion position parent = do
           let traversal =
                 FocusedTraversal
                 { mapSequence = pure
-                , mapParallel = \(Parallel ann videoTrack' (AudioTrack aAnn audioParts)) -> do
-                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) audioParts
+                , mapParallel = \(Parallel ann videoTrack' (AudioTrack aAnn audioParts')) -> do
+                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) audioParts'
                     put . pure $
                       SequenceFocus sIdx (Just (ParallelFocus pIdx (Just (TrackFocus Audio (Just (ClipFocus newClipIdx))))))
                     pure (Parallel ann videoTrack' (AudioTrack aAnn newParts))
@@ -130,8 +130,8 @@ insert oldFocus insertion position parent = do
                 FocusedTraversal
                 { mapSequence = pure
                 , mapParallel = pure
-                , mapVideoTrack = \(VideoTrack vAnn videoParts) -> do
-                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) videoParts
+                , mapVideoTrack = \(VideoTrack vAnn videoParts') -> do
+                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) videoParts'
                     put . pure $
                       SequenceFocus sIdx (Just (ParallelFocus pIdx (Just (TrackFocus Video (Just (ClipFocus newClipIdx))))))
                     pure (VideoTrack vAnn newParts)
@@ -145,8 +145,8 @@ insert oldFocus insertion position parent = do
                 { mapSequence = pure
                 , mapParallel = pure
                 , mapVideoTrack = pure
-                , mapAudioTrack = \(AudioTrack vAnn audioParts) -> do
-                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) audioParts
+                , mapAudioTrack = \(AudioTrack vAnn audioParts') -> do
+                    let (newParts, newClipIdx) = spliceLeftMostOrRightMost position (NonEmpty.toList clips) audioParts'
                     put . pure $
                       SequenceFocus sIdx (Just (ParallelFocus pIdx (Just (TrackFocus Audio (Just (ClipFocus newClipIdx))))))
                     pure (AudioTrack vAnn newParts)

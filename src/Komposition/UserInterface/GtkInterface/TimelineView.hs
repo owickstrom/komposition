@@ -16,7 +16,7 @@ where
 import           Komposition.Prelude                                      hiding
                                                                            (on)
 
-import           Control.Lens
+import           Control.Lens                                             hiding (preview)
 import           Data.Int                                                 (Int32)
 import           Data.Text                                                (Text)
 import qualified Data.Vector                                              as Vector
@@ -28,6 +28,7 @@ import           GI.Gtk                                                   (Align
                                                                            MenuItem (..),
                                                                            Orientation (..),
                                                                            PolicyType (..),
+                                                                           ProgressBar (..),
                                                                            ScrolledWindow (..),
                                                                            Window (..))
 import           GI.Gtk.Declarative
@@ -49,6 +50,7 @@ import           Komposition.UserInterface.GtkInterface.NumberInput       as Num
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview
 import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
+import           Komposition.UserInterface.GtkInterface.VideoStreamer
 import           Komposition.VideoSettings
 
 widthFromDuration :: ZoomLevel -> Duration -> Int32
@@ -78,7 +80,7 @@ renderClipAsset zl thisFocus focused asset' duration' = container
   ]
   [ BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ widget
       Button
-      [ on #clicked (CommandKeyMappedEvent (JumpFocus thisFocus))
+      [ on #buttonPressEvent (\_eventButton -> (True, CommandKeyMappedEvent (JumpFocus thisFocus)))
       , #widthRequest := widthFromDuration zl duration'
       , #hasFocus := (focused == Focused)
       ]
@@ -120,13 +122,21 @@ renderAudioPart zl = \case
   AudioGap ann duration' -> renderGap zl ann duration'
 
 renderTimeline
-  :: ZoomLevel
+  :: TimelineViewModel
   -> Timeline (Focus 'SequenceFocusType, Focused)
   -> Widget (Event 'TimelineMode)
-renderTimeline zl (Timeline sub) = container
+renderTimeline model (Timeline sub) = container
   Box
   [classes ["composition", "timeline", emptyClass (null sub)]]
-  (map (BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } . renderSequence zl) (Vector.fromList $ toList sub))
+  (map
+    ( BoxChild defaultBoxChildProperties { expand  = False
+                                         , fill    = False
+                                         , padding = 0
+                                         }
+    . renderSequence (model ^. zoomLevel)
+    )
+    (Vector.fromList $ toList sub)
+  )
 
 renderSequence
   :: ZoomLevel
@@ -143,18 +153,18 @@ renderParallel
   :: ZoomLevel
   -> Parallel (Focus 'SequenceFocusType, Focused)
   -> BoxChild (Event 'TimelineMode)
-renderParallel zl (Parallel (_thisFocus, focused) videoTrack audioTrack) = container
+renderParallel zl (Parallel (_thisFocus, focused) videoTrack' audioTrack') = container
   Box
   [ #orientation := OrientationVertical
   , classes
     [ "composition"
     , "parallel"
     , focusedClass focused
-    , emptyClass (videoTrackIsEmpty videoTrack && audioTrackIsEmpty audioTrack)
+    , emptyClass (videoTrackIsEmpty videoTrack' && audioTrackIsEmpty audioTrack')
     ]
   ]
-  [ renderVideoTrack zl videoTrack
-  , renderAudioTrack zl audioTrack
+  [ renderVideoTrack zl videoTrack'
+  , renderAudioTrack zl audioTrack'
   ]
 
 renderVideoTrack
@@ -198,23 +208,53 @@ emptyClass True  = "empty"
 emptyClass False = "non-empty"
 
 renderPreviewPane
-  :: Maybe FilePath -> Pane (Event 'TimelineMode)
-renderPreviewPane path' = pane defaultPaneProperties $ container
+  :: TimelineViewModel -> Pane (Event 'TimelineMode)
+renderPreviewPane model = pane defaultPaneProperties $ container
   Box
-  [classes ["preview-pane"]]
-  [ BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 } $ case path' of
-      Just p  -> thumbnailPreview p
-      Nothing -> noPreviewAvailable
+  [classes ["preview-pane"], #orientation := OrientationVertical]
+  [ BoxChild defaultBoxChildProperties { expand  = True
+                                       , fill    = True
+                                       , padding = 0
+                                       }
+    $ case model ^. preview of
+        Just (PlayHttpStream host port fullDuration') ->
+          playUri ("http://" <> host <> ":" <> show port) fullDuration'
+        Just (PlayFile fp fullDuration') ->
+          playUri ("file://" <> toS fp) fullDuration'
+        Just (PreviewFrame p) -> thumbnailPreview [] p
+        Nothing               -> noPreviewAvailable
+  , BoxChild defaultBoxChildProperties $ container
+    Box
+    [#orientation := OrientationHorizontal]
+    [ BoxChild
+        defaultBoxChildProperties { expand = True, fill = True }
+        (widget
+          ProgressBar
+          [ #fraction := fromMaybe 0 (model ^. playbackProgress)
+          , classes ["playback-progress"]
+          ]
+        )
+    ]
   ]
-  where noPreviewAvailable = widget Label [#label := "No preview available."]
+  where
+    noPreviewAvailable = widget Label [#label := "No preview available."]
+    onStreamerEvent    = \case
+      StreamerPlaybackProgress d -> PlaybackProgress d
+      StreamerPlaybackRestarting -> PlaybackRestarting
+      StreamerPlaybackEnd        -> PlaybackFinished
+    playUri uri' fullDuration' = onStreamerEvent <$> videoStreamer
+      (StreamerProperties { desiredState = DesiredPlaying
+                          , uri          = Just uri'
+                          , fullDuration = fullDuration'
+                          }
+      )
 
 durationControl :: VideoSettings -> (Duration, Duration) -> Duration -> Widget Duration
-durationControl vs range' currentDur = toDuration <$> numberInput NumberInputProperties
+durationControl vs range' currentDur = toDuration <$> numberInput [] NumberInputProperties
   { value              = durationToSeconds currentDur
   , NumberInput.range  = range' & both %~ durationToSeconds
   , step               = 1 / fromIntegral (vs ^. frameRate)
   , digits             = 2
-  , numberInputClasses = []
   }
   where toDuration (NumberInputChanged n) = durationFromSeconds n
 
@@ -255,14 +295,14 @@ renderSidebar vs mcomp = pane defaultPaneProperties $ container
         [ heading "Parallel"
         , textEntry "Duration" (formatDuration (durationOf AdjustedDuration p))
         ]
-      Just (SomeVideoTrack t@(VideoTrack _ videoParts))
+      Just (SomeVideoTrack t@(VideoTrack _ videoParts'))
         -> [ heading "Video Track"
-           , textEntry "Parts" (show (length videoParts))
+           , textEntry "Parts" (show (length videoParts'))
            , textEntry "Duration" (formatDuration (durationOf AdjustedDuration t))
            ]
-      Just (SomeAudioTrack t@(AudioTrack _ audioParts))
+      Just (SomeAudioTrack t@(AudioTrack _ audioParts'))
         -> [ heading "Audio Track"
-           , textEntry "Parts" (show (length audioParts))
+           , textEntry "Parts" (show (length audioParts'))
            , textEntry "Duration" (formatDuration (durationOf AdjustedDuration t))
            ]
       Just (SomeVideoPart (VideoClip _ asset ts speed))
@@ -336,7 +376,7 @@ renderMainArea
   :: TimelineViewModel -> Widget (Event 'TimelineMode)
 renderMainArea model =
   paned [#orientation := OrientationHorizontal, #wideHandle := True, #position := 400]
-  (renderPreviewPane (model ^. previewImagePath))
+  (renderPreviewPane model)
   (renderSidebar (project' ^. videoSettings . renderVideoSettings) (atFocus currentFocus' (project' ^. timeline . current)))
   where
     project' = model ^. project
@@ -396,8 +436,8 @@ renderBottomBar model = container
     , #ellipsize := EllipsizeModeEnd
     , #halign := AlignStart
     ]
-  , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ toZoomEvent <$> rangeSlider
-    (RangeSliderProperties (1, 9) zl ["zoom-level"])
+  , BoxChild defaultBoxChildProperties { expand = False, fill = False, padding = 0 } $ toZoomEvent
+    <$> rangeSlider [classes ["zoom-level"]] (RangeSliderProperties (1, 9) zl)
   ]
   where
     ZoomLevel zl = model ^. zoomLevel
@@ -413,7 +453,7 @@ timelineView model =
       ]
     $ container
         Box
-        [#orientation := OrientationVertical]
+        [#orientation := OrientationVertical, classes playingClass]
         [ BoxChild defaultBoxChildProperties renderMenu
         , BoxChild defaultBoxChildProperties { expand = True, fill = True, padding = 0 }
           (renderMainArea model
@@ -424,10 +464,14 @@ timelineView model =
           , #vscrollbarPolicy := PolicyTypeNever
           , classes ["timeline-container"]
           ]
-          (renderTimeline (model ^. zoomLevel) focusedTimelineWithSetFoci)
+          (renderTimeline model focusedTimelineWithSetFoci)
         , BoxChild defaultBoxChildProperties $ renderBottomBar model
         ]
   where
     focusedTimelineWithSetFoci :: Timeline (Focus 'SequenceFocusType, Focused)
     focusedTimelineWithSetFoci = withAllFoci (model ^. project.timeline.current)
       <&> \f -> (f, focusedState (model ^. currentFocus) f)
+    playingClass =
+      case model ^. playbackProgress of
+        Just _ -> pure "playing"
+        _      -> mempty

@@ -23,13 +23,15 @@ import           Komposition.Progress
 import           Komposition.Render.Composition (Composition, StillFrameMode)
 import           Komposition.VideoSettings
 
+type RenderProcess = Producer ProgressUpdate (SafeT IO) ()
+
 data Render (m :: * -> *) k where
   RenderComposition
     :: VideoSettings
     -> Source Video
     -> Output
     -> Composition
-    -> (Producer ProgressUpdate (SafeT IO) () -> k)
+    -> (RenderProcess -> k)
     -> Render m k
 
   ExtractFrameToFile
@@ -61,7 +63,7 @@ renderComposition
   -> Source Video
   -> Output
   -> Composition
-  -> m (Producer ProgressUpdate (SafeT IO) ())
+  -> m RenderProcess
 renderComposition settings videoSource output composition =
   send (RenderComposition settings videoSource output composition ret)
 
