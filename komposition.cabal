@@ -104,7 +104,7 @@ library
                       , gi-glib
                       , gi-gst
                       , gi-gtk
-                      , gi-gtk-declarative >= 0.5 && < 0.6
+                      , gi-gtk-declarative >= 0.5 && < 0.7
                       , gi-gdk
                       , gi-gdkpixbuf
                       , gi-pango
