@@ -1,5 +1,5 @@
 name:                 komposition
-version:              0.1.0
+version:              0.2.0
 synopsis:             High-productivity screencast editing
 description:          This project can be built using Stack, Cabal, and Nix. Please see the
                       <https://owickstrom.github.io/komposition/ documentation> for build
