@@ -11,7 +11,8 @@ import           Komposition.Prelude
 
 import           Data.Row.Records
 import           Motor.FSM
-import           Komposition.UserInterface
+
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.KeyMap
 
 data DialogEvent c
@@ -69,4 +70,4 @@ data Confirmation
 
 instance DialogChoice Confirmation where
   toButtonLabel Yes = "Yes"
-  toButtonLabel No = "No"
+  toButtonLabel No  = "No"

@@ -21,8 +21,7 @@ import           GI.Gtk                                                 (Align (
 import           GI.Gtk.Declarative                                     as Gtk
 
 import           Komposition.KeyMap
-import           Komposition.UserInterface                              hiding
-                                                                         (Window)
+import           Komposition.UserInterface                              
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 import           Komposition.UserInterface.Help
 

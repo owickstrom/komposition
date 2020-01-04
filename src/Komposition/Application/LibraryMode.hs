@@ -18,6 +18,7 @@ import           Komposition.MediaType
 
 import           Komposition.Application.KeyMaps
 import           Komposition.UserInterface
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.UserInterface.Help
 
 selectAssetFromList
@@ -47,13 +48,9 @@ selectAssetFromList model = do
   where continueWith = selectAssetFromList
 
 selectAsset
-  :: ( Application t m sig
-     )
-  => SelectAssetsModel mt
-  -> t m r r (Maybe [Asset mt])
-selectAsset libraryModel =
-  withNewWindow
-    #library
-    (libraryView libraryModel)
-    (CommandKeyMappedEvent <$> keymaps SLibraryMode)
-    (selectAssetFromList libraryModel)
+  :: (Application t m sig) => SelectAssetsModel mt -> t m r r (Maybe [Asset mt])
+selectAsset libraryModel = withNewWindow
+  #library
+  (libraryView libraryModel)
+  (CommandKeyMappedEvent <$> keymaps SLibraryMode)
+  (selectAssetFromList libraryModel)

@@ -28,8 +28,7 @@ import           GI.Gtk                                                   (Align
 import           GI.Gtk.Declarative                                       as Gtk
 
 import           Komposition.MediaType
-import           Komposition.UserInterface                                hiding (Window,
-                                                                           importView)
+import           Komposition.UserInterface                                hiding (importView)
 import           Komposition.UserInterface.GtkInterface.VideoSpeedControl
 
 importView :: ImportFileModel -> Bin Dialog (Event 'ImportMode)

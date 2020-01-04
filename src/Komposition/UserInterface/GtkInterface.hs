@@ -67,6 +67,7 @@ import           Control.Monad.Indexed.IO
 import           Komposition.KeyMap
 import           Komposition.Progress
 import           Komposition.UserInterface
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.UserInterface.GtkInterface.EventListener
 import           Komposition.UserInterface.GtkInterface.GtkWindowMarkup
 import           Komposition.UserInterface.GtkInterface.Threading

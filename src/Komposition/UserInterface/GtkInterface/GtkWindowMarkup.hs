@@ -7,7 +7,8 @@ module Komposition.UserInterface.GtkInterface.GtkWindowMarkup where
 import qualified GI.Gtk                         as Gtk
 import qualified GI.Gtk.Declarative             as Declarative
 import qualified GI.Gtk.Declarative.EventSource as Declarative
-import           Komposition.UserInterface
+
+import           Komposition.UserInterface.WindowUserInterface
 
 data GtkWindowMarkup window event where
   GtkTopWindowMarkup

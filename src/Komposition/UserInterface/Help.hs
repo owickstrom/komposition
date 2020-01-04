@@ -12,9 +12,11 @@ module Komposition.UserInterface.Help where
 import           Komposition.Prelude
 
 import           Data.Row.Records
+import           Motor.FSM
+
 import           Komposition.KeyMap
 import           Komposition.UserInterface
-import           Motor.FSM
+import           Komposition.UserInterface.WindowUserInterface
 
 data HelpEvent
   = HelpClosed

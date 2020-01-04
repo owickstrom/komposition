@@ -36,6 +36,7 @@ import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
 import           Komposition.UserInterface
 import           Komposition.UserInterface.Help
+import           Komposition.UserInterface.WindowUserInterface
 
 type WelcomeScreenModeEffects sig =
     ( Member ProjectStore sig

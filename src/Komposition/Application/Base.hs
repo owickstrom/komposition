@@ -11,6 +11,7 @@ import           Control.Effect
 import           Control.Monad.Indexed.Trans      as X
 import           Komposition.Logging              as X
 import           Komposition.UserInterface
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Motor.FSM                        as X hiding (Delete, delete)
@@ -32,6 +33,7 @@ type Application t m sig
      , Carrier sig m
      , Monad m
      , WindowUserInterface (t m)
+     , UserInterfaceMarkup (WindowMarkup (t m))
      , DialogView (WindowMarkup (t m))
      , HelpView (WindowMarkup (t m))
      )
