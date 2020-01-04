@@ -87,6 +87,7 @@ library
                       , Komposition.UserInterface.GtkInterface.VideoStreamer
                       , Komposition.UserInterface.GtkInterface.WelcomeScreenView
                       , Komposition.UserInterface.Help
+                      , Komposition.UserInterface.WindowUserInterface
                       , Komposition.Timestamp
                       , Komposition.VideoSettings
                       , Komposition.VideoSpeed

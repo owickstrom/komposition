@@ -31,6 +31,7 @@ import           Komposition.Project
 import qualified Komposition.UndoRedo                        as UndoRedo
 import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
                                                               project)
+import           Komposition.UserInterface.WindowUserInterface
 
 import qualified Komposition.Composition.Generators          as Gen
 import           Komposition.Composition.ToTree

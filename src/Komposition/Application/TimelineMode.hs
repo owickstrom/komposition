@@ -58,6 +58,7 @@ import           Komposition.UserInterface           hiding
                                                       preview, project,
                                                       statusMessage, zoomLevel)
 import qualified Komposition.UserInterface           as UI
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
 import           Komposition.VideoSettings
@@ -76,7 +77,7 @@ type TimelineEffects sig =
 
 data PreviewingState t m = PreviewingState
   { _previewType     :: Preview
-  , _previewProcess  :: Maybe (UI.BackgroundProcess (t m))
+  , _previewProcess  :: Maybe (BackgroundProcess (t m))
   , _previewProgress :: Maybe Double
   }
 

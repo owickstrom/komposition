@@ -32,6 +32,7 @@ import qualified Motor.FSM                        as FSM
 import           Komposition.UserInterface
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
+import           Komposition.UserInterface.WindowUserInterface
 
 newtype StubUserInterface m i o a = StubUserInterface (FSM m i o a)
   deriving ( IxFunctor

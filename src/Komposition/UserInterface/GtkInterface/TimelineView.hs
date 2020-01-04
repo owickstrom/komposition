@@ -44,8 +44,7 @@ import           Komposition.MediaType
 import           Komposition.Project                                      hiding (project)
 import           Komposition.Timestamp
 import           Komposition.UndoRedo
-import           Komposition.UserInterface                                hiding (Window,
-                                                                           timelineView)
+import           Komposition.UserInterface                                hiding (timelineView)
 import           Komposition.UserInterface.GtkInterface.NumberInput       as NumberInput
 import           Komposition.UserInterface.GtkInterface.RangeSlider
 import           Komposition.UserInterface.GtkInterface.ThumbnailPreview

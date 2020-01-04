@@ -1,4 +1,4 @@
-{ compiler ? "ghc864", doCheck ? true, doBenchmark ? false }:
+{ compiler ? "ghc865", doCheck ? true, doBenchmark ? false }:
 
 let
   nixpkgs = import (builtins.fetchGit {

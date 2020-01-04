@@ -29,7 +29,7 @@ import           Text.Printf
 import           Komposition.Duration
 import           Komposition.Library
 import           Komposition.MediaType
-import           Komposition.UserInterface hiding (Window, libraryView)
+import           Komposition.UserInterface hiding (libraryView)
 
 printTimestamp :: Duration -> Text
 printTimestamp d =
