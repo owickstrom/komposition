@@ -32,14 +32,14 @@ and gaps with the <kbd>g</kbd> key.
 When a video or audio track, or anything within a track is focused,
 you press two keys:
 
-1. add after (<kbd>a</kbd>) or add before (<kbd>a</kbd>)
+1. insert after (<kbd>a</kbd>) or insert before (<kbd>A</kbd>)
 2. clip (<kbd>c</kbd>) or gap (<kbd>g</kbd>)
 
 When a parallel is focused, you need to also specify if it's the video track
 or audio track you want to add before or append to. The full key sequence then
 consists of three keys:
 
-1. add before (<kbd>p</kbd>) or append (<kbd>a</kbd>)
+1. insert before (<kbd>A</kbd>) or insert after (<kbd>a</kbd>)
 2. video (<kbd>v</kbd>) or audio track (<kbd>a</kbd>)
 3. clip (<kbd>c</kbd>) or gap (<kbd>g</kbd>)
 

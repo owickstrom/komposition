@@ -34,10 +34,12 @@ timeline part. For example:
 
 ## Key Bindings
 
-Navigation is mean to be keyboard-driven, in that you use your arrow keys or
+Navigation is meant to be keyboard-driven, in that you use your arrow keys or
 the <kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd> keys to move around,
-like in [Vim](https://www.vim.org/). You can also click any clip or gap in a
-track to move directly to it.
+like in [Vim](https://www.vim.org/). Press <kbd>?</kbd> to display the help
+and its list of key bindings to learn more.
+
+You can also click any clip or gap in a track to move directly to it.
 
 !!! note
     There's currently no way to focus sequences or parallels using the mouse,

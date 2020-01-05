@@ -1,10 +1,37 @@
 # Installation
 
-The main way to install Komposition is from source, but binary
-packages are [available for macOS from
-Homebrew](https://formulae.brew.sh/formula/komposition). Komposition
-can be built on macOS, Windows, and Linux. If you're not an
-experienced Haskell developer, it's recommended to use
+Komposition runs on Linux, macOS, and Windows. The main way to install
+Komposition is from source, but binary packages are [available for
+macOS from Homebrew](https://formulae.brew.sh/formula/komposition).
+
+## Binary Packages
+
+### Homebrew
+
+Komposition is available for macOS through [a Homebrew
+formula](https://formulae.brew.sh/formula/komposition). Given that you
+have Homebrew installed, run the following in your terminal to install
+Komposition:
+
+```shell
+brew install komposition
+```
+
+Komposition is now on your `PATH` and can be run from a terminal:
+
+```shell
+komposition
+```
+
+!!! note
+    
+    There's currently no application launcher in the Homebrew formula,
+    but that might be added in the future.
+
+## Install from Source Code
+
+Komposition can be built on macOS, Windows, and Linux. If you're not
+an experienced Haskell developer, it's recommended to use
 [Stack](https://docs.haskellstack.org/en/stable/README/) to build the
 application. The following instructions will be based on Stack, so go
 ahead and [install that
@@ -14,7 +41,7 @@ first](https://docs.haskellstack.org/en/stable/README/#how-to-install).
     If you know your way around building Haskell programs, you might want to
     build it using Nix or regular Cabal, instead.
 
-## Getting the Source Code
+### Getting the Source Code
 
 Next, clone the source code repository using Git.
 
@@ -35,7 +62,7 @@ cd komposition-master
 You now have the source code. Jump on to the instructions below specific to
 your operating system.
 
-## Debian/Ubuntu
+### Debian/Ubuntu
 
 First, install the required dependencies:
 
@@ -96,7 +123,7 @@ komposition
     upgrading to Ubuntu 18.04, or by compiling and installing a newer version of
     GTK+ from source.
 
-## macOS
+### macOS
 
 ```shell
 brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer libffi gst-plugins-base gst-libav
@@ -110,16 +137,20 @@ stack build happy
 stack install
 ```
 
-## Windows
+### Windows
 
-*These instructions will be available soon.*
+Komposition can be built on Windows in an MSYS2 environment. The
+precise instructions are not available in this documentation yet, but
+you should be able to install the dependencies using a command like
+the following, and then compile and run Komposition using Stack.
 
 ```
 # something like this...
 pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-libav mingw-w64-x86_64-gst-plugins-{base,good,bad}
+# TODO: also gtk+3, ffmpeg, and sox
 ```
 
-## Nix/NixOS
+### Nix/NixOS
 
 Komposition is not yet in [nixpkgs](https://github.com/NixOS/nixpkgs), but it
 can be installed with Nix from an archive on GitHub.
