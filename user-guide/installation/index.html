@@ -246,37 +246,70 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#binary-packages" title="Binary Packages" class="md-nav__link">
+    Binary Packages
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#homebrew" title="Homebrew" class="md-nav__link">
+    Homebrew
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-from-source-code" title="Install from Source Code" class="md-nav__link">
+    Install from Source Code
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#getting-the-source-code" title="Getting the Source Code" class="md-nav__link">
     Getting the Source Code
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#debianubuntu" title="Debian/Ubuntu" class="md-nav__link">
     Debian/Ubuntu
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#macos" title="macOS" class="md-nav__link">
     macOS
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#windows" title="Windows" class="md-nav__link">
     Windows
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#nixnixos" title="Nix/NixOS" class="md-nav__link">
     Nix/NixOS
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -497,37 +530,70 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#binary-packages" title="Binary Packages" class="md-nav__link">
+    Binary Packages
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#homebrew" title="Homebrew" class="md-nav__link">
+    Homebrew
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-from-source-code" title="Install from Source Code" class="md-nav__link">
+    Install from Source Code
+  </a>
+  
+    <nav class="md-nav">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#getting-the-source-code" title="Getting the Source Code" class="md-nav__link">
     Getting the Source Code
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#debianubuntu" title="Debian/Ubuntu" class="md-nav__link">
     Debian/Ubuntu
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#macos" title="macOS" class="md-nav__link">
     macOS
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#windows" title="Windows" class="md-nav__link">
     Windows
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#nixnixos" title="Nix/NixOS" class="md-nav__link">
     Nix/NixOS
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -549,11 +615,30 @@
                 
                 
                 <h1 id="installation">Installation</h1>
-<p>The main way to install Komposition is from source, but binary
-packages are <a href="https://formulae.brew.sh/formula/komposition">available for macOS from
-Homebrew</a>. Komposition
-can be built on macOS, Windows, and Linux. If you're not an
-experienced Haskell developer, it's recommended to use
+<p>Komposition runs on Linux, macOS, and Windows. The main way to install
+Komposition is from source, but binary packages are <a href="https://formulae.brew.sh/formula/komposition">available for
+macOS from Homebrew</a>.</p>
+<h2 id="binary-packages">Binary Packages</h2>
+<h3 id="homebrew">Homebrew</h3>
+<p>Komposition is available for macOS through <a href="https://formulae.brew.sh/formula/komposition">a Homebrew
+formula</a>. Given that you
+have Homebrew installed, run the following in your terminal to install
+Komposition:</p>
+<pre><code class="shell">brew install komposition
+</code></pre>
+
+<p>Komposition is now on your <code>PATH</code> and can be run from a terminal:</p>
+<pre><code class="shell">komposition
+</code></pre>
+
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>There's currently no application launcher in the Homebrew formula,
+but that might be added in the future.</p>
+</div>
+<h2 id="install-from-source-code">Install from Source Code</h2>
+<p>Komposition can be built on macOS, Windows, and Linux. If you're not
+an experienced Haskell developer, it's recommended to use
 <a href="https://docs.haskellstack.org/en/stable/README/">Stack</a> to build the
 application. The following instructions will be based on Stack, so go
 ahead and <a href="https://docs.haskellstack.org/en/stable/README/#how-to-install">install that
@@ -563,7 +648,7 @@ first</a>.</p>
 <p>If you know your way around building Haskell programs, you might want to
 build it using Nix or regular Cabal, instead.</p>
 </div>
-<h2 id="getting-the-source-code">Getting the Source Code</h2>
+<h3 id="getting-the-source-code">Getting the Source Code</h3>
 <p>Next, clone the source code repository using Git.</p>
 <pre><code class="shell">git clone https://github.com/owickstrom/komposition.git
 cd komposition
@@ -578,7 +663,7 @@ cd komposition-master
 
 <p>You now have the source code. Jump on to the instructions below specific to
 your operating system.</p>
-<h2 id="debianubuntu">Debian/Ubuntu</h2>
+<h3 id="debianubuntu">Debian/Ubuntu</h3>
 <p>First, install the required dependencies:</p>
 <pre><code class="shell">sudo apt-get install \
     ffmpeg \
@@ -627,7 +712,7 @@ version of GTK+ is too old:</p>
 upgrading to Ubuntu 18.04, or by compiling and installing a newer version of
 GTK+ from source.</p>
 </div>
-<h2 id="macos">macOS</h2>
+<h3 id="macos">macOS</h3>
 <pre><code class="shell">brew install pkg-config gobject-introspection gtk+3 ffmpeg sox gstreamer libffi gst-plugins-base gst-libav
 brew install gst-plugins-good --with-gtk+3
 
@@ -639,13 +724,17 @@ stack build happy
 stack install
 </code></pre>
 
-<h2 id="windows">Windows</h2>
-<p><em>These instructions will be available soon.</em></p>
+<h3 id="windows">Windows</h3>
+<p>Komposition can be built on Windows in an MSYS2 environment. The
+precise instructions are not available in this documentation yet, but
+you should be able to install the dependencies using a command like
+the following, and then compile and run Komposition using Stack.</p>
 <pre><code># something like this...
 pacman -S mingw-w64-x86_64-gstreamer mingw-w64-x86_64-gst-libav mingw-w64-x86_64-gst-plugins-{base,good,bad}
+# TODO: also gtk+3, ffmpeg, and sox
 </code></pre>
 
-<h2 id="nixnixos">Nix/NixOS</h2>
+<h3 id="nixnixos">Nix/NixOS</h3>
 <p>Komposition is not yet in <a href="https://github.com/NixOS/nixpkgs">nixpkgs</a>, but it
 can be installed with Nix from an archive on GitHub.</p>
 <p>First, consider installing <a href="https://cachix.org/">Cachix</a> and using the
