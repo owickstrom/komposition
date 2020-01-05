@@ -28,6 +28,12 @@ This project can be built using Stack, Cabal, and Nix. Please see the
 docs](https://owickstrom.github.io/komposition/user-guide/installation/)
 for build instructions.
 
+### On macOS
+
+If you are on macOS, you can install a precompiled version of
+Komposition from [Homebrew](https://brew.sh/) with `brew install
+komposition`.
+
 ## License
 
 Mozilla Public License Version 2.0

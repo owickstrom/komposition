@@ -1,11 +1,14 @@
 # Installation
 
-Currently, the only way to install Komposition is from source. It can be built
-on macOS, Windows, and Linux. If you're not an experienced Haskell developer,
-it's recommended to use
+The main way to install Komposition is from source, but binary
+packages are [available for macOS from
+Homebrew](https://formulae.brew.sh/formula/komposition). Komposition
+can be built on macOS, Windows, and Linux. If you're not an
+experienced Haskell developer, it's recommended to use
 [Stack](https://docs.haskellstack.org/en/stable/README/) to build the
-application. The following instructions will be based on Stack, so go ahead
-and [install that first](https://docs.haskellstack.org/en/stable/README/#how-to-install).
+application. The following instructions will be based on Stack, so go
+ahead and [install that
+first](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 
 !!! note "Using another build tool"
     If you know your way around building Haskell programs, you might want to
