@@ -15,22 +15,21 @@
 
 module Komposition.UserInterface where
 
-import           Komposition.Prelude     hiding ( State )
+import           Komposition.Prelude                           hiding (State)
 
 import           Control.Lens
 
-import qualified Komposition.Composition.Paste as Paste
-import qualified Komposition.Composition.Insert
-                                               as Insert
+import qualified Komposition.Composition.Insert                as Insert
+import qualified Komposition.Composition.Paste                 as Paste
 import           Komposition.Duration
 import           Komposition.Focus
 import           Komposition.KeyMap
 import           Komposition.Library
 import           Komposition.MediaType
 import           Komposition.Project
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.VideoSettings
 import           Komposition.VideoSpeed
-import           Komposition.UserInterface.WindowUserInterface
 
 data Mode
   = WelcomeScreenMode
@@ -79,6 +78,7 @@ data Command (mode :: Mode) where
   Redo ::Command TimelineMode
   SaveProject ::Command TimelineMode
   CloseProject ::Command TimelineMode
+  Documentation ::Command TimelineMode
   Exit ::Command TimelineMode
 
 deriving instance Eq (Command mode)
@@ -90,7 +90,7 @@ deriving instance Show (Command mode)
 commandName :: Command mode -> Text
 commandName = \case
   Cancel           -> "Cancel"
-  Help             -> "Show Help"
+  Help             -> "Help"
   FocusCommand cmd -> case cmd of
     FocusUp    -> "Move Focus Up"
     FocusDown  -> "Move Focus Down"
@@ -106,14 +106,15 @@ commandName = \case
   Paste pos -> case pos of
     Paste.PasteLeftOf  -> "Paste Left Of"
     Paste.PasteRightOf -> "Paste Right Of"
-  Import       -> "Import Assets"
-  Render       -> "Render"
-  PlayOrStop   -> "Play/Stop"
-  Undo         -> "Undo"
-  Redo         -> "Redo"
-  SaveProject  -> "Save"
-  CloseProject -> "Close"
-  Exit         -> "Exit"
+  Import        -> "Import Assets"
+  Render        -> "Render"
+  PlayOrStop    -> "Play/Stop"
+  Undo          -> "Undo"
+  Redo          -> "Redo"
+  SaveProject   -> "Save"
+  CloseProject  -> "Close"
+  Documentation -> "Documentation"
+  Exit          -> "Exit"
   where
     insertTypeName :: InsertType -> Text
     insertTypeName = \case

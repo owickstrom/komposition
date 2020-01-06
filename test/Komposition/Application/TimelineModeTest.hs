@@ -11,34 +11,35 @@ import           Komposition.Prelude
 
 import           Control.Effect
 import           Control.Lens
-import           Data.Row.Records                            (Empty)
-import           Data.Tree                                   (drawTree)
-import qualified Data.Vector                                 as Vector
-import           Hedgehog                                    hiding (Command)
-import qualified Hedgehog.Gen                                as Gen hiding
-                                                                     (parallel)
-import qualified Hedgehog.Range                              as Range
-import           Motor.FSM                                   (ireturn, (>>>),
-                                                              (>>>=))
+import           Data.Row.Records                              (Empty)
+import           Data.Tree                                     (drawTree)
+import qualified Data.Vector                                   as Vector
+import           Hedgehog                                      hiding (Command)
+import qualified Hedgehog.Gen                                  as Gen hiding
+                                                                       (parallel)
+import qualified Hedgehog.Range                                as Range
+import           Motor.FSM                                     (ireturn, (>>>),
+                                                                (>>>=))
 
-import           Komposition.Application.Base                (Application)
+import           Komposition.Application.Base                  (Application)
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.TimelineMode
-import           Komposition.Composition                     (Timeline)
+import           Komposition.Composition                       (Timeline)
 import           Komposition.Focus
 import           Komposition.MediaType
 import           Komposition.Project
-import qualified Komposition.UndoRedo                        as UndoRedo
-import           Komposition.UserInterface                   hiding (TimelineViewModel (..),
-                                                              project)
+import qualified Komposition.UndoRedo                          as UndoRedo
+import           Komposition.UserInterface                     hiding (TimelineViewModel (..),
+                                                                project)
 import           Komposition.UserInterface.WindowUserInterface
 
-import qualified Komposition.Composition.Generators          as Gen
+import           Komposition.Browser.Stub                      (runStubBrowser)
+import qualified Komposition.Composition.Generators            as Gen
 import           Komposition.Composition.ToTree
 import           Komposition.Import.Audio.StubAudioImport
 import           Komposition.Import.Video.StubVideoImport
 import           Komposition.Logging.StubLogger
-import qualified Komposition.Project.Generators              as Gen
+import qualified Komposition.Project.Generators                as Gen
 import           Komposition.Project.InMemoryProjectStore
 import           Komposition.Render.StubRender
 import           Komposition.UserInterface.StubUserInterface
@@ -104,6 +105,7 @@ runTimelineStubbedWithExit events state' = case runPure state' of
         . runStubAudioImport
         . runStubLogger
         . runInMemoryProjectStore
+        . runStubBrowser
         . runStubUserInterface (Vector.fromList (events <> pure (SomeEvent (CommandKeyMappedEvent Exit))))
         . runTimelineMode
 

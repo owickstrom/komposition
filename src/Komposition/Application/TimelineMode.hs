@@ -18,28 +18,31 @@
 {-# LANGUAGE TypeOperators         #-}
 module Komposition.Application.TimelineMode where
 
-import           Komposition.Application.Base        hiding (to)
+import           Komposition.Application.Base                  hiding (to)
 import qualified Prelude
 
-import           Control.Effect                      (Member)
-import           Control.Effect.Carrier              (Carrier)
-import           Control.Lens                        hiding (preview)
-import qualified Data.List.NonEmpty                  as NonEmpty
-import           Data.Row.Records                    hiding (split)
-import           Data.String                         (fromString)
-import           Pipes                               ((>->))
+import           Control.Effect                                (Member)
+import           Control.Effect.Carrier                        (Carrier)
+import           Control.Lens                                  hiding (preview)
+import qualified Data.List.NonEmpty                            as NonEmpty
+import           Data.Row.Records                              hiding (split)
+import           Data.String                                   (fromString)
+import           Pipes                                         ((>->))
 import qualified Pipes
-import qualified Pipes.Safe                          as Pipes (runSafeT, tryP)
-import           System.FilePath                     ((</>))
+import qualified Pipes.Safe                                    as Pipes (runSafeT,
+                                                                         tryP)
+import           System.FilePath                               ((</>))
 
 import           Komposition.Application.Form
+import           Komposition.Browser                           (Browser,
+                                                                openBrowser)
 import           Komposition.Composition
 import           Komposition.Composition.Delete
 import           Komposition.Composition.Insert
 import           Komposition.Composition.Paste
-import qualified Komposition.Composition.Split       as Split
+import qualified Komposition.Composition.Split                 as Split
 import           Komposition.Duration
-import qualified Komposition.FFmpeg.Process          as FFmpeg
+import qualified Komposition.FFmpeg.Process                    as FFmpeg
 import           Komposition.Focus
 import           Komposition.Import.Audio
 import           Komposition.Import.Video
@@ -49,30 +52,33 @@ import           Komposition.Project
 import           Komposition.Project.Store
 import           Komposition.Project.UndoableAction
 import           Komposition.Render
-import qualified Komposition.Render.Composition      as Render
-import qualified Komposition.Render.FFmpeg           as FFmpeg
-import           Komposition.UndoRedo                (current, redo,
-                                                      runAndRecord, undo)
-import           Komposition.UserInterface           hiding
-                                                      (TimelineViewModel (..),
-                                                      preview, project,
-                                                      statusMessage, zoomLevel)
-import qualified Komposition.UserInterface           as UI
-import           Komposition.UserInterface.WindowUserInterface
+import qualified Komposition.Render.Composition                as Render
+import qualified Komposition.Render.FFmpeg                     as FFmpeg
+import           Komposition.UndoRedo                          (current, redo,
+                                                                runAndRecord,
+                                                                undo)
+import           Komposition.UserInterface                     hiding (TimelineViewModel (..),
+                                                                preview,
+                                                                project,
+                                                                statusMessage,
+                                                                zoomLevel)
+import qualified Komposition.UserInterface                     as UI
 import           Komposition.UserInterface.Dialog
 import           Komposition.UserInterface.Help
+import           Komposition.UserInterface.WindowUserInterface
 import           Komposition.VideoSettings
 
 import           Komposition.Application.ImportMode
 import           Komposition.Application.KeyMaps
 import           Komposition.Application.LibraryMode
-import qualified Komposition.KeyMap                  as KeyMap
+import qualified Komposition.KeyMap                            as KeyMap
 
 type TimelineEffects sig =
   ( Member ProjectStore sig
   , Member VideoImport sig
   , Member AudioImport sig
   , Member Render sig
+  , Member Browser sig
   )
 
 data PreviewingState t m = PreviewingState
@@ -258,6 +264,9 @@ timelineMode gui state' = do
           & ilift
           & (>> continue)
       CommandKeyMappedEvent CloseProject -> ireturn TimelineClose
+      CommandKeyMappedEvent Documentation -> do
+        _ <- ilift (openBrowser "https://owickstrom.github.io/komposition/user-guide/introduction/")
+        continue
       CommandKeyMappedEvent Cancel       -> continue
       CommandKeyMappedEvent Help ->
         help gui [ModeKeyMap STimelineMode (keymaps STimelineMode)] >>>= \case

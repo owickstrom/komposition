@@ -1,21 +1,21 @@
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE ConstraintKinds    #-}
-{-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE TypeFamilies       #-}
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE ConstraintKinds  #-}
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs            #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE TypeFamilies     #-}
+{-# LANGUAGE TypeOperators    #-}
 -- | Abstraction for window-based user interfaces, where windows are
 -- modelled as type-safe state machines.
 module Komposition.UserInterface.WindowUserInterface where
 
-import           Komposition.Prelude     hiding ( State )
+import           Komposition.Prelude  hiding (State)
 
 import           Data.Row.Records
-import           Motor.FSM               hiding ( Delete )
 import           Data.Time.Clock
+import           Motor.FSM            hiding (Delete)
 import           Pipes
-import           Pipes.Safe                     ( SafeT )
+import           Pipes.Safe           (SafeT)
 
 import           Komposition.KeyMap
 import           Komposition.Progress

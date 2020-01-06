@@ -405,7 +405,11 @@ renderMenu = container
     , labelledItem Split
     , labelledItem Delete
     ]
-  , subMenu "Help" [labelledItem Help]
+  , subMenu
+    "Help"
+    [ labelledItem Help
+    , labelledItem Documentation
+    ]
   ]
   where
     labelledItem cmd =
@@ -418,7 +422,8 @@ renderMenu = container
         (   Vector.enumFromTo minBound maxBound
         <&> (labelledItem . InsertCommand (InsertClip (Just mediaType')))
         )
-      , subMenu " Gap"
+      , subMenu
+        " Gap"
         (   Vector.enumFromTo minBound maxBound
         <&> (labelledItem . InsertCommand (InsertGap (Just mediaType')))
         )

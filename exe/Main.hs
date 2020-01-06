@@ -5,6 +5,7 @@ import           Komposition.Prelude
 
 import           Control.Effect
 import           Komposition.Application
+import           Komposition.Browser
 import           Komposition.Import.Audio.Sox
 import           Komposition.Import.Video.FFmpeg
 import           Komposition.Logging.FastLogger
@@ -28,6 +29,7 @@ main = do
         . runFFmpegRender
         . runFFmpegVideoImport
         . runSoxAudioImport
+        . runBrowserIO
   getArgs >>= \case
       [] -> runGtkUserInterface cssPath runEffects komposition
       [projectPath] -> runGtkUserInterface cssPath runEffects (kompositionWithProject projectPath)

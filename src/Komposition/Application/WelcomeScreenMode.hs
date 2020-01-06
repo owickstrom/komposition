@@ -14,13 +14,15 @@ module Komposition.Application.WelcomeScreenMode where
 
 import           Komposition.Application.Base
 
-import           Control.Effect                       (Member)
-import           Control.Effect.Carrier               (Carrier)
+import           Control.Effect                                (Member)
+import           Control.Effect.Carrier                        (Carrier)
 import           Control.Lens
-import qualified Data.List.NonEmpty                   as NonEmpty
-import           Data.Row.Records                     hiding (split)
-import           Data.String                          (fromString)
+import qualified Data.List.NonEmpty                            as NonEmpty
+import           Data.Row.Records                              hiding (split)
+import           Data.String                                   (fromString)
 
+import           Komposition.Browser                           (Browser,
+                                                                openBrowser)
 import           Komposition.Composition
 import           Komposition.Focus
 import           Komposition.Import.Audio
@@ -43,6 +45,7 @@ type WelcomeScreenModeEffects sig =
     , Member VideoImport sig
     , Member AudioImport sig
     , Member Render sig
+    , Member Browser sig
     )
 
 welcomeScreenMode
