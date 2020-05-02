@@ -123,7 +123,7 @@ library
                       , pipes-parse
                       , pipes-safe
                       , primitive
-                      , protolude
+                      , protolude >= 0.2.4 && < 0.3
                       , typed-process >= 0.2 && < 0.3
                       , row-types
                       , safe-exceptions
