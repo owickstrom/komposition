@@ -9,7 +9,7 @@ MarkupSafe==1.1.0
 mkdocs==1.0.4
 mkdocs-material==4.0.1
 packaging==16.8
-Pygments==2.3.1
+Pygments==2.7.4
 pymdown-extensions==6.0
 pyparsing==2.2.0
 PyYAML==4.2b4
