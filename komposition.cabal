@@ -50,6 +50,7 @@ library
                       , Komposition.Focus.Parent
                       , Komposition.Import.Audio
                       , Komposition.Import.Audio.Sox
+                      , Komposition.Import.Hash
                       , Komposition.Import.Video
                       , Komposition.Import.Video.FFmpeg
                       , Komposition.KeyMap
@@ -94,6 +95,8 @@ library
   build-depends:        base >=4.10 && <5
                       , async
                       , binary
+                      , bytestring
+                      , cryptonite
                       , deepseq
                       , directory
                       , exceptions
@@ -202,6 +205,7 @@ test-suite komposition-tests
                  , Komposition.Composition.ToTree
                  , Komposition.FFmpeg.CommandTest
                  , Komposition.FocusTest
+                 , Komposition.Import.HashTest
                  , Komposition.Import.Video.FFmpegTest
                  , Komposition.Import.Video.StubVideoImport
                  , Komposition.Import.Audio.StubAudioImport
